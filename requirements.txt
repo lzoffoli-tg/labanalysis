@@ -1,0 +1,5 @@
+scikit-learn
+plotly
+sympy
+pandas
+pint
