@@ -278,7 +278,7 @@ class SingleJump(WholeBody):
         """
 
         # get the longest batch with grf lower than 30N
-        vgrf = self.resultant_force.copy()
+        vgrf = self.resultant_force
         if vgrf is None:
             return TimeseriesRecord()
         grfy = vgrf.force.copy()[self.vertical_axis].to_numpy().flatten()

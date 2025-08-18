@@ -6,6 +6,8 @@ from ..timeseries.point3d import Point3D
 from ..timeseries.signal3d import Signal3D
 from .records import Record
 
+__all__ = ["ForcePlatform"]
+
 
 class ForcePlatform(Record):
     """

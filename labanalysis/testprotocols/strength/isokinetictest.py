@@ -4,31 +4,23 @@ isokinetic test module
 
 #! IMPORTS
 
-from os.path import dirname, join
 from typing import Literal
 
 import pandas as pd
 
 from ...constants import G
-from ...frames.timeseries.signal1d import Signal1D
-from ...frames.records.biostrength.isokineticexercise import (
-    IsokineticExercise,
-)
+from ...frames.records.biostrength.isokineticexercise import IsokineticExercise
 from ...frames.timeseries.emgsignal import EMGSignal
+from ...frames.timeseries.signal1d import Signal1D
 from ...io.read.biostrength import PRODUCTS as BIOSTRENGTH_PRODUCTS_MAP
 from ...io.read.biostrength import BiostrengthProduct
+from ..normative_data.paths import ISOKINETIC_TEST_NORMATIVE_DATA_PATH
 from ..protocols import Participant, TestProtocol
 
 #! CONSTANTS
 
 
 __all__ = ["Isokinetic1RMTest"]
-
-ISOKINETIC_TEST_NORMATIVE_DATA_PATH = join(
-    dirname(__file__),
-    "isok_1rm_normative_values.csv",
-)
-
 
 #! CLASSES
 
@@ -44,7 +36,7 @@ class Isokinetic1RMTest(IsokineticExercise, TestProtocol):
         position: Signal1D,
         normative_data_path: str = ISOKINETIC_TEST_NORMATIVE_DATA_PATH,
         synchronize_signals: bool = True,
-        **extra_signals: EMGSignal
+        **extra_signals: EMGSignal,
     ):
         super().__init__(
             product=product,
@@ -52,7 +44,7 @@ class Isokinetic1RMTest(IsokineticExercise, TestProtocol):
             force=force,
             position=position,
             synchronize_signals=synchronize_signals,
-            **extra_signals
+            **extra_signals,
         )
         self.set_participant(participant)
         self.set_normative_data_path(normative_data_path)
@@ -66,7 +58,7 @@ class Isokinetic1RMTest(IsokineticExercise, TestProtocol):
             synchronize_signals=False,
             force=self.force,  # type: ignore
             position=self.position,  # type: ignore
-            **{i: v.copy() for i, v in self.items() if isinstance(v, EMGSignal)}
+            **{i: v.copy() for i, v in self.items() if isinstance(v, EMGSignal)},
         )
 
     @property

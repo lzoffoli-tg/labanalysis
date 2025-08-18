@@ -8,7 +8,6 @@ __all__ = ["read_npz"]
 #! IMPORTS
 
 
-from typing import Any
 import numpy as np
 from datetime import datetime
 

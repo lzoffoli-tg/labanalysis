@@ -1,5 +1,7 @@
 """strength module containing 1RM predicting equations"""
 
+__all__ = ["Brzycki1RM"]
+
 
 class Brzycki1RM:
     """

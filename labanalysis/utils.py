@@ -21,14 +21,14 @@ split_data
 #! IMPORTS
 
 
-from os.path import exists, join
 from os import walk
+from os.path import exists, join
 from tkinter import Tk
 from typing import Annotated, Any
-from numpy.typing import NDArray
 
 import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
 
 from .messages import askyesno
 

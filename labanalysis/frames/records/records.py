@@ -16,6 +16,9 @@ from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 
 
+__all__ = ["Record"]
+
+
 class Record:
     """
     A dictionary-like container for Timeseries,

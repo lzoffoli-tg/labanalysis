@@ -8,6 +8,17 @@ from math import pi as PI
 from scipy.optimize import least_squares
 
 
+__all__ = [
+    "CardioProduct",
+    "BikeP",
+    "BikeHP",
+    "TechnogymBike",
+    "SynchroP",
+    "SynchroHP",
+    "TechnogymElliptical",
+]
+
+
 #! CLASSES
 
 

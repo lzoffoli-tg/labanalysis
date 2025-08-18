@@ -23,7 +23,7 @@ import numpy as np
 import pandas as pd
 import sympy
 
-__all__ = ["GeometricObject", "Line2D", "Line3D", "Circle"]
+__all__ = ["GeometricObject", "Line2D", "Line3D", "Circle", "Ellipse"]
 
 
 #! CLASSES
