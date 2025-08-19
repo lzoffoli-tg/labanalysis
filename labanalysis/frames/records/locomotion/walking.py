@@ -150,7 +150,11 @@ class WalkingStride(GaitCycle):
         float
             The time of the opposite footstrike in seconds.
         """
-        return self._opposite_footstrike_s
+        if self.algorithm == "kinetics":
+            return self._opposite_footstrike_kinetics()
+        elif self.algorithm == "kinematics":
+            return self._opposite_footstrike_kinematics()
+        raise ValueError(f"{self.algorithm} not supported")
 
     @property
     def first_double_support_phase(self):
@@ -448,22 +452,6 @@ class WalkingStride(GaitCycle):
         if len(positive_zeros) < 2:
             raise ValueError("no opposite footstrike has been found.")
         return float(positive_zeros[1])
-
-    def _update_events(self):
-        """
-        Update gait events.
-        """
-        super()._update_events()
-        if self.algorithm == "kinetics":
-            try:
-                self._opposite_footstrike_s = self._opposite_footstrike_kinetics()
-            except Exception:
-                self._opposite_footstrike_s = np.nan
-        elif self.algorithm == "kinematics":
-            try:
-                self._opposite_footstrike_s = self._opposite_footstrike_kinematics()
-            except Exception:
-                self._opposite_footstrike_s = np.nan
 
     def __init__(
         self,

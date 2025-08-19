@@ -13,8 +13,8 @@ from typing import Literal
 
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
 import plotly.express.colors as plotly_colors
+import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from ....constants import (
@@ -26,7 +26,7 @@ from ...timeseries.point3d import Point3D
 from ...timeseries.signal1d import Signal1D
 from ...timeseries.signal3d import Signal3D
 from ..bodies import WholeBody
-from ..timeseriesrecord import ForcePlatform
+from ..timeseriesrecord import ForcePlatform, TimeseriesRecord
 
 #! CONSTANTS
 
@@ -341,8 +341,6 @@ class GaitCycle(GaitObject):
     # * class variables
 
     _side: Literal["left", "right"]
-    _footstrike_s: float
-    _midstance_s: float
     _absolute_time_events: list[str] = [
         "footstrike_s",
         "midstance_s",
@@ -545,7 +543,11 @@ class GaitCycle(GaitObject):
         -------
         float
         """
-        return self._footstrike_s
+        if self.algorithm == "kinetics":
+            return self._footstrike_kinetics()
+        elif self.algorithm == "kinematics":
+            return self._footstrike_kinematics()
+        raise ValueError(f"{self.algorithm} not supported")
 
     @property
     def midstance_s(self):
@@ -556,7 +558,11 @@ class GaitCycle(GaitObject):
         -------
         float
         """
-        return self._midstance_s
+        if self.algorithm == "kinetics":
+            return self._midstance_kinetics()
+        elif self.algorithm == "kinematics":
+            return self._midstance_kinematics()
+        raise ValueError(f"{self.algorithm} not supported")
 
     @property
     def time_events(self):
@@ -699,41 +705,6 @@ class GaitCycle(GaitObject):
         float
         """
         raise NotImplementedError
-
-    def _update_events(self):
-        """
-        Update gait events.
-        """
-        if self.algorithm == "kinetics":
-            try:
-                self._midstance_s = self._midstance_kinetics()
-            except Exception:
-                self._midstance_s = np.nan
-            try:
-                self._footstrike_s = self._footstrike_kinetics()
-            except Exception:
-                self._footstrike_s = np.nan
-        elif self.algorithm == "kinematics":
-            try:
-                self._midstance_s = self._midstance_kinematics()
-            except Exception:
-                self._midstance_s = np.nan
-            try:
-                self._footstrike_s = self._footstrike_kinematics()
-            except Exception:
-                self._footstrike_s = np.nan
-
-    def set_algorithm(self, algorithm: Literal["kinematics", "kinetics"]):
-        """
-        Set the gait cycle detection algorithm.
-
-        Parameters
-        ----------
-        algorithm : {'kinematics', 'kinetics'}
-            Algorithm label.
-        """
-        super().set_algorithm(algorithm)
-        self._update_events()
 
     def set_side(self, side: Literal["right", "left"]):
         """
@@ -1004,7 +975,7 @@ class GaitExercise(GaitObject):
         -------
         GaitTest
         """
-        record = super().from_tdf(file)
+        record = TimeseriesRecord.from_tdf(file)
         labels = {
             "left_hand_ground_reaction_force": left_hand_ground_reaction_force,
             "right_hand_ground_reaction_force": right_hand_ground_reaction_force,
@@ -1050,10 +1021,11 @@ class GaitExercise(GaitObject):
         objects = {}
         for key, val in labels.items():
             if val is not None:
-                read = record.get(key)
-                if read is None:
-                    raise ValueError(f"{key} not found in the provided file.")
-                objects[key] = read
+                read = record.get(val)
+                if read is not None:
+                    objects[key] = read
+        extras = {i: v for i, v in record.items() if i not in list(labels.values())}
+        objects.update(**extras)
 
         return cls(
             algorithm=algorithm,
@@ -1079,14 +1051,16 @@ class GaitExercise(GaitObject):
                 data[f"{marker}<sub>VT</sub>"] = obj.copy()[self.vertical_axis]
 
         # extract the time events from each cycle
-        events = {}
         target_events = ["init_s", "footstrike_s", "midstance_s", "end_s"]
-        for cycle in self.cycles:
-            for event, value in cycle.time_events.items():
-                if event in target_events:
-                    if not any([i == event for i in events.keys()]):
-                        events[event] = []
-                    events[event] += [value]
+        events = {}
+        cycles = self.cycles
+        for cycle in cycles:
+            cycle_events = cycle.time_events
+            for event in target_events:
+                lbl = f"{cycle.side} {event[:-2]} ({event[-1]})"
+                if lbl not in list(events.keys()):
+                    events[lbl] = []
+                events[lbl] += [cycle_events[event]]
 
         # generate the figure
         fig = make_subplots(
@@ -1134,13 +1108,13 @@ class GaitExercise(GaitObject):
                             x=[val, val],
                             y=yrange,
                             name=lbl,
-                            showlegend=bool(e == 0),
-                            legendgroup="events",
-                            legendgrouptitle_text="events",
+                            showlegend=bool(e == 0) & bool(i == 0),
+                            legendgroup=lbl,
                             line_color=cmap[j + 1],
-                            opacity=0.7,
+                            opacity=0.5,
                             mode="lines",
-                            line_width=3,
+                            line_width=2,
+                            line_dash="dash",
                         ),
                     )
 

@@ -12,13 +12,12 @@ import warnings
 from typing import Literal
 
 import numpy as np
-import pandas as pd
 
 from ....constants import (
     DEFAULT_MINIMUM_CONTACT_GRF_N,
     DEFAULT_MINIMUM_HEIGHT_PERCENTAGE,
 )
-from ....signalprocessing import find_peaks
+from ....signalprocessing import find_peaks, psd
 from ...timeseries.emgsignal import EMGSignal
 from ...timeseries.point3d import Point3D
 from ...timeseries.signal1d import Signal1D
@@ -163,23 +162,23 @@ class RunningStep(GaitCycle):
         """
 
         # get the relevant vertical coordinates
-        vcoords = {}
         contact_foot = self.side.lower()
+        fs_time = []
         for marker in ["heel", "metatarsal_head"]:
-            lbl = f"{contact_foot}_{marker}"
-            val = self[f"{contact_foot}_{marker}"]
+            val = self.get(f"{contact_foot}_{marker}")
             if val is None:
                 continue
-            vcoords[lbl] = val.copy()[self.vertical_axis].to_numpy().flatten()  # type: ignore
 
-        # filter the signals and extract the first contact time
-        time = self.index
-        fs_time = []
-        for val in vcoords.values():
-            val = val / np.max(val)
-            fsi = np.where(val < self.height_threshold)[0]
+            # rescale the signal
+            time = val.index
+            arr = val.copy()[self.vertical_axis].to_numpy().flatten()  # type: ignore
+            arr_min = np.min(arr)
+            arr = (arr - arr_min) / (np.max(arr) - arr_min)
+
+            # extract the contact time
+            fsi = np.where(arr < self.height_threshold)[0]
             if len(fsi) == 0 or fsi[0] == 0:
-                raise ValueError("not footstrike has been found.")
+                raise ValueError("no footstrike has been found.")
             fs_time += [time[fsi[0]]]
 
         # get output time
@@ -224,14 +223,18 @@ class RunningStep(GaitCycle):
         lbls += [f"{self.side.lower()}_metatarsal_head"]
 
         # get the mean vertical signal
-        time = self.index
-        ref = np.zeros_like(time)
+        time = None
+        ref = []
         for lbl in lbls:
             val = self.get(lbl)
             if val is None:
                 continue
-            ref += val.copy()[self.vertical_axis].to_numpy().flatten()
-        ref /= len(lbls)
+            if time is None:
+                time = val.index
+            ref += [val.copy()[self.vertical_axis].to_numpy().flatten()]
+        ref = np.mean(np.vstack(np.atleast_2d(ref)), axis=0)  # type: ignore
+        if time is None or len(ref) == 0:
+            raise ValueError(f"None of {lbls} were found.")
 
         # return the time corresponding to the minimum value
         return float(time[np.argmin(ref)])
@@ -388,9 +391,8 @@ class RunningExercise(GaitExercise):
         """
 
         # get toe-off times
-        tos = []
-        time = self.index
-        fsamp = float(1 / np.mean(np.diff(time)))
+        times = []
+        sides = []
         for lbl in ["left_toe", "right_toe"]:
 
             # get the vertical coordinates of the toe markers
@@ -400,10 +402,15 @@ class RunningExercise(GaitExercise):
             arr = obj.copy()[self.vertical_axis].to_numpy().flatten()
 
             # filter and rescale
-            arr = arr / np.max(arr)
+            arr_min = np.min(arr)
+            arr = (arr - arr_min) / (np.max(arr) - arr_min)
 
             # get the minimum reasonable contact time for each step
-            dsamples = int(round(fsamp / 2))
+            time = obj.index
+            fsamp = float(1 / np.mean(np.diff(time)))
+            frq, pwr = psd(arr, fsamp)
+            ffreq = frq[np.argmax(pwr)]
+            dsamples = int(round(fsamp / ffreq * 0.8))
 
             # get the peaks at each cycle
             pks = find_peaks(arr, 0.5, dsamples)
@@ -414,30 +421,30 @@ class RunningExercise(GaitExercise):
             for pk in pks:
                 idx = np.where(arr[:pk] <= self.height_threshold)[0]
                 if len(idx) > 0:
-                    line = pd.Series({"Time": time[idx[-1]], "Side": side})
-                    tos += [pd.DataFrame(line).T]
+                    times += [time[idx[-1]]]
+                    sides += [side]
 
-        # wrap the events
-        if len(tos) == 0:
+        # sort the events
+        if len(times) == 0:
             raise ValueError("no toe-offs have been found.")
-        tos = pd.concat(tos, ignore_index=True)
-        tos = tos.drop_duplicates()
-        tos = tos.sort_values("Time")
-        tos = tos.reset_index(drop=True)
+        index = np.argsort(times)
+        sorted_times = np.array(times)[index]
+        sorted_sides = np.array(sides)[index]
+        starts = sorted_times[:-1]
+        stops = sorted_times[1:]
+        sides = sorted_sides[1:]
 
         # check the alternation of the steps
-        sides = tos.Side.values
         if not all(s0 != s1 for s0, s1 in zip(sides[:-1], sides[1:])):
             warnings.warn("Left-Right steps alternation not guaranteed.")
 
-        return [
-            self._get_cycle(
-                float(tos.Time.values[i0]),
-                float(tos.Time.values[i1]),
-                tos.Side.values[i1],  # type: ignore
-            )
-            for i0, i1 in zip(tos.index[:-1], tos.index[1:])
-        ]
+        # extract the cycles
+        cycles = []
+        for t0, t1, side in zip(starts, stops, sides):
+            cycles += [self._get_cycle(t0, t1, side)]
+
+        # return
+        return cycles
 
     def _find_cycles_kinetics(self):
         """
