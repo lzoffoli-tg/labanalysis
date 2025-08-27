@@ -9,17 +9,9 @@ import numpy as np
 import pandas as pd
 
 from ..constants import G
-from ..frames.records.bodies import WholeBody
-from ..frames.records.timeseriesrecord import ForcePlatform
-from ..frames.timeseries.emgsignal import EMGSignal
-from ..frames.timeseries.point3d import Point3D
-from ..frames.timeseries.signal1d import Signal1D
-from ..frames.timeseries.signal3d import Signal3D
-from ..regression.ols.geometry import Ellipse
-from .normative_data.paths import (
-    PLANKBALANCE_NORMATIVE_DATA_PATH,
-    UPRIGHTBALANCE_NORMATIVE_DATA_PATH,
-)
+from ..records import *
+from ..regression import Ellipse
+from .normativedata import *
 from .protocols import Participant, TestProtocol
 
 

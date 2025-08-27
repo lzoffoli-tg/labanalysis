@@ -6,24 +6,10 @@
 #! IMPORTS
 
 
-from typing import Callable, List, Type
-
+from typing import Callable, List
+from .records import *
+from .signalprocessing import *
 import numpy as np
-
-from ..frames.timeseries.signal1d import Signal1D
-
-from ..frames.records.forceplatforms import ForcePlatform
-
-from ..frames.timeseries.signal3d import Signal3D
-
-from ..frames.timeseries.point3d import Point3D
-
-from ..signalprocessing import butterworth_filt, rms_filt
-
-from ..frames.timeseries.emgsignal import EMGSignal
-
-from ..frames.records.records import Record
-from ..frames.timeseries.timeseries import Timeseries
 
 __all__ = ["ProcessingPipeline", "default_processing_pipeline"]
 

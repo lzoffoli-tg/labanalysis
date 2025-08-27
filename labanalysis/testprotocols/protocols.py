@@ -7,7 +7,7 @@ base test module containing classes and functions used to perform lab tests.
 import pickle
 from datetime import date, datetime
 from os.path import exists
-from typing import Protocol, runtime_checkable, Any
+from typing import Any, Protocol, runtime_checkable
 from warnings import warn
 
 import numpy as np

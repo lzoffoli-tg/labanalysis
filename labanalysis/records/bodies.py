@@ -6,13 +6,9 @@ import numpy as np
 import pandas as pd
 from pint import UnitRegistry
 
-from ...signalprocessing import gram_schmidt
-from ..timeseries.emgsignal import EMGSignal
-from ..timeseries.point3d import Point3D
-from ..timeseries.signal1d import Signal1D
-from ..timeseries.signal3d import Signal3D
-from ..timeseries.timeseries import Timeseries
-from .timeseriesrecord import ForcePlatform, TimeseriesRecord
+from ..signalprocessing import gram_schmidt
+from .timeseries import *
+from .records import *
 
 ureg = UnitRegistry()
 ureg.define("au = [] = au")

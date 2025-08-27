@@ -11,8 +11,8 @@ __all__ = ["JumpTest"]
 
 import pandas as pd
 
-from ...frames.records.jumping import SingleJump
-from ..protocols import Participant, TestProtocol
+from ..records import SingleJump
+from .protocols import Participant, TestProtocol
 
 
 class JumpTest(TestProtocol):

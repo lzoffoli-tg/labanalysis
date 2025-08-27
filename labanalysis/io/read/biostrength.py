@@ -11,7 +11,11 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from ...constants import G
+
+#! CONSTANTS
+
+
+G = 9.80665
 
 
 #! CLASSES
@@ -636,20 +640,6 @@ class LegExtensionREV(LegExtension):
         return np.tile(_length[self.roll_position - 1], len(self.time_s))
 
 
-__all__ = [
-    "PRODUCTS",
-    "ChestPress",
-    "ShoulderPress",
-    "LowRow",
-    "BiostrengthProduct",
-    "LegPress",
-    "LegExtension",
-    "AdjustablePulleyREV",
-    "LegPressREV",
-    "LegExtensionREV",
-    "LegCurl",
-]
-
 PRODUCTS = {
     "CHEST PRESS": ChestPress,
     "SHOULDER PRESS": ShoulderPress,
@@ -661,3 +651,17 @@ PRODUCTS = {
     "LEG EXTENSION REV": LegExtensionREV,
     "LEG CURL": LegCurl,
 }
+
+__all__ = [
+    "BiostrengthProduct",
+    "ChestPress",
+    "ShoulderPress",
+    "LowRow",
+    "LegPress",
+    "LegExtension",
+    "AdjustablePulleyREV",
+    "LegPressREV",
+    "LegExtensionREV",
+    "LegCurl",
+    "PRODUCTS",
+]

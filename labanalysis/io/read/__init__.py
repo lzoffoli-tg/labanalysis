@@ -1,4 +1,4 @@
-"""Reading data module"""
+"""reading data module"""
 
 from .opensim import *
 from .biostrength import *

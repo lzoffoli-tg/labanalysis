@@ -6,14 +6,11 @@
 import numpy as np
 import pandas as pd
 
-from ...constants import MINIMUM_CONTACT_FORCE_N, MINIMUM_FLIGHT_TIME_S, G
-from ...signalprocessing import continuous_batches
-from ..timeseries.emgsignal import EMGSignal
-from ..timeseries.point3d import Point3D
-from ..timeseries.signal1d import Signal1D
-from ..timeseries.signal3d import Signal3D
+from ..constants import MINIMUM_CONTACT_FORCE_N, MINIMUM_FLIGHT_TIME_S, G
+from ..signalprocessing import continuous_batches
+from .timeseries import *
 from .bodies import WholeBody
-from .timeseriesrecord import ForcePlatform, TimeseriesRecord
+from .records import *
 
 __all__ = ["JumpExercise", "SingleJump"]
 
