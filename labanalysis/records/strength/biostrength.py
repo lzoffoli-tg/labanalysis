@@ -10,12 +10,12 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
-from ..constants import G
-from ..io.read.biostrength import PRODUCTS as BIOSTRENGTH_PRODUCTS_MAP
-from ..io.read.biostrength import BiostrengthProduct
-from ..signalprocessing import *
-from .timeseries import EMGSignal, Signal1D
-from .records import TimeseriesRecord
+from ...constants import G
+from ...io.read.biostrength import PRODUCTS as BIOSTRENGTH_PRODUCTS_MAP
+from ...io.read.biostrength import BiostrengthProduct
+from ...signalprocessing import *
+from ..timeseries import EMGSignal, Signal1D
+from ..records import TimeseriesRecord
 
 #! CONSTANTS
 

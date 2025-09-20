@@ -65,7 +65,7 @@ from scipy import signal  # type: ignore
 from scipy.interpolate import CubicSpline  # type: ignore
 from scipy.spatial.transform import Rotation
 
-from .regression.ols.regression import PolynomialRegression
+from .modelling.ols.regression import PolynomialRegression
 
 __all__ = [
     "find_peaks",

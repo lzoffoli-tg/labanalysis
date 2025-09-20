@@ -10,7 +10,7 @@ import pandas as pd
 
 from ..constants import G
 from ..records import *
-from ..regression import Ellipse
+from ..modelling import Ellipse
 from .normativedata import *
 from .protocols import Participant, TestProtocol
 
