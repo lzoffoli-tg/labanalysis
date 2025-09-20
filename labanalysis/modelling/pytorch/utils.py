@@ -5,12 +5,16 @@ dataset for structured input/output and a trainer class with early stopping, lea
 rate decay, and metric tracking.
 """
 
+from os import makedirs
+from os.path import dirname
 import warnings
 from datetime import datetime
 from typing import Callable, Dict, Literal
 
 import numpy as np
 import pandas as pd
+import onnx
+from onnxruntime import InferenceSession
 import torch
 from torch.utils.data import DataLoader, Dataset
 
@@ -744,3 +748,187 @@ class TorchTrainer:
 
         module.eval()
         return module, pd.DataFrame(self._logger)
+
+
+class PinballLoss(torch.nn.Module):
+    def __init__(self, quantile: float = 0.5):
+        super().__init__()
+        if not 0 < quantile < 1:
+            raise ValueError("Quantile must be between 0 and 1.")
+        self.quantile = quantile
+
+    def forward(self, y_pred, y_true):
+        error = y_true - y_pred
+        qnt = torch.quantile(error, self.quantile, dim=0, keepdim=True)
+        return torch.mean(torch.abs(qnt))
+
+
+class QuantilicRangeLoss(torch.nn.Module):
+    def __init__(self, confidence: float = 0.99):
+        super().__init__()
+        if not isinstance(confidence, float) or not 0 < confidence < 1:
+            msg = "q1 and q2 must be float values within the [0, 1] range, "
+            msg += "with q1 strictly higher than q2."
+            raise ValueError(msg)
+        diff = (1 - confidence) / 2
+        self.q1 = diff
+        self.q2 = 1 - diff
+
+    def forward(self, y_pred, y_true):
+        error = y_true - y_pred
+        q1 = torch.quantile(error, self.q1, dim=0, keepdim=True)
+        q2 = torch.quantile(error, self.q2, dim=0, keepdim=True)
+        return torch.mean(q2 - q1)
+
+
+class ComboLoss(torch.nn.Module):
+    def __init__(self, *losses):
+        super().__init__()
+        self.losses = torch.nn.ModuleList(losses)
+
+    def forward(self, y_pred, y_true):
+        return torch.stack([loss(y_pred, y_true) for loss in self.losses]).sum()
+
+
+class MAEMetric(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, y_pred, y_true):
+        return torch.mean(torch.abs(y_pred - y_true))
+
+
+class ModelWrapper(torch.nn.Module):
+
+    def __init__(self, model: torch.nn.Module, inputs: list[str]):
+        super().__init__()
+        self.model = model
+        for param in self.model.parameters():
+            param.requires_grad = False
+        self.inputs = inputs
+
+    def forward(self, x):
+        inputs = {key: x[:, i : i + 1] for i, key in enumerate(self.inputs)}
+        return torch.cat(list(self.model(inputs).values()), dim=1)
+
+
+class OnnxModel:
+    def __init__(self, model_path, input_labels, output_labels):
+        self.model_path = model_path
+        self._input_labels = input_labels
+        self._output_labels = output_labels
+        self.session = InferenceSession(model_path)
+        self.model = onnx.load(model_path)
+
+    @property
+    def input_labels(self):
+        return self._input_labels
+
+    @property
+    def output_labels(self):
+        return self._output_labels
+
+    def predict(self, data):
+
+        # check the inputs
+        target_cols = len(self._input_labels)
+        wrong_cols = f"Expected input tensor with shape (N, {target_cols})"
+        col_list = f"DataFrame must contain columns: {self._input_labels}"
+        if isinstance(data, torch.Tensor):
+            if data.dim() != 2 or data.shape[1] != target_cols:
+                raise ValueError(wrong_cols)
+            vals = data.numpy().astype(np.float32)
+            source = "tensor"
+
+        elif isinstance(data, np.ndarray):
+            if data.ndim != 2 or data.shape[1] != target_cols:
+                raise ValueError(wrong_cols)
+            vals = data.astype(np.float32)
+            source = "ndarray"
+
+        elif isinstance(data, pd.DataFrame):
+            if not all(label in data.columns for label in self._input_labels):
+                raise ValueError(col_list)
+            vals = data[self._input_labels].values.astype(np.float32)
+            source = "dataframe"
+
+        elif isinstance(data, dict):
+            if not all(label in data.keys() for label in self._input_labels):
+                raise ValueError(col_list)
+            vals = []
+            for i in self._input_labels:
+                if isinstance(data[i], (pd.DataFrame, pd.Series)):
+                    vals.append(data[i].values.astype(np.float32).flatten())
+                elif isinstance(data[i], torch.Tensor):
+                    vals.append(data[i].numpy().astype(np.float32).flatten())
+                else:
+                    vals.append(data[i].astype(np.float32).flatten())
+            vals = np.concatenate([i.reshape(-1, 1) for i in vals], axis=1)
+            source = "dict"
+
+        else:
+            raise TypeError("Unsupported input type")
+
+        # make the inference
+        inputs = {self.session.get_inputs()[0].name: vals}
+        outputs = self.session.run(None, inputs)[0]
+
+        # adjust the outputs
+        if source == "tensor":
+            return torch.tensor(outputs)
+
+        if source == "ndarray":
+            return outputs
+
+        if source == "dict":
+            return {
+                i: v.astype(np.float32).flatten()
+                for i, v in zip(self.output_labels, outputs.T)  # type: ignore
+            }
+
+        if source == "dataframe":
+            return pd.DataFrame(
+                data=outputs,  # type: ignore
+                index=data.index,  # type: ignore
+                columns=self.output_labels,
+            )
+
+        raise TypeError("Unsupported output type")
+
+    def __call__(self, data):
+        return self.predict(data)
+
+    @classmethod
+    def from_model(
+        cls,
+        model: torch.nn.Module,
+        inputs: list[str],
+        outputs: list[str],
+        onnx_file: str,
+    ):
+
+        # check the inputs
+        if not isinstance(model, torch.nn.Module):
+            raise TypeError("'model' must be a DefaultRegressionModel subclass.")
+        if not isinstance(onnx_file, str):
+            msg = "'onnx_model' must be the file path where to store the "
+            msg += "converted model."
+            raise TypeError(msg)
+        wrapped_model = ModelWrapper(model, inputs)
+        dummy_list = [torch.rand([2, 1], dtype=torch.float32) for i in inputs]
+        dummy_input = torch.cat(dummy_list, dim=1).detach()
+        wrapped_model.eval()
+        makedirs(dirname(onnx_file), exist_ok=True)
+        torch.onnx.export(
+            wrapped_model,
+            dummy_input,  # type: ignore
+            onnx_file,
+            input_names=["input"],
+            output_names=["output"],
+            dynamic_axes={
+                "input": {0: "batch_size"},
+                "output": {0: "batch_size"},
+            },
+            opset_version=11,
+        )
+        return cls(onnx_file, inputs, outputs)

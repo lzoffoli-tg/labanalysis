@@ -3,3 +3,5 @@ plotly
 pandas
 pint
 torch
+onnx
+onnxruntime
