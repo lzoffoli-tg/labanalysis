@@ -280,9 +280,9 @@ class TorchTrainer:
                     raise ValueError("metrics elements must all be callable objects.")
             self._metrics = metrics
         else:
-            raise ValueError(
-                "metrics must be a callable, a list of callable objects or a dict of callable objects."
-            )
+            msg = "metrics must be a callable, a list of callable objects or a "
+            msg += "dict of callable objects."
+            raise ValueError(msg)
 
         if not isinstance(epochs, int):
             raise ValueError("'epochs' must be a positive int.")
@@ -693,6 +693,7 @@ class TorchTrainer:
         best_weights = None
         model_name = module.__class__.__name__
 
+        # start training
         training_start_time = datetime.now()
         for epoch in range(self.epochs):
             self._update_logger("epoch", epoch + 1)
