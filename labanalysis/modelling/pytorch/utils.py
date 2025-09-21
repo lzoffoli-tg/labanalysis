@@ -987,7 +987,10 @@ class ModelWrapper(torch.nn.Module):
             Concatenated model outputs.
         """
         inputs = {key: x[:, i : i + 1] for i, key in enumerate(self.inputs)}
-        return torch.cat(list(self.model(inputs).values()), dim=1)
+        outputs = self.model(inputs)
+        # Assicurati che ogni output sia di shape [N, 1]
+        out_list = [v if v.ndim == 2 else v.unsqueeze(1) for v in outputs.values()]
+        return torch.cat(out_list, dim=1)
 
 
 class OnnxModel:
