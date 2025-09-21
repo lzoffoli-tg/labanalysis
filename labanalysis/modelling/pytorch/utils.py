@@ -5,17 +5,17 @@ dataset for structured input/output and a trainer class with early stopping, lea
 rate decay, and metric tracking.
 """
 
-from os import makedirs
-from os.path import dirname
 import warnings
 from datetime import datetime
+from os import makedirs
+from os.path import dirname
 from typing import Callable, Dict, Literal
 
 import numpy as np
-import pandas as pd
 import onnx
-from onnxruntime import InferenceSession
+import pandas as pd
 import torch
+from onnxruntime import InferenceSession
 from torch.utils.data import DataLoader, Dataset
 
 from ...utils import split_data
@@ -111,11 +111,11 @@ class CustomDataset(Dataset):
             Dictionary of target tensors for the sample.
         """
         x_sample = {
-            k: v[idx].unsqueeze(0) if v[idx].dim() < 1 else v[idx]
+            k: v[idx].unsqueeze(0) if v[idx].ndim < 1 else v[idx]
             for k, v in self._x.items()
         }
         y_sample = {
-            k: v[idx].unsqueeze(0) if v[idx].dim() < 1 else v[idx]
+            k: v[idx].unsqueeze(0) if v[idx].ndim < 1 else v[idx]
             for k, v in self._y.items()
         }
         return x_sample, y_sample
@@ -614,14 +614,14 @@ class TorchTrainer:
         if isinstance(x_data, dict):
             if self.debug and not (
                 all(isinstance(i, torch.Tensor) for i in x_data.values())
-                and all(i.dim() == 2 for i in x_data.values())
+                and all(i.ndim == 2 for i in x_data.values())
                 and all(i.shape[1] == 1 for i in x_data.values())
             ):
                 raise TypeError(invalid_type_msg.format("x_data"))
             x = x_data
 
         elif isinstance(x_data, torch.Tensor):
-            if self.debug and not x_data.dim() == 2:
+            if self.debug and not x_data.ndim == 2:
                 raise TypeError(invalid_type_msg.format("x_data"))
             x = {"input": x_data}
 
@@ -631,14 +631,14 @@ class TorchTrainer:
         if isinstance(y_data, dict):
             if self.debug and not (
                 all(isinstance(i, torch.Tensor) for i in y_data.values())
-                and all(i.dim() == 2 for i in y_data.values())
+                and all(i.ndim == 2 for i in y_data.values())
                 and all(i.shape[1] == 1 for i in y_data.values())
             ):
                 raise TypeError(invalid_type_msg.format("y_data"))
             y = y_data
 
         elif isinstance(y_data, torch.Tensor):
-            if self.debug and not y_data.dim() == 2:
+            if self.debug and not y_data.ndim == 2:
                 raise TypeError(invalid_type_msg.format("y_data"))
             y = {"output": y_data}
 
@@ -751,20 +751,87 @@ class TorchTrainer:
 
 
 class PinballLoss(torch.nn.Module):
+    """
+    Pinball loss for quantile regression.
+
+    Parameters
+    ----------
+    quantile : float, optional
+        Quantile to estimate, must be in (0, 1). Default is 0.5.
+    """
+
     def __init__(self, quantile: float = 0.5):
+        """
+        Initialize PinballLoss.
+
+        Parameters
+        ----------
+        quantile : float, optional
+            Quantile to estimate, must be in (0, 1). Default is 0.5.
+
+        Raises
+        ------
+        ValueError
+            If quantile is not in the (0, 1) range.
+        """
         super().__init__()
         if not 0 < quantile < 1:
             raise ValueError("Quantile must be between 0 and 1.")
         self.quantile = quantile
 
     def forward(self, y_pred, y_true):
+        """
+        Compute the pinball loss.
+
+        Parameters
+        ----------
+        y_pred : torch.Tensor
+            Predicted values.
+        y_true : torch.Tensor
+            True values.
+
+        Returns
+        -------
+        loss : torch.Tensor
+            Pinball loss value.
+        """
         error = y_true - y_pred
         qnt = torch.quantile(error, self.quantile, dim=0, keepdim=True)
         return torch.mean(torch.abs(qnt))
 
 
 class QuantilicRangeLoss(torch.nn.Module):
+    """
+    Quantilic range loss for interval regression.
+
+    This loss computes the difference between two quantiles of the error distribution,
+    providing a measure of the prediction interval width at a given confidence level.
+
+    Parameters
+    ----------
+    confidence : float, optional
+        Confidence level for the interval, must be in (0, 1). Default is 0.99.
+
+    Raises
+    ------
+    ValueError
+        If confidence is not a float in the (0, 1) range.
+    """
+
     def __init__(self, confidence: float = 0.99):
+        """
+        Initialize QuantilicRangeLoss.
+
+        Parameters
+        ----------
+        confidence : float, optional
+            Confidence level for the interval, must be in (0, 1). Default is 0.99.
+
+        Raises
+        ------
+        ValueError
+            If confidence is not a float in the (0, 1) range.
+        """
         super().__init__()
         if not isinstance(confidence, float) or not 0 < confidence < 1:
             msg = "q1 and q2 must be float values within the [0, 1] range, "
@@ -775,6 +842,21 @@ class QuantilicRangeLoss(torch.nn.Module):
         self.q2 = 1 - diff
 
     def forward(self, y_pred, y_true):
+        """
+        Compute the quantilic range loss.
+
+        Parameters
+        ----------
+        y_pred : torch.Tensor
+            Predicted values.
+        y_true : torch.Tensor
+            True values.
+
+        Returns
+        -------
+        loss : torch.Tensor
+            Quantilic range loss value (difference between upper and lower quantiles).
+        """
         error = y_true - y_pred
         q1 = torch.quantile(error, self.q1, dim=0, keepdim=True)
         q2 = torch.quantile(error, self.q2, dim=0, keepdim=True)
@@ -782,25 +864,107 @@ class QuantilicRangeLoss(torch.nn.Module):
 
 
 class ComboLoss(torch.nn.Module):
+    """
+    Combine multiple loss functions by summing their outputs.
+
+    This class allows you to aggregate several loss modules into a single loss,
+    which is computed as the sum of the individual losses.
+
+    Parameters
+    ----------
+    *losses : torch.nn.Module
+        Loss modules to combine.
+    """
+
     def __init__(self, *losses):
+        """
+        Initialize ComboLoss.
+
+        Parameters
+        ----------
+        *losses : torch.nn.Module
+            Loss modules to combine.
+        """
         super().__init__()
         self.losses = torch.nn.ModuleList(losses)
 
     def forward(self, y_pred, y_true):
+        """
+        Compute the combined loss.
+
+        Parameters
+        ----------
+        y_pred : torch.Tensor
+            Predicted values.
+        y_true : torch.Tensor
+            True values.
+
+        Returns
+        -------
+        loss : torch.Tensor
+            Combined loss value (sum of all individual losses).
+        """
         return torch.stack([loss(y_pred, y_true) for loss in self.losses]).sum()
 
 
 class MAEMetric(torch.nn.Module):
+    """
+    Mean Absolute Error (MAE) metric.
+
+    Computes the mean absolute error between predictions and targets.
+    """
+
     def __init__(self):
+        """
+        Initialize MAEMetric.
+        """
         super().__init__()
 
     def forward(self, y_pred, y_true):
+        """
+        Compute the mean absolute error.
+
+        Parameters
+        ----------
+        y_pred : torch.Tensor
+            Predicted values.
+        y_true : torch.Tensor
+            True values.
+
+        Returns
+        -------
+        mae : torch.Tensor
+            Mean absolute error.
+        """
         return torch.mean(torch.abs(y_pred - y_true))
 
 
 class ModelWrapper(torch.nn.Module):
+    """
+    Wraps a PyTorch model to freeze its parameters and concatenate its outputs.
+
+    This class is useful for exporting models to ONNX or for inference pipelines
+    where you want to ensure the model is not trainable and outputs are concatenated.
+
+    Parameters
+    ----------
+    model : torch.nn.Module
+        The model to wrap.
+    inputs : list of str
+        List of input feature names.
+    """
 
     def __init__(self, model: torch.nn.Module, inputs: list[str]):
+        """
+        Initialize ModelWrapper.
+
+        Parameters
+        ----------
+        model : torch.nn.Module
+            The model to wrap.
+        inputs : list of str
+            List of input feature names.
+        """
         super().__init__()
         self.model = model
         for param in self.model.parameters():
@@ -808,12 +972,53 @@ class ModelWrapper(torch.nn.Module):
         self.inputs = inputs
 
     def forward(self, x):
+        """
+        Forward pass through the wrapped model.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input tensor of shape (N, n_features).
+
+        Returns
+        -------
+        output : torch.Tensor
+            Concatenated model outputs.
+        """
         inputs = {key: x[:, i : i + 1] for i, key in enumerate(self.inputs)}
         return torch.cat(list(self.model(inputs).values()), dim=1)
 
 
 class OnnxModel:
+    """
+    ONNX model wrapper for inference with flexible input types.
+
+    This class allows loading an ONNX model and performing inference using
+    torch.Tensor, numpy.ndarray, pandas.DataFrame, or dict inputs.
+
+    Parameters
+    ----------
+    model_path : str
+        Path to the ONNX model file.
+    input_labels : list of str
+        List of input feature names.
+    output_labels : list of str
+        List of output feature names.
+    """
+
     def __init__(self, model_path, input_labels, output_labels):
+        """
+        Initialize OnnxModel.
+
+        Parameters
+        ----------
+        model_path : str
+            Path to the ONNX model file.
+        input_labels : list of str
+            List of input feature names.
+        output_labels : list of str
+            List of output feature names.
+        """
         self.model_path = model_path
         self._input_labels = input_labels
         self._output_labels = output_labels
@@ -822,20 +1027,55 @@ class OnnxModel:
 
     @property
     def input_labels(self):
+        """
+        Get the input feature labels.
+
+        Returns
+        -------
+        input_labels : list of str
+            List of input feature names.
+        """
         return self._input_labels
 
     @property
     def output_labels(self):
+        """
+        Get the output feature labels.
+
+        Returns
+        -------
+        output_labels : list of str
+            List of output feature names.
+        """
         return self._output_labels
 
     def predict(self, data):
+        """
+        Run inference on the input data.
 
+        Parameters
+        ----------
+        data : torch.Tensor, np.ndarray, pd.DataFrame, or dict
+            Input data to be passed to the ONNX model.
+
+        Returns
+        -------
+        result : torch.Tensor, np.ndarray, dict, or pd.DataFrame
+            Model predictions in a format matching the input type.
+
+        Raises
+        ------
+        ValueError
+            If input data shape or columns do not match expected input labels.
+        TypeError
+            If input or output type is unsupported.
+        """
         # check the inputs
         target_cols = len(self._input_labels)
         wrong_cols = f"Expected input tensor with shape (N, {target_cols})"
         col_list = f"DataFrame must contain columns: {self._input_labels}"
         if isinstance(data, torch.Tensor):
-            if data.dim() != 2 or data.shape[1] != target_cols:
+            if data.ndim != 2 or data.shape[1] != target_cols:
                 raise ValueError(wrong_cols)
             vals = data.numpy().astype(np.float32)
             source = "tensor"
@@ -896,6 +1136,19 @@ class OnnxModel:
         raise TypeError("Unsupported output type")
 
     def __call__(self, data):
+        """
+        Call the model on input data (alias for predict).
+
+        Parameters
+        ----------
+        data : torch.Tensor, np.ndarray, pd.DataFrame, or dict
+            Input data to be passed to the ONNX model.
+
+        Returns
+        -------
+        result : torch.Tensor, np.ndarray, dict, or pd.DataFrame
+            Model predictions in a format matching the input type.
+        """
         return self.predict(data)
 
     @classmethod
@@ -906,7 +1159,30 @@ class OnnxModel:
         outputs: list[str],
         onnx_file: str,
     ):
+        """
+        Export a PyTorch model to ONNX and create an OnnxModel instance.
 
+        Parameters
+        ----------
+        model : torch.nn.Module
+            The PyTorch model to export.
+        inputs : list of str
+            List of input feature names.
+        outputs : list of str
+            List of output feature names.
+        onnx_file : str
+            File path to save the exported ONNX model.
+
+        Returns
+        -------
+        onnx_model : OnnxModel
+            An instance of OnnxModel wrapping the exported ONNX model.
+
+        Raises
+        ------
+        TypeError
+            If model is not a torch.nn.Module or onnx_file is not a string.
+        """
         # check the inputs
         if not isinstance(model, torch.nn.Module):
             raise TypeError("'model' must be a DefaultRegressionModel subclass.")

@@ -75,7 +75,7 @@ class FeaturesGenerator(torch.nn.Module):
             if tensor is None:
                 continue
 
-            if tensor.dim() == 1:
+            if tensor.ndim == 1:
                 tensor = tensor.unsqueeze(1)
 
             outputs[name] = tensor
@@ -172,106 +172,6 @@ class FeaturesGenerator(torch.nn.Module):
         )
 
 
-class LassoRegression(torch.nn.Module):
-    """
-    Linear regression model with learnable L1 regularization weights.
-
-    Parameters
-    ----------
-    in_features : int
-        Number of input features.
-    out_features : int, optional
-        Number of output features (default is 1).
-    bias : bool, optional
-        Whether to include a bias term in the linear layer (default is True).
-    """
-
-    def __init__(
-        self,
-        in_features: int,
-        out_features: int = 1,
-        bias: bool = True,
-    ):
-        super().__init__()
-        self.in_features = in_features
-        self.out_features = out_features
-        self.bias = bias
-
-        self.linear = torch.nn.Linear(
-            in_features,
-            out_features,
-            bias=bias,
-        )
-        self.alpha_raw = torch.nn.Parameter(
-            torch.ones(out_features, in_features),
-        )
-
-    def forward(self, x: torch.Tensor):
-        """
-        Forward pass through the linear layer.
-
-        Parameters
-        ----------
-        x : torch.Tensor
-            Input tensor of shape (batch_size, in_features).
-
-        Returns
-        -------
-        y : torch.Tensor
-            Output tensor of shape (batch_size, out_features).
-        """
-        return self.linear(x)
-
-    def lasso_loss(self):
-        """
-        Compute the L1 regularization loss with learnable weights.
-
-        Returns
-        -------
-        l1_penalty : torch.Tensor
-            Scalar tensor representing the weighted L1 penalty.
-        """
-        alpha = torch.log1p(torch.exp(self.alpha_raw))  # softplus to ensure positivity
-        l1_penalty = torch.sum(alpha * torch.abs(self.linear.weight))
-        return l1_penalty
-
-    def get_config(self):
-        """
-        Return the configuration of the module.
-
-        Returns
-        -------
-        config : dict
-            Dictionary containing the values of initialization parameters.
-        """
-        return {
-            "in_features": self.in_features,
-            "out_features": self.out_features,
-            "bias": self.bias,
-        }
-
-    @staticmethod
-    def from_config(config: dict):
-        """
-        Create a LassoRegression instance from a configuration dictionary.
-
-        Parameters
-        ----------
-        config : dict
-            Dictionary containing keys: 'in_features', 'out_features', 'bias'.
-
-        Returns
-        -------
-        model : LassoRegression
-            A new instance of LassoRegression initialized with the given config.
-        """
-        return LassoRegression(
-            in_features=config["in_features"],
-            out_features=config.get("out_features", 1),
-            bias=config.get("bias", True),
-        )
-
-
 class BoxCoxTransform(torch.nn.Module):
     """
     Box-Cox transformation layer with learnable lambda parameters.
@@ -301,7 +201,7 @@ class BoxCoxTransform(torch.nn.Module):
         transformed : torch.Tensor
             Transformed tensor of shape (batch_size, n_features).
         """
-        if x.dim() == 1:
+        if x.ndim == 1:
             x = x.unsqueeze(1)
 
         lambda_param = torch.nn.functional.softplus(self.lambda_param)
@@ -327,7 +227,7 @@ class BoxCoxTransform(torch.nn.Module):
         original : torch.Tensor
             Original tensor before transformation.
         """
-        if y.dim() == 1:
+        if y.ndim == 1:
             y = y.unsqueeze(1)
 
         lambda_param = torch.nn.functional.softplus(self.lambda_param)
@@ -366,97 +266,6 @@ class BoxCoxTransform(torch.nn.Module):
             A new instance of BoxCoxTransform initialized with the given config.
         """
         return BoxCoxTransform(n_features=config["n_features"])
-
-
-class PCA(torch.nn.Module):
-    """
-    PCA-like layer with learnable orthogonality via regularization.
-
-    Parameters
-    ----------
-    input_dim : int
-        Dimensionality of input features.
-    output_dim : int
-        Dimensionality of output features.
-    """
-
-    def __init__(self, input_dim: int, output_dim: int):
-        super().__init__()
-        self.input_dim = input_dim
-        self.output_dim = output_dim
-        self.linear = torch.nn.Linear(
-            input_dim,
-            output_dim,
-            bias=False,
-        )
-
-    def forward(self, x: torch.Tensor):
-        """
-        Apply the linear projection.
-
-        Parameters
-        ----------
-        x : torch.Tensor
-            Input tensor of shape (batch_size, input_dim).
-
-        Returns
-        -------
-        y : torch.Tensor
-            Output tensor of shape (batch_size, output_dim).
-        """
-        if x.dim() == 1:
-            x = x.unsqueeze(0)
-        return self.linear(x)
-
-    def orthogonality_loss(self):
-        """
-        Computes the orthogonality loss for the weight matrix.
-
-        Encourages rows of the weight matrix to be orthonormal.
-
-        Returns
-        -------
-        loss : torch.Tensor
-            Scalar tensor representing the Frobenius norm of (W Wᵀ - I).
-        """
-        W = self.linear.weight  # Shape: [output_dim, input_dim]
-        WT_W = torch.matmul(W, W.t())  # Shape: [output_dim, output_dim]
-        I = torch.eye(WT_W.size(0), device=W.device)
-        return torch.linalg.norm(WT_W - I, ord="fro")
-
-    def get_config(self):
-        """
-        Return the configuration of the module.
-
-        Returns
-        -------
-        config : dict
-            Dictionary containing the values of initialization parameters.
-        """
-        return {
-            "input_dim": self.input_dim,
-            "output_dim": self.output_dim,
-        }
-
-    @staticmethod
-    def from_config(config: dict):
-        """
-        Create a PCA instance from a configuration dictionary.
-
-        Parameters
-        ----------
-        config : dict
-            Dictionary containing keys: 'input_dim', 'output_dim'.
-
-        Returns
-        -------
-        model : PCA
-            A new instance of PCA initialized with the given config.
-        """
-        return PCA(
-            input_dim=config["input_dim"],
-            output_dim=config["output_dim"],
-        )
 
 
 class MinMaxScaler(torch.nn.Module):
@@ -520,12 +329,12 @@ class MinMaxScaler(torch.nn.Module):
         scaled : torch.Tensor
             Scaled tensor of shape (batch_size, input_dim).
         """
-        if x.dim() == 1:
+        if x.ndim == 1:
             x = x.unsqueeze(0)
 
         slope = self.max_value - self.min_value
         intercept = self.min_value
-        return x * slope + intercept
+        return torch.nn.functional.sigmoid(x) * slope + intercept
 
     def inverse(self, y: torch.Tensor):
         """
@@ -541,12 +350,18 @@ class MinMaxScaler(torch.nn.Module):
         original : torch.Tensor
             Original tensor before scaling.
         """
-        if y.dim() == 1:
+        if y.ndim == 1:
             y = y.unsqueeze(0)
 
         slope = self.max_value - self.min_value
         intercept = self.min_value
-        return (y - intercept) / slope
+        # Undo min-max scaling
+        sig_x = (y - intercept) / slope
+        # Clamp to avoid logit instability at 0 or 1
+        sig_x = torch.clamp(sig_x, min=1e-6, max=1 - 1e-6)
+        # Apply inverse sigmoid (logit)
+        original = torch.log(sig_x / (1 - sig_x))
+        return original
 
     def get_config(self):
         """
