@@ -70,6 +70,7 @@ class FeaturesGenerator(torch.nn.Module):
             self.input_keys if self.input_keys is not None else list(inputs.keys())
         )
 
+        epsilon = 1e-8
         for name in keys_to_use:
             tensor = inputs.get(name)
             if tensor is None:
@@ -81,33 +82,36 @@ class FeaturesGenerator(torch.nn.Module):
             outputs[name] = tensor
             transformed_by_var[name] = [name]
 
-            if self.apply_inverse_transform:
-                inv_name = name + "_inv"
-                outputs[inv_name] = 1 / torch.max(
-                    torch.abs(tensor),
-                    torch.tensor(1e-6, device=tensor.device),
-                )
-                transformed_by_var[name].append(inv_name)
+            is_boolean = torch.all(torch.eq(tensor, 0) | torch.eq(tensor, 1))
+            if not is_boolean:
+                if self.apply_inverse_transform:
+                    inv_name = name + "_inv"
+                    outputs[inv_name] = (
+                        1
+                        * torch.sign(tensor)
+                        / torch.clamp(torch.abs(tensor), min=epsilon)
+                    )
 
-            if self.apply_log_transform:
-                log_name = name + "_log"
-                outputs[log_name] = torch.log(torch.abs(tensor) + 1)
-                transformed_by_var[name].append(log_name)
+                    transformed_by_var[name].append(inv_name)
 
-            if self.apply_log_transform and self.apply_inverse_transform:
-                invlog_name = name + "_invlog"
-                outputs[invlog_name] = 1 / torch.max(
-                    1 / torch.log(torch.abs(tensor) + 1),
-                    torch.tensor(1e-6, device=tensor.device),
-                )
-                transformed_by_var[name].append(invlog_name)
+                if self.apply_log_transform:
+                    log_name = name + "_log"
+                    outputs[log_name] = torch.log1p(torch.clamp(tensor, min=0))
+                    transformed_by_var[name].append(log_name)
 
-            for p in range(1, self.order + 1):
-                pow_name = name + f"_pow{p}"
-                invpow_name = name + f"_invpow{p}"
-                outputs[pow_name] = tensor**p
-                outputs[invpow_name] = tensor ** (-p)
-                transformed_by_var[name].extend([pow_name, invpow_name])
+                if self.apply_log_transform and self.apply_inverse_transform:
+                    invlog_name = name + "_invlog"
+                    outputs[invlog_name] = 1 / torch.max(
+                        torch.tensor(epsilon), torch.log1p(torch.clamp(tensor, min=0))
+                    )
+                    transformed_by_var[name].append(invlog_name)
+
+                for p in range(1, self.order + 1):
+                    pow_name = name + f"_pow{p}"
+                    invpow_name = name + f"_invpow{p}"
+                    outputs[pow_name] = tensor**p
+                    outputs[invpow_name] = tensor ** (-p)
+                    transformed_by_var[name].extend([pow_name, invpow_name])
 
         if self.include_interactions:
             feature_to_var = {
