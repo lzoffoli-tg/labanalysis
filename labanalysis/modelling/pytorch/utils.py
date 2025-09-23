@@ -1195,7 +1195,14 @@ class OnnxModel:
             msg += "converted model."
             raise TypeError(msg)
         wrapped_model = ModelWrapper(model, inputs)
-        dummy_list = [torch.rand([2, 1], dtype=torch.float32) for i in inputs]
+        dummy_list = [
+            (
+                torch.rand([2, 1], dtype=torch.float32)
+                if i.lower() not in ["sex", "gender"]
+                else torch.tensor([[0], [1]], dtype=torch.float32)
+            )
+            for i in inputs
+        ]
         dummy_input = torch.cat(dummy_list, dim=1).detach()
         wrapped_model.eval()
         makedirs(dirname(onnx_file), exist_ok=True)
