@@ -7,29 +7,6 @@ import torch
 
 
 class FeaturesGenerator(torch.nn.Module):
-    """
-    Feature expansion module for tabular data.
-
-    Applies polynomial, logarithmic, inverse, and interaction transformations
-    to input features for use in machine learning models.
-
-    Parameters
-    ----------
-    order : int, optional
-        Maximum degree of polynomial and interaction terms (default is 2).
-    apply_log_transform : bool, optional
-        Whether to apply log(x + 1) transformation to each feature
-        (default is True).
-    apply_inverse_transform : bool, optional
-        Whether to apply inverse transformation 1 / max(|x|, ε) to each feature
-        (default is True).
-    include_interactions : bool, optional
-        Whether to include interaction terms between features (default is True).
-    input_keys : list of str or None, optional
-        List of expected input feature names. If None, all keys in the input
-        dict are used (default is None).
-    """
-
     def __init__(
         self,
         order: int = 2,
@@ -39,7 +16,6 @@ class FeaturesGenerator(torch.nn.Module):
         input_keys: Optional[List[str]] = None,
     ):
         super().__init__()
-
         self.order = order
         self.apply_log_transform = apply_log_transform
         self.apply_inverse_transform = apply_inverse_transform
@@ -47,68 +23,44 @@ class FeaturesGenerator(torch.nn.Module):
         self.input_keys = input_keys if input_keys is not None else None
 
     def forward(self, inputs: Dict[str, torch.Tensor]):
-        """
-        Apply feature transformations and interactions.
-
-        Parameters
-        ----------
-        inputs : dict of str to torch.Tensor
-            Dictionary of input features. Each tensor must have shape
-            (batch_size,) or (batch_size, 1).
-
-        Returns
-        -------
-        outputs : dict of str to torch.Tensor
-            Dictionary containing selected features, their transformations,
-            and valid interactions.
-            All output tensors have shape (batch_size, 1).
-        """
         outputs: Dict[str, torch.Tensor] = {}
         transformed_by_var: Dict[str, List[str]] = {}
-
         keys_to_use = (
             self.input_keys if self.input_keys is not None else list(inputs.keys())
         )
-
         epsilon = 1e-8
+
         for name in keys_to_use:
             tensor = inputs.get(name)
             if tensor is None:
                 continue
-
             if tensor.ndim == 1:
                 tensor = tensor.unsqueeze(1)
 
             outputs[name] = tensor
             transformed_by_var[name] = [name]
 
-            is_boolean = torch.all((tensor == 0) | (tensor == 1)).item()
-            if not is_boolean:
+            # Check if tensor is boolean-like (0 or 1)
+            is_boolean_tensor = ((tensor == 0) | (tensor == 1)).float().mean() == 1.0
+
+            # Apply transformations only if not boolean
+            if not is_boolean_tensor:
                 if self.apply_inverse_transform:
                     inv_name = name + "_inv"
-                    outputs[inv_name] = (
-                        1
-                        * torch.sign(tensor)
-                        / torch.clamp(torch.abs(tensor), min=epsilon)
+                    outputs[inv_name] = torch.sign(tensor) / torch.clamp(
+                        torch.abs(tensor), min=epsilon
                     )
-
                     transformed_by_var[name].append(inv_name)
 
                 if self.apply_log_transform:
                     log_name = name + "_log"
-                    outputs[log_name] = torch.log1p(
-                        torch.clamp(tensor, min=0),
-                    )
+                    outputs[log_name] = torch.log1p(torch.clamp(tensor, min=0))
                     transformed_by_var[name].append(log_name)
 
                 if self.apply_log_transform and self.apply_inverse_transform:
                     invlog_name = name + "_invlog"
-                    outputs[invlog_name] = 1 / torch.max(
-                        torch.tensor(epsilon),
-                        torch.log1p(
-                            torch.clamp(tensor, min=0),
-                        ),
-                    )
+                    log_tensor = torch.log1p(torch.clamp(tensor, min=0))
+                    outputs[invlog_name] = 1 / torch.clamp(log_tensor, min=epsilon)
                     transformed_by_var[name].append(invlog_name)
 
                 for p in range(2, self.order + 1):
@@ -125,156 +77,67 @@ class FeaturesGenerator(torch.nn.Module):
                 for feat in feats
             }
             all_features = list(outputs.keys())
-
             for r in range(2, self.order + 1):
                 for comb in itertools.combinations(all_features, r):
                     orig_vars = {feature_to_var[c] for c in comb}
                     if len(orig_vars) == r:
                         name = "_x_".join(comb)
-                        tensors = [outputs[c] for c in comb]
-                        prod = tensors[0]
-                        for t in tensors[1:]:
-                            prod = prod * t
+                        prod = outputs[comb[0]]
+                        for c in comb[1:]:
+                            prod = prod * outputs[c]
                         outputs[name] = prod
 
         return outputs
 
-    def get_config(self):
-        """
-        Return the configuration of the module.
-
-        Returns
-        -------
-        config : dict
-            Dictionary containing the values of initialization parameters.
-        """
-        return {
-            "order": self.order,
-            "apply_log_transform": self.apply_log_transform,
-            "apply_inverse_transform": self.apply_inverse_transform,
-            "include_interactions": self.include_interactions,
-            "input_keys": self.input_keys,
-        }
-
-    @staticmethod
-    def from_config(config: dict):
-        """
-        Create a FeaturesGenerator instance from a configuration dictionary.
-
-        Parameters
-        ----------
-        config : dict
-            Dictionary containing keys: 'order', 'apply_log_transform',
-            'apply_inverse_transform', 'include_interactions', 'input_keys'.
-
-        Returns
-        -------
-        generator : FeaturesGenerator
-            A new instance of FeaturesGenerator initialized with the given config.
-        """
-        return FeaturesGenerator(
-            order=config.get("order", 2),
-            apply_log_transform=config.get("apply_log_transform", True),
-            apply_inverse_transform=config.get("apply_inverse_transform", True),
-            include_interactions=config.get("include_interactions", True),
-            input_keys=config.get("input_keys", None),
-        )
-
 
 class BoxCoxTransform(torch.nn.Module):
-    """
-    Box-Cox transformation layer with learnable lambda parameters.
-
-    Parameters
-    ----------
-    n_features : int
-        Number of input features to transform.
-    """
-
     def __init__(self, n_features: int):
-        super(BoxCoxTransform, self).__init__()
+        super().__init__()
         self.n_features = n_features
         self.lambda_param = torch.nn.Parameter(torch.ones(n_features))
 
     def forward(self, x: torch.Tensor):
-        """
-        Apply the Box-Cox transformation to input features.
-
-        Parameters
-        ----------
-        x : torch.Tensor
-            Input tensor of shape (batch_size, n_features).
-
-        Returns
-        -------
-        transformed : torch.Tensor
-            Transformed tensor of shape (batch_size, n_features).
-        """
         if x.ndim == 1:
             x = x.unsqueeze(1)
 
         lambda_param = torch.nn.functional.softplus(self.lambda_param)
         lambda_param = lambda_param.unsqueeze(0)  # shape: (1, n_features)
 
-        return torch.where(
-            lambda_param == 0,
-            torch.log(x),
-            (torch.pow(x, lambda_param) - 1) / lambda_param,
-        )
+        # Costruisci maschera tensoriale per lambda == 0
+        zero_mask = lambda_param == 0.0
+        nonzero_mask = ~zero_mask
+
+        # Prepara output tensor
+        out = torch.empty_like(x)
+
+        # Calcola log(x) dove lambda == 0
+        out = torch.where(zero_mask, torch.log(torch.clamp(x, min=1e-8)), out)
+
+        # Calcola Box-Cox dove lambda != 0
+        boxcox = (torch.pow(x, lambda_param) - 1) / torch.clamp(lambda_param, min=1e-8)
+        out = torch.where(nonzero_mask, boxcox, out)
+
+        return out
 
     def inverse(self, y: torch.Tensor):
-        """
-        Apply the inverse Box-Cox transformation.
-
-        Parameters
-        ----------
-        y : torch.Tensor
-            Transformed tensor of shape (batch_size, n_features).
-
-        Returns
-        -------
-        original : torch.Tensor
-            Original tensor before transformation.
-        """
         if y.ndim == 1:
             y = y.unsqueeze(1)
 
         lambda_param = torch.nn.functional.softplus(self.lambda_param)
-        lambda_param = lambda_param.unsqueeze(0)  # shape: (1, n_features)
+        lambda_param = lambda_param.unsqueeze(0)
 
-        return torch.where(
-            lambda_param == 0,
-            torch.exp(y),
-            torch.pow(lambda_param * y + 1, 1 / lambda_param),
+        zero_mask = lambda_param == 0.0
+        nonzero_mask = ~zero_mask
+
+        out = torch.empty_like(y)
+        out = torch.where(zero_mask, torch.exp(y), out)
+
+        inv_boxcox = torch.pow(
+            lambda_param * y + 1, 1 / torch.clamp(lambda_param, min=1e-8)
         )
+        out = torch.where(nonzero_mask, inv_boxcox, out)
 
-    def get_config(self):
-        """
-        Return the configuration of the module.
-
-        Returns
-        -------
-        config : dict
-            Dictionary containing the number of features.
-        """
-        return {"n_features": self.n_features}
-
-    @staticmethod
-    def from_config(config: dict):
-        """
-        Create a BoxCoxTransform instance from a configuration dictionary.
-
-        Parameters
-        ----------
-        config : dict
-            Dictionary containing key 'n_features'.
-
-        Returns
-        -------
-        transform : BoxCoxTransform
-            A new instance of BoxCoxTransform initialized with the given config.
-        """
-        return BoxCoxTransform(n_features=config["n_features"])
+        return out
 
 
 class MinMaxScaler(torch.nn.Module):
