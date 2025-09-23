@@ -82,7 +82,7 @@ class FeaturesGenerator(torch.nn.Module):
             outputs[name] = tensor
             transformed_by_var[name] = [name]
 
-            is_boolean = torch.all(torch.eq(tensor, 0) | torch.eq(tensor, 1))
+            is_boolean = torch.all((tensor == 0) | (tensor == 1)).item()
             if not is_boolean:
                 if self.apply_inverse_transform:
                     inv_name = name + "_inv"
