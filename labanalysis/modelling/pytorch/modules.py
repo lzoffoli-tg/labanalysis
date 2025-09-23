@@ -96,17 +96,22 @@ class FeaturesGenerator(torch.nn.Module):
 
                 if self.apply_log_transform:
                     log_name = name + "_log"
-                    outputs[log_name] = torch.log1p(torch.clamp(tensor, min=0))
+                    outputs[log_name] = torch.log1p(
+                        torch.clamp(tensor, min=0),
+                    )
                     transformed_by_var[name].append(log_name)
 
                 if self.apply_log_transform and self.apply_inverse_transform:
                     invlog_name = name + "_invlog"
                     outputs[invlog_name] = 1 / torch.max(
-                        torch.tensor(epsilon), torch.log1p(torch.clamp(tensor, min=0))
+                        torch.tensor(epsilon),
+                        torch.log1p(
+                            torch.clamp(tensor, min=0),
+                        ),
                     )
                     transformed_by_var[name].append(invlog_name)
 
-                for p in range(1, self.order + 1):
+                for p in range(2, self.order + 1):
                     pow_name = name + f"_pow{p}"
                     invpow_name = name + f"_invpow{p}"
                     outputs[pow_name] = tensor**p
