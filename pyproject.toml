@@ -1,9 +1,6 @@
 [build-system]
 requires = [
-    "pandas",
-    "openpyxl",
-    "scikit-learn",
-    "setuptools",
+    "etuptools>=61.0",
     "wheel",
 ]
 build-backend = "setuptools.build_meta"
@@ -22,7 +19,15 @@ version = "92"
 dynamic = ["readme", "dependencies"]
 
 [tool.setuptools.dynamic]
-dependencies = {file = ["requirements.txt"]}
+dependencies = {
+    "scikit-learn",
+    "plotly",
+    "pandas",
+    "openpyxl",
+    "pint",
+    "torch",
+    "git+https://github.com/lzoffoli-tg/onnxmodels.git",
+}
 readme = {file = "README.md"}
 
 [project.urls]
