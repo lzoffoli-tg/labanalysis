@@ -12,13 +12,24 @@ from os.path import dirname
 from typing import Callable, Dict, Literal
 
 import numpy as np
-import onnx
 import pandas as pd
 import torch
-from onnxruntime import InferenceSession
+from onnxmodels import OnnxModel
 from torch.utils.data import DataLoader, Dataset
 
 from ...utils import split_data
+
+
+__all__ = [
+    "CustomDataset",
+    "TorchTrainer",
+    "PinballLoss",
+    "QuantilicRangeLoss",
+    "ComboLoss",
+    "MAEMetric",
+    "ModelWrapper",
+    "to_onnx",
+]
 
 
 class CustomDataset(Dataset):
@@ -993,229 +1004,65 @@ class ModelWrapper(torch.nn.Module):
         return torch.cat(out_list, dim=1)
 
 
-class OnnxModel:
+def to_onnx(
+    model: torch.nn.Module,
+    inputs: list[str],
+    outputs: list[str],
+    onnx_file: str,
+):
     """
-    ONNX model wrapper for inference with flexible input types.
-
-    This class allows loading an ONNX model and performing inference using
-    torch.Tensor, numpy.ndarray, pandas.DataFrame, or dict inputs.
+    Export a PyTorch model to ONNX and create an OnnxModel instance.
 
     Parameters
     ----------
-    model_path : str
-        Path to the ONNX model file.
-    input_labels : list of str
+    model : torch.nn.Module
+        The PyTorch model to export.
+    inputs : list of str
         List of input feature names.
-    output_labels : list of str
+    outputs : list of str
         List of output feature names.
+    onnx_file : str
+        File path to save the exported ONNX model.
+
+    Returns
+    -------
+    onnx_model : OnnxModel
+        An instance of OnnxModel wrapping the exported ONNX model.
+
+    Raises
+    ------
+    TypeError
+        If model is not a torch.nn.Module or onnx_file is not a string.
     """
-
-    def __init__(self, model_path, input_labels, output_labels):
-        """
-        Initialize OnnxModel.
-
-        Parameters
-        ----------
-        model_path : str
-            Path to the ONNX model file.
-        input_labels : list of str
-            List of input feature names.
-        output_labels : list of str
-            List of output feature names.
-        """
-        self.model_path = model_path
-        self._input_labels = input_labels
-        self._output_labels = output_labels
-        self.session = InferenceSession(model_path)
-        self.model = onnx.load(model_path)
-
-    @property
-    def input_labels(self):
-        """
-        Get the input feature labels.
-
-        Returns
-        -------
-        input_labels : list of str
-            List of input feature names.
-        """
-        return self._input_labels
-
-    @property
-    def output_labels(self):
-        """
-        Get the output feature labels.
-
-        Returns
-        -------
-        output_labels : list of str
-            List of output feature names.
-        """
-        return self._output_labels
-
-    def predict(self, data):
-        """
-        Run inference on the input data.
-
-        Parameters
-        ----------
-        data : torch.Tensor, np.ndarray, pd.DataFrame, or dict
-            Input data to be passed to the ONNX model.
-
-        Returns
-        -------
-        result : torch.Tensor, np.ndarray, dict, or pd.DataFrame
-            Model predictions in a format matching the input type.
-
-        Raises
-        ------
-        ValueError
-            If input data shape or columns do not match expected input labels.
-        TypeError
-            If input or output type is unsupported.
-        """
-        # check the inputs
-        target_cols = len(self._input_labels)
-        wrong_cols = f"Expected input tensor with shape (N, {target_cols})"
-        col_list = f"DataFrame must contain columns: {self._input_labels}"
-        if isinstance(data, torch.Tensor):
-            if data.ndim != 2 or data.shape[1] != target_cols:
-                raise ValueError(wrong_cols)
-            vals = data.numpy().astype(np.float32)
-            source = "tensor"
-
-        elif isinstance(data, np.ndarray):
-            if data.ndim != 2 or data.shape[1] != target_cols:
-                raise ValueError(wrong_cols)
-            vals = data.astype(np.float32)
-            source = "ndarray"
-
-        elif isinstance(data, pd.DataFrame):
-            if not all(label in data.columns for label in self._input_labels):
-                raise ValueError(col_list)
-            vals = data[self._input_labels].values.astype(np.float32)
-            source = "dataframe"
-
-        elif isinstance(data, dict):
-            if not all(label in data.keys() for label in self._input_labels):
-                raise ValueError(col_list)
-            vals = []
-            for i in self._input_labels:
-                if isinstance(data[i], (pd.DataFrame, pd.Series)):
-                    vals.append(data[i].values.astype(np.float32).flatten())
-                elif isinstance(data[i], torch.Tensor):
-                    vals.append(data[i].numpy().astype(np.float32).flatten())
-                else:
-                    vals.append(data[i].astype(np.float32).flatten())
-            vals = np.concatenate([i.reshape(-1, 1) for i in vals], axis=1)
-            source = "dict"
-
-        else:
-            raise TypeError("Unsupported input type")
-
-        # make the inference
-        inputs = {self.session.get_inputs()[0].name: vals}
-        outputs = self.session.run(None, inputs)[0]
-
-        # adjust the outputs
-        if source == "tensor":
-            return torch.tensor(outputs)
-
-        if source == "ndarray":
-            return outputs
-
-        if source == "dict":
-            return {
-                i: v.astype(np.float32).flatten()
-                for i, v in zip(self.output_labels, outputs.T)  # type: ignore
-            }
-
-        if source == "dataframe":
-            return pd.DataFrame(
-                data=outputs,  # type: ignore
-                index=data.index,  # type: ignore
-                columns=self.output_labels,
-            )
-
-        raise TypeError("Unsupported output type")
-
-    def __call__(self, data):
-        """
-        Call the model on input data (alias for predict).
-
-        Parameters
-        ----------
-        data : torch.Tensor, np.ndarray, pd.DataFrame, or dict
-            Input data to be passed to the ONNX model.
-
-        Returns
-        -------
-        result : torch.Tensor, np.ndarray, dict, or pd.DataFrame
-            Model predictions in a format matching the input type.
-        """
-        return self.predict(data)
-
-    @classmethod
-    def from_model(
-        cls,
-        model: torch.nn.Module,
-        inputs: list[str],
-        outputs: list[str],
-        onnx_file: str,
-    ):
-        """
-        Export a PyTorch model to ONNX and create an OnnxModel instance.
-
-        Parameters
-        ----------
-        model : torch.nn.Module
-            The PyTorch model to export.
-        inputs : list of str
-            List of input feature names.
-        outputs : list of str
-            List of output feature names.
-        onnx_file : str
-            File path to save the exported ONNX model.
-
-        Returns
-        -------
-        onnx_model : OnnxModel
-            An instance of OnnxModel wrapping the exported ONNX model.
-
-        Raises
-        ------
-        TypeError
-            If model is not a torch.nn.Module or onnx_file is not a string.
-        """
-        # check the inputs
-        if not isinstance(model, torch.nn.Module):
-            raise TypeError("'model' must be a DefaultRegressionModel subclass.")
-        if not isinstance(onnx_file, str):
-            msg = "'onnx_model' must be the file path where to store the "
-            msg += "converted model."
-            raise TypeError(msg)
-        wrapped_model = ModelWrapper(model, inputs)
-        dummy_list = [
-            (
-                torch.rand([2, 1], dtype=torch.float32)
-                if i.lower() not in ["sex", "gender"]
-                else torch.tensor([[0], [1]], dtype=torch.float32)
-            )
-            for i in inputs
-        ]
-        dummy_input = torch.cat(dummy_list, dim=1).detach()
-        wrapped_model.eval()
-        makedirs(dirname(onnx_file), exist_ok=True)
-        torch.onnx.export(
-            wrapped_model,
-            dummy_input,  # type: ignore
-            onnx_file,
-            input_names=["input"],
-            output_names=["output"],
-            dynamic_axes={
-                "input": {0: "batch_size"},
-                "output": {0: "batch_size"},
-            },
-            opset_version=11,
+    # check the inputs
+    if not isinstance(model, torch.nn.Module):
+        raise TypeError("'model' must be a DefaultRegressionModel subclass.")
+    if not isinstance(onnx_file, str):
+        msg = "'onnx_model' must be the file path where to store the "
+        msg += "converted model."
+        raise TypeError(msg)
+    wrapped_model = ModelWrapper(model, inputs)
+    dummy_list = [
+        (
+            torch.rand([2, 1], dtype=torch.float32)
+            if i.lower() not in ["sex", "gender"]
+            else torch.tensor([[0], [1]], dtype=torch.float32)
         )
-        return cls(onnx_file, inputs, outputs)
+        for i in inputs
+    ]
+    dummy_input = torch.cat(dummy_list, dim=1).detach()
+    wrapped_model.eval()
+    makedirs(dirname(onnx_file), exist_ok=True)
+    torch.onnx.export(
+        wrapped_model,
+        dummy_input,  # type: ignore
+        onnx_file,
+        input_names=["input"],
+        output_names=["output"],
+        dynamic_axes={
+            "input": {0: "batch_size"},
+            "output": {0: "batch_size"},
+        },
+        opset_version=11,
+    )
+    return OnnxModel(onnx_file, inputs, outputs)

@@ -5,3 +5,4 @@ pint
 torch
 onnx
 onnxruntime
+git+https://github.com/lzoffoli-tg/onnxmodels.git
