@@ -1009,6 +1009,7 @@ def to_onnx(
     inputs: list[str],
     outputs: list[str],
     onnx_file: str,
+    op_version: int = 16,
 ):
     """
     Export a PyTorch model to ONNX and create an OnnxModel instance.
@@ -1023,6 +1024,8 @@ def to_onnx(
         List of output feature names.
     onnx_file : str
         File path to save the exported ONNX model.
+    op_version: int (default=16)
+        the onnx operators version to be used
 
     Returns
     -------
@@ -1063,6 +1066,6 @@ def to_onnx(
             "input": {0: "batch_size"},
             "output": {0: "batch_size"},
         },
-        opset_version=11,
+        opset_version=op_version,
     )
     return OnnxModel(onnx_file, inputs, outputs)
