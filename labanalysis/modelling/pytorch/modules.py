@@ -87,6 +87,16 @@ class FeaturesGenerator(torch.nn.Module):
                             prod = prod * outputs[c]
                         outputs[name] = prod
 
+        for key in outputs:
+            if outputs[key].ndim == 1:
+                outputs[key] = outputs[key].squeeze(1)
+            outputs[key] = torch.nan_to_num(
+                outputs[key],
+                nan=0.0,
+                posinf=0.0,
+                neginf=0.0,
+            )
+
         return outputs
 
 
