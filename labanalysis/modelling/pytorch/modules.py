@@ -23,7 +23,7 @@ class FeaturesGenerator(torch.nn.Module):
         self.input_keys = input_keys if input_keys is not None else None
 
     def is_boolean_tensor(self, tensor: torch.Tensor):
-        return bool(torch.all((tensor == 0) | (tensor == 1)).item())
+        return torch.all((tensor == 0) | (tensor == 1))
 
     def forward(self, inputs: Dict[str, torch.Tensor]):
         outputs: Dict[str, torch.Tensor] = {}
