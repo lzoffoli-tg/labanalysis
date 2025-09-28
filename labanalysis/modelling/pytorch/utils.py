@@ -548,17 +548,17 @@ class TorchTrainer:
                 batch_loss.backward()
                 self.optimizer.step()
 
-                if self.debug:
-                    for name, param in module.named_parameters():
-                        if param.grad is None:
-                            raise ValueError(f"gradient of {name} is None")
-                        elif torch.isnan(param.grad).any():
-                            raise ValueError(f"NaN in gradient of {name}")
-                        elif torch.sum(param.grad) == 0:
-                            warnings.warn(f"gradient of {name} is zero.")
+            if self.debug:
+                for name, param in module.named_parameters():
+                    if param.grad is None:
+                        raise ValueError(f"gradient of {name} is None")
+                    elif torch.isnan(param.grad).any():
+                        raise ValueError(f"NaN in gradient of {name}")
+                    elif torch.sum(param.grad) == 0:
+                        warnings.warn(f"gradient of {name} is zero.")
 
             with torch.no_grad():
-                for key in loss_keys:
+                for key in self.loss_weights:
                     loss_val = batch_losses[key].item()
                     n_samp = batch_samples[key].item()
                     losses[key] += loss_val * n_samp
@@ -574,7 +574,7 @@ class TorchTrainer:
             loss /= batches
             model_name = module.__class__.__name__
             self._update_logger(f"{step_type}_{model_name}_loss", loss)
-            for key in loss_keys:
+            for key in self.loss_weights:
                 key_loss = losses[key] / samples[key]
                 self._update_logger(f"{step_type}_{key}_loss", key_loss)
                 trues_ten = torch.cat(trues[key], dim=0)
