@@ -188,6 +188,11 @@ class TorchTrainer:
         Minimum learning rate allowed (default is 1e-6).
     variance_adjusted_loss : bool, optional
         Whether to use variance-adjusted loss (default is True).
+    relevant_outputs: list of str | None, optional
+        list of output parameters to be used for computing loss and metrics.
+        If None, all outputs are used (default is None).
+    validation_split: float, optional
+        Proportion of data to use for validation (default is 0.2).
     restore_best_weights : bool, optional
         Whether to restore best weights after early stopping (default is True).
     verbose : {'full', 'minimal', 'off'}, optional
@@ -248,6 +253,8 @@ class TorchTrainer:
         decaying_rate: float | None = 1e-6,
         minimum_learning_rate: float = 1e-6,
         variance_adjusted_loss: bool = True,
+        relevant_outputs: list[str] | None = None,
+        validation_split: float = 0.2,
         restore_best_weights: bool = True,
         verbose: Literal["full", "minimal", "off"] = "minimal",
         debug: bool = False,
@@ -326,6 +333,20 @@ class TorchTrainer:
         if not isinstance(debug, bool):
             raise ValueError("'debug' must be True or False.")
         self._debug = debug
+
+        if relevant_outputs is not None:
+            if not (
+                isinstance(relevant_outputs, list)
+                and all(isinstance(i, str) for i in relevant_outputs)
+            ):
+                raise ValueError(
+                    "'relevant_outputs' must be a list of strings or None."
+                )
+        self._relevant_outputs = relevant_outputs
+
+        if not isinstance(validation_split, float) or not 0 < validation_split < 1:
+            raise ValueError("'validation_split' must be a float in the (0, 1) range.")
+        self._validation_split = validation_split
 
         self._logger = {}
         self._loss_weights: dict[str, float | int | torch.Tensor] = {}
@@ -410,6 +431,17 @@ class TorchTrainer:
         """dict: Loss weights for each output."""
         return self._loss_weights
 
+    @property
+    def relevant_outputs(self):
+        """list of str | None: list of output parameters to be used for
+        computing loss and metrics. If None, all outputs are used."""
+        return self._relevant_outputs
+
+    @property
+    def validation_split(self):
+        """float: Proportion of data to use for validation."""
+        return self._validation_split
+
     def _update_logger(self, key: str, value: float):
         """
         Update the logger with a new value for a given key.
@@ -460,7 +492,7 @@ class TorchTrainer:
         batch_samples = {}
         batch_trues = {}
         batch_preds = {}
-        for key in y_batch:
+        for key, weight in self.loss_weights.items():
             true_samples = torch.isfinite(y_batch[key])
             pred_samples = torch.isfinite(z_batch[key])
             valid_samples = true_samples & pred_samples
@@ -468,8 +500,7 @@ class TorchTrainer:
             valid_preds = z_batch[key][valid_samples]
 
             batch_samples[key] = torch.sum(valid_samples)
-            batch_losses[key] = self.loss(valid_trues, valid_preds)
-            batch_losses[key] = batch_losses[key] * self.loss_weights[key]
+            batch_losses[key] = self.loss(valid_trues, valid_preds) * weight
             batch_trues[key] = valid_trues
             batch_preds[key] = valid_preds
 
@@ -480,7 +511,6 @@ class TorchTrainer:
         module: torch.nn.Module,
         loader: DataLoader,
         step_type: Literal["training", "validation"],
-        verbose: Literal["full", "minimal", "off"] = "off",
     ):
         """
         Perform a training or validation step over all batches.
@@ -493,8 +523,6 @@ class TorchTrainer:
             DataLoader for the step.
         step_type : {'training', 'validation'}
             Type of step.
-        verbose : {'full', 'minimal', 'off'}, optional
-            Verbosity level.
         """
         loss_keys = list(loader.dataset.y.keys())  # type: ignore
         losses = {key: 0.0 for key in loss_keys}
@@ -504,10 +532,16 @@ class TorchTrainer:
         loss = 0
         batches = 0
         for xbatch, ybatch in loader:
-            batch_outs = self._process_batch(module, xbatch, ybatch)
+            batch_outs = self._process_batch(
+                module,
+                xbatch,
+                ybatch,
+            )
             batch_trues, batch_preds, batch_losses, batch_samples = batch_outs
 
-            batch_loss = torch.sum(torch.stack(list(batch_losses.values())))
+            batch_loss = torch.sum(
+                torch.stack(list(batch_losses.values())),
+            )
 
             if step_type == "training":
                 self.optimizer.zero_grad()
@@ -554,7 +588,6 @@ class TorchTrainer:
         self,
         module: torch.nn.Module,
         train_loader: DataLoader,
-        verbose: Literal["full", "minimal", "off"] = "minimal",
     ):
         """
         Perform a training step.
@@ -565,18 +598,15 @@ class TorchTrainer:
             The model to train.
         train_loader : DataLoader
             DataLoader for training data.
-        verbose : {'full', 'minimal', 'off'}, optional
-            Verbosity level.
         """
         module.train()
-        self._step(module, train_loader, "training", verbose)
+        self._step(module, train_loader, "training")
 
     @torch.no_grad()
     def _validation_step(
         self,
         module: torch.nn.Module,
         val_loader: DataLoader,
-        verbose: Literal["full", "minimal", "off"] = "minimal",
     ):
         """
         Perform a validation step.
@@ -587,11 +617,9 @@ class TorchTrainer:
             The model to evaluate.
         val_loader : DataLoader
             DataLoader for validation data.
-        verbose : {'full', 'minimal', 'off'}, optional
-            Verbosity level.
         """
         module.eval()
-        self._step(module, val_loader, "validation", verbose)
+        self._step(module, val_loader, "validation")
 
     def fit(
         self,
@@ -662,7 +690,10 @@ class TorchTrainer:
         arr = np.nanmean(arr, axis=1)
         splits = split_data(
             data=arr,
-            proportion={"training": 0.8, "validation": 0.2},
+            proportion={
+                "training": 1 - self.validation_split,
+                "validation": self.validation_split,
+            },
             groups=5,
         )
         train_idx, val_idx = list(splits.values())
@@ -688,15 +719,24 @@ class TorchTrainer:
             shuffle=True,
         )
 
-        loss_keys = list(y.keys())
+        available_keys = list(y.keys())
+        if self.relevant_outputs is None:
+            relevant_keys = available_keys
+        else:
+            relevant_keys = []
+            for key in self.relevant_outputs:
+                if key not in available_keys:
+                    msg = f"'{key}' was not found on available output keys."
+                    msg += "It will be ignored."
+                    warnings.warn(msg)
 
         if self.variance_adjusted_loss:
             self._loss_weights = {}
-            for i in loss_keys:
+            for i in relevant_keys:
                 valid_values = train_y[i][torch.isfinite(train_y[i])]
                 self._loss_weights[i] = 1 / torch.std(valid_values)
         else:
-            self._loss_weights = {i: 1 for i in train_y.keys()}
+            self._loss_weights = {i: 1 for i in relevant_keys}
 
         best_loss = float("inf")
         epochs_no_improve = 0
