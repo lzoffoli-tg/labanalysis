@@ -729,6 +729,8 @@ class TorchTrainer:
                     msg = f"'{key}' was not found on available output keys."
                     msg += "It will be ignored."
                     warnings.warn(msg)
+                else:
+                    relevant_keys += [key]
 
         if self.variance_adjusted_loss:
             self._loss_weights = {}
