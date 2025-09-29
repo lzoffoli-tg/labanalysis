@@ -5,6 +5,8 @@ from typing import Dict, List, Optional, Union
 
 import torch
 
+__all__ = ["FeaturesGenerator", "BoxCoxTransform", "MinMaxScaler", "PCA", "Lasso"]
+
 
 class FeaturesGenerator(torch.nn.Module):
     def __init__(
@@ -290,3 +292,80 @@ class MinMaxScaler(torch.nn.Module):
             max_value=config.get("max_value", None),
             input_dim=config.get("input_dim", None),
         )
+
+
+class PCA(torch.nn.Module):
+    def __init__(self, input_dim: int, output_dim: int):
+        """
+        PCA-like layer with learnable orthogonality via regularization.
+
+        Args:
+            input_dim (int): Dimensionality of input features.
+            output_dim (int): Dimensionality of output features.
+        """
+        super().__init__()
+        self.linear = torch.nn.Linear(
+            input_dim,
+            output_dim,
+            bias=False,
+        )
+
+    def forward(self, x):
+        return self.linear(x)
+
+    def orthogonality_loss(self):
+        """
+        Computes the orthogonality loss for the weight matrix.
+        Encourages rows of the weight matrix to be orthonormal.
+        """
+        W = self.linear.weight  # Shape: [output_dim, input_dim]
+        WT_W = torch.matmul(W, W.t())  # Shape: [output_dim, output_dim]
+        I = torch.eye(WT_W.size(0), device=W.device)
+        return torch.linalg.norm(WT_W - I, "fro")
+
+
+class Lasso(torch.nn.Module):
+    """
+    Modello di regressione lineare con penalizzazione L1 personalizzata
+    (tipo Lasso), dove il coefficiente di penalizzazione è appreso come
+    parametro.
+
+    Args:
+        in_features (int): Numero di feature in input.
+        out_features (int): Numero di output.
+        bias (bool, optional): Se includere il termine di bias nella regressione.
+        Default: True.
+    """
+
+    def __init__(self, in_features: int, out_features: int, bias: bool = True):
+        super().__init__()
+        self.linear = torch.nn.Linear(
+            in_features,
+            out_features,
+            bias=bias,
+        )
+        # Parametro raw che verrà trasformato in alpha tramite softplus
+        self.alpha_raw = torch.nn.Parameter(torch.ones(out_features, in_features))
+
+    def forward(self, x):
+        """
+        Applica la trasformazione lineare all'input.
+
+        Args:
+            x (Tensor): Input tensor di forma (batch_size, in_features).
+
+        Returns:
+            Tensor: Output della regressione lineare.
+        """
+        return self.linear(x)
+
+    def lasso_loss(self):
+        """
+        Calcola la penalizzazione L1 con pesi adattivi appresi.
+
+        Returns:
+            Tensor: Valore della penalizzazione L1.
+        """
+        alpha = torch.log1p(torch.exp(self.alpha_raw))  # softplus
+        l1_penalty = torch.sum(alpha * torch.abs(self.linear.weight))
+        return l1_penalty

@@ -5,6 +5,7 @@ dataset for structured input/output and a trainer class with early stopping, lea
 rate decay, and metric tracking.
 """
 
+import inspect
 import warnings
 from datetime import datetime
 from os import makedirs
@@ -18,7 +19,6 @@ from onnxmodels import OnnxModel
 from torch.utils.data import DataLoader, Dataset
 
 from ...utils import split_data
-
 
 __all__ = [
     "CustomDataset",
@@ -462,6 +462,7 @@ class TorchTrainer:
         module: torch.nn.Module,
         x_batch: dict[str, torch.Tensor],
         y_batch: dict[str, torch.Tensor],
+        extra_losses: list[Callable] = [],
     ):
         """
         Process a single batch for forward and backward pass.
@@ -474,6 +475,11 @@ class TorchTrainer:
             Batch of input tensors.
         y_batch : dict of str to torch.Tensor
             Batch of target tensors.
+        extra_losses: list[Callable], optional
+            list of extra loss functions to be called at each iteration for
+            the computation of the total loss.
+            The use of this losses could be, for instance, to obtain the
+            penalties related to orthogonality (in PCA) or regularization (Lasso).
 
         Returns
         -------
@@ -504,6 +510,10 @@ class TorchTrainer:
             batch_trues[key] = valid_trues
             batch_preds[key] = valid_preds
 
+        # add extra losses
+        for loss in extra_losses:
+            batch_losses[loss.__name__] = loss()
+
         return batch_trues, batch_preds, batch_losses, batch_samples
 
     def _step(
@@ -511,6 +521,7 @@ class TorchTrainer:
         module: torch.nn.Module,
         loader: DataLoader,
         step_type: Literal["training", "validation"],
+        extra_losses: list[Callable] = [],
     ):
         """
         Perform a training or validation step over all batches.
@@ -523,6 +534,11 @@ class TorchTrainer:
             DataLoader for the step.
         step_type : {'training', 'validation'}
             Type of step.
+        extra_losses: list[Callable], optional
+            list of extra loss functions to be called at each iteration for
+            the computation of the total loss.
+            The use of this losses could be, for instance, to obtain the
+            penalties related to orthogonality (in PCA) or regularization (Lasso).
         """
         loss_keys = list(loader.dataset.y.keys())  # type: ignore
         losses = {key: 0.0 for key in loss_keys}
@@ -536,6 +552,7 @@ class TorchTrainer:
                 module,
                 xbatch,
                 ybatch,
+                extra_losses,
             )
             batch_trues, batch_preds, batch_losses, batch_samples = batch_outs
 
@@ -588,6 +605,7 @@ class TorchTrainer:
         self,
         module: torch.nn.Module,
         train_loader: DataLoader,
+        extra_losses: list[Callable] = [],
     ):
         """
         Perform a training step.
@@ -598,9 +616,19 @@ class TorchTrainer:
             The model to train.
         train_loader : DataLoader
             DataLoader for training data.
+        extra_losses: list[Callable], optional
+            list of extra loss functions to be called at each iteration for
+            the computation of the total loss.
+            The use of this losses could be, for instance, to obtain the
+            penalties related to orthogonality (in PCA) or regularization (Lasso).
         """
         module.train()
-        self._step(module, train_loader, "training")
+        self._step(
+            module,
+            train_loader,
+            "training",
+            extra_losses,
+        )
 
     @torch.no_grad()
     def _validation_step(
@@ -619,13 +647,19 @@ class TorchTrainer:
             DataLoader for validation data.
         """
         module.eval()
-        self._step(module, val_loader, "validation")
+        self._step(
+            module,
+            val_loader,
+            "validation",
+            [],
+        )
 
     def fit(
         self,
         module: torch.nn.Module,
         x_data: torch.Tensor | dict[str, torch.Tensor],
         y_data: torch.Tensor | dict[str, torch.Tensor],
+        extra_losses: list[Callable] = [],
     ):
         """
         Fit the model to the data.
@@ -638,6 +672,11 @@ class TorchTrainer:
             Input data.
         y_data : torch.Tensor or dict of str to torch.Tensor
             Target data.
+        extra_losses: list[Callable], optional
+            list of extra loss functions to be called at each iteration for
+            the computation of the total loss.
+            The use of this losses could be, for instance, to obtain the
+            penalties related to orthogonality (in PCA) or regularization (Lasso).
 
         Returns
         -------
@@ -683,6 +722,17 @@ class TorchTrainer:
 
         else:
             raise TypeError(invalid_type_msg.format("y_data"))
+
+        if (
+            not isinstance(extra_losses, list)
+            or not all([isinstance(i, Callable) for i in extra_losses])
+            or not all(
+                [len(inspect.signature(i).parameters) == 0 for i in extra_losses]
+            )
+        ):
+            msg = "'extra_losses' must be a list of callable objects with no "
+            msg += "arguments."
+            raise TypeError(msg)
 
         with torch.no_grad():
             arr = [i.detach().numpy() for i in y.values()]
@@ -750,7 +800,11 @@ class TorchTrainer:
         training_start_time = datetime.now()
         for epoch in range(self.epochs):
             self._update_logger("epoch", epoch + 1)
-            self._train_step(module, train_loader)
+            self._train_step(
+                module,
+                train_loader,
+                extra_losses,
+            )
             self._validation_step(module, val_loader)
 
             val_loss = self._logger[f"validation_{model_name}_loss"][-1]
