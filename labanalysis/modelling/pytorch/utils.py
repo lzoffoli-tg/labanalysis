@@ -512,7 +512,11 @@ class TorchTrainer:
 
         # add extra losses
         for loss in extra_losses:
-            batch_losses[loss.__name__] = loss()
+            name = loss.__name__ + "_0"
+            while name in list(batch_losses.keys()):
+                last = int(name.split("_")[-1])
+                name = loss.__name__ + f"_{last + 1}"
+            batch_losses[name] = loss()
 
         return batch_trues, batch_preds, batch_losses, batch_samples
 
