@@ -253,7 +253,6 @@ class TorchTrainer:
         decaying_rate: float | None = 1e-6,
         minimum_learning_rate: float = 1e-6,
         variance_adjusted_loss: bool = True,
-        relevant_outputs: list[str] | None = None,
         validation_split: float = 0.2,
         restore_best_weights: bool = True,
         verbose: Literal["full", "minimal", "off"] = "minimal",
@@ -333,16 +332,6 @@ class TorchTrainer:
         if not isinstance(debug, bool):
             raise ValueError("'debug' must be True or False.")
         self._debug = debug
-
-        if relevant_outputs is not None:
-            if not (
-                isinstance(relevant_outputs, list)
-                and all(isinstance(i, str) for i in relevant_outputs)
-            ):
-                raise ValueError(
-                    "'relevant_outputs' must be a list of strings or None."
-                )
-        self._relevant_outputs = relevant_outputs
 
         if not isinstance(validation_split, float) or not 0 < validation_split < 1:
             raise ValueError("'validation_split' must be a float in the (0, 1) range.")
@@ -432,12 +421,6 @@ class TorchTrainer:
         return self._loss_weights
 
     @property
-    def relevant_outputs(self):
-        """list of str | None: list of output parameters to be used for
-        computing loss and metrics. If None, all outputs are used."""
-        return self._relevant_outputs
-
-    @property
     def validation_split(self):
         """float: Proportion of data to use for validation."""
         return self._validation_split
@@ -498,7 +481,7 @@ class TorchTrainer:
         batch_samples = {}
         batch_trues = {}
         batch_preds = {}
-        for key, weight in self.loss_weights.items():
+        for key in y_batch:
             true_samples = torch.isfinite(y_batch[key])
             pred_samples = torch.isfinite(z_batch[key])
             valid_samples = true_samples & pred_samples
@@ -506,7 +489,8 @@ class TorchTrainer:
             valid_preds = z_batch[key][valid_samples]
 
             batch_samples[key] = torch.sum(valid_samples)
-            batch_losses[key] = self.loss(valid_trues, valid_preds) * weight
+            loss_weight = self.loss_weights[key] if key in self.loss_weights else 1
+            batch_losses[key] = self.loss(valid_trues, valid_preds) * loss_weight
             batch_trues[key] = valid_trues
             batch_preds[key] = valid_preds
 
@@ -593,8 +577,7 @@ class TorchTrainer:
 
         with torch.no_grad():
             loss /= batches
-            model_name = module.__class__.__name__
-            self._update_logger(f"{step_type}_{model_name}_loss", loss)
+            self._update_logger(f"{step_type}_loss", loss)
             for key in self.loss_weights:
                 key_loss = losses[key] / samples[key]
                 self._update_logger(f"{step_type}_{key}_loss", key_loss)
@@ -774,25 +757,13 @@ class TorchTrainer:
         )
 
         available_keys = list(y.keys())
-        if self.relevant_outputs is None:
-            relevant_keys = available_keys
-        else:
-            relevant_keys = []
-            for key in self.relevant_outputs:
-                if key not in available_keys:
-                    msg = f"'{key}' was not found on available output keys."
-                    msg += "It will be ignored."
-                    warnings.warn(msg)
-                else:
-                    relevant_keys += [key]
-
         if self.variance_adjusted_loss:
             self._loss_weights = {}
-            for i in relevant_keys:
+            for i in available_keys:
                 valid_values = train_y[i][torch.isfinite(train_y[i])]
                 self._loss_weights[i] = 1 / torch.std(valid_values)
         else:
-            self._loss_weights = {i: 1 for i in relevant_keys}
+            self._loss_weights = {i: 1 for i in available_keys}
 
         best_loss = float("inf")
         epochs_no_improve = 0
@@ -811,7 +782,7 @@ class TorchTrainer:
             )
             self._validation_step(module, val_loader)
 
-            val_loss = self._logger[f"validation_{model_name}_loss"][-1]
+            val_loss = self._logger[f"validation_loss"][-1]
             if val_loss < best_loss - self.early_stopping_threshold:
                 best_loss = val_loss
                 epochs_no_improve = 0
