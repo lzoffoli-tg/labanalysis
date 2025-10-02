@@ -799,7 +799,11 @@ class TorchTrainer:
                 for key, val in self._logger.items():
                     if self.verbose == "full" or (
                         self.verbose == "minimal"
-                        and ((key == "epoch") or (f"{model_name}_loss" in key))
+                        and (
+                            (key == "epoch")
+                            or ("training_loss" in key)
+                            or ("validation_loss" in key)
+                        )
                     ):
                         num = val[-1]
                         msg += f"\t{key}: "
