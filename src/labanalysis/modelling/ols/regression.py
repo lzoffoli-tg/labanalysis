@@ -376,6 +376,8 @@ class PowerRegression(PolynomialRegression):
 
         b0 = np.atleast_2d(np.exp(fitted.intercept_))
         b1 = np.atleast_2d(fitted.coef_)
+        if Y.shape[1] == 1:
+            b1 = b1.T
 
         coefs = np.vstack([b0, b1])
         index = ["beta0"] + [f"beta{i+1}" for i in range(b1.shape[0])]

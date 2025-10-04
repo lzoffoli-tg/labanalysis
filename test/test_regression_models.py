@@ -17,7 +17,7 @@ from labanalysis import (
 @pytest.fixture
 def sample_data():
     X = np.atleast_2d(np.linspace(1, 10, 10)).T
-    X = np.concatenate([X, X**0.5], axis=1)
+    X = np.concatenate([X, X**0.5, X**2], axis=1)
     Y = 2 * X + 3
     return X, Y
 
