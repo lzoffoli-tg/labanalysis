@@ -2,6 +2,7 @@
 
 #! IMPORTS
 
+import copy
 import itertools as it
 from typing import Callable
 
@@ -9,7 +10,6 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 from sklearn.linear_model import LinearRegression
-from sklearn.preprocessing import PolynomialFeatures
 
 __all__ = [
     "BaseRegression",
@@ -150,18 +150,22 @@ class BaseRegression(LinearRegression):
 
     def copy(self):
         """
-        Creates a new instance of the model with the same parameters.
+        Creates a deep copy of the model including fitted parameters.
 
         Returns
         -------
         BaseRegression
-            A copy of the current model instance.
+            A copy of the current model instance with learned attributes.
         """
-        return self.__class__(
+        new_model = self.__class__(
             fit_intercept=self.fit_intercept,  # type: ignore
             transform=self.transform,
             positive=self.positive,  # type: ignore
         )
+        new_model._betas = copy.deepcopy(self._betas)
+        new_model._names_in = copy.deepcopy(self._names_in)
+        new_model._names_out = copy.deepcopy(self._names_out)
+        return new_model
 
 
 class PolynomialRegression(BaseRegression):
@@ -227,15 +231,14 @@ class PolynomialRegression(BaseRegression):
         pandas.DataFrame
             Transformed features including polynomial terms.
         """
-        feats = PolynomialFeatures(
-            degree=self.degree,
-            include_bias=self.fit_intercept,  # type: ignore
-        )
-        return pd.DataFrame(
-            data=feats.fit_transform(xarr),
-            columns=feats.get_feature_names_out(),
-            index=xarr.index,
-        )
+        feats = []
+        for i in np.arange(self.degree):
+            new = xarr.copy() ** (i + 1)
+            lbl = "" if i == 0 else f"^{i+1}"
+            new.columns = new.columns.map(lambda x: x + lbl)
+            feats += [new]
+        feats = pd.concat(feats, axis=1)
+        return feats
 
     def fit(self, xarr, yarr):
         """
@@ -260,8 +263,10 @@ class PolynomialRegression(BaseRegression):
         X = self._adjust_degree(X)
         self._names_in = X.columns.tolist()
         fitted = super().fit(X, Y)
-        coefs = [np.atleast_2d(fitted.intercept_), fitted.coef_[:, 1:]]
-        coefs = np.concatenate(coefs, axis=1).T
+        beta_0 = np.atleast_2d(fitted.intercept_).T
+        beta_n = np.atleast_2d(fitted.coef_)
+        coefs = [beta_0, fitted.coef_]
+        coefs = np.concatenate([beta_0, beta_n], axis=1).T
         self._betas = pd.DataFrame(
             data=coefs,
             index=[f"beta{i}" for i in range(coefs.shape[0])],
@@ -290,6 +295,26 @@ class PolynomialRegression(BaseRegression):
             columns=self.get_feature_names_out(),
             index=X.index,
         )
+
+    def copy(self):
+        """
+        Creates a deep copy of the model including fitted parameters.
+
+        Returns
+        -------
+        PolynomialRegression
+            A copy of the current model instance with learned attributes.
+        """
+        new_model = self.__class__(
+            degree=self._degree,
+            fit_intercept=self.fit_intercept,  # type: ignore
+            transform=self.transform,
+            positive=self.positive,  # type: ignore
+        )
+        new_model._betas = copy.deepcopy(self._betas)
+        new_model._names_in = copy.deepcopy(self._names_in)
+        new_model._names_out = copy.deepcopy(self._names_out)
+        return new_model
 
 
 class PowerRegression(PolynomialRegression):
@@ -347,10 +372,10 @@ class PowerRegression(PolynomialRegression):
         Xt = K.map(np.log)
         Yt = Y.map(np.log)
 
-        fitted = LinearRegression(fit_intercept=True).fit(Xt, Yt)
+        fitted = super().fit(Xt, Yt)
 
-        b0 = np.exp(fitted.intercept_)
-        b1 = fitted.coef_
+        b0 = np.atleast_2d(np.exp(fitted.intercept_))
+        b1 = np.atleast_2d(fitted.coef_)
 
         coefs = np.vstack([b0, b1])
         index = ["beta0"] + [f"beta{i+1}" for i in range(b1.shape[0])]
@@ -375,8 +400,26 @@ class PowerRegression(PolynomialRegression):
         b0 = self._betas.loc["beta0"].values.astype(float)
         b1 = self._betas.drop(index="beta0").values.astype(float)
 
-        y_pred = np.prod(K.values**b1.T, axis=1) * b0
+        y_pred = np.prod([K.values**b for b in b1], axis=0) * b0
         return pd.DataFrame(y_pred, columns=self._names_out, index=X.index)
+
+    def copy(self):
+        """
+        Creates a deep copy of the model including fitted parameters.
+
+        Returns
+        -------
+        PowerRegression
+            A copy of the current model instance with learned attributes.
+        """
+        new_model = self.__class__(
+            transform=self.transform,
+            positive=self.positive,  # type: ignore
+        )
+        new_model._betas = copy.deepcopy(self._betas)
+        new_model._names_in = copy.deepcopy(self._names_in)
+        new_model._names_out = copy.deepcopy(self._names_out)
+        return new_model
 
 
 class ExponentialRegression(BaseRegression):
@@ -533,17 +576,21 @@ class ExponentialRegression(BaseRegression):
 
     def copy(self):
         """
-        Create a copy of the current model instance.
+        Creates a deep copy of the model including fitted parameters.
 
         Returns
         -------
         ExponentialRegression
-            A new instance with the same parameters.
+            A copy of the current model instance with learned attributes.
         """
-        return self.__class__(
+        new_model = self.__class__(
             fit_intercept=self.fit_intercept,  # type: ignore
             transform=self.transform,
         )
+        new_model._betas = copy.deepcopy(self._betas)
+        new_model._names_in = copy.deepcopy(self._names_in)
+        new_model._names_out = copy.deepcopy(self._names_out)
+        return new_model
 
 
 class MultiSegmentRegression(PolynomialRegression):
@@ -591,22 +638,6 @@ class MultiSegmentRegression(PolynomialRegression):
         )
         self._n_segments = n_segments
         self._min_samples = min_samples if min_samples is not None else self.degree + 1
-
-    def copy(self):
-        """
-        Create a copy of the current model instance.
-
-        Returns
-        -------
-        MultiSegmentRegression
-            A new instance with the same parameters.
-        """
-        return self.__class__(
-            degree=self._degree,
-            transform=self._transform,
-            n_segments=self._n_segments,
-            min_samples=self._min_samples,
-        )
 
     @property
     def n_segments(self):
@@ -774,3 +805,24 @@ class MultiSegmentRegression(PolynomialRegression):
             Y.loc[X.index[idx], [feat]] = (xmat @ betas).values
 
         return Y
+
+    def copy(self):
+        """
+        Creates a deep copy of the model including fitted parameters.
+
+        Returns
+        -------
+        MultiSegmentRegression
+            A copy of the current model instance with learned attributes.
+        """
+        new_model = self.__class__(
+            degree=self._degree,
+            transform=self._transform,
+            n_segments=self._n_segments,
+            min_samples=self._min_samples,
+            positive=self.positive,  # type: ignore
+        )
+        new_model._betas = copy.deepcopy(self._betas)
+        new_model._names_in = copy.deepcopy(self._names_in)
+        new_model._names_out = copy.deepcopy(self._names_out)
+        return new_model
