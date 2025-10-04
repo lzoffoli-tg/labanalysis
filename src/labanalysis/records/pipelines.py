@@ -7,8 +7,8 @@
 
 
 from typing import Callable, List
-from .records import *
-from .signalprocessing import *
+from . import *
+from ..signalprocessing import *
 import numpy as np
 
 __all__ = ["ProcessingPipeline", "default_processing_pipeline"]

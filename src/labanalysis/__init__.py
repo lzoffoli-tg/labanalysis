@@ -9,5 +9,5 @@ from .signalprocessing import *
 from .utils import *
 from .constants import *
 from .records import *
-from .pipelines import *
+from .records.pipelines import *
 from .testprotocols import *
