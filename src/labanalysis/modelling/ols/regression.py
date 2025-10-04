@@ -61,44 +61,9 @@ class BaseRegression(LinearRegression):
         self._names_in = None
         self._names_out = None
 
-    def fit(self, xarr, yarr):
-        """
-        Fit the polynomial regression model to the given data.
-
-        Parameters
-        ----------
-        xarr : array-like
-            Input features.
-
-        yarr : array-like
-            Target values.
-
-        Returns
-        -------
-        self : PolynomialRegression
-            The fitted model instance.
-        """
-        return NotImplementedError
-
-    def predict(self, xarr):
-        """
-        Predict target values using the fitted polynomial regression model.
-
-        Parameters
-        ----------
-        xarr : array-like
-            Input features.
-
-        Returns
-        -------
-        y_pred : pandas.DataFrame
-            Predicted target values.
-        """
-        return NotImplementedError
-
     def __call__(self, xarr):
         """
-        Predict target values using the fitted polynomial regression model.
+        Predict target values using the fitted regression model.
 
         Parameters
         ----------
