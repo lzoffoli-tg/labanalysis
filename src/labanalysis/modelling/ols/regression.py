@@ -61,6 +61,57 @@ class BaseRegression(LinearRegression):
         self._names_in = None
         self._names_out = None
 
+    def fit(self, xarr, yarr):
+        """
+        Fit the polynomial regression model to the given data.
+
+        Parameters
+        ----------
+        xarr : array-like
+            Input features.
+
+        yarr : array-like
+            Target values.
+
+        Returns
+        -------
+        self : PolynomialRegression
+            The fitted model instance.
+        """
+        return NotImplementedError
+
+    def predict(self, xarr):
+        """
+        Predict target values using the fitted polynomial regression model.
+
+        Parameters
+        ----------
+        xarr : array-like
+            Input features.
+
+        Returns
+        -------
+        y_pred : pandas.DataFrame
+            Predicted target values.
+        """
+        return NotImplementedError
+
+    def __call__(self, xarr):
+        """
+        Predict target values using the fitted polynomial regression model.
+
+        Parameters
+        ----------
+        xarr : array-like
+            Input features.
+
+        Returns
+        -------
+        y_pred : pandas.DataFrame
+            Predicted target values.
+        """
+        return self.predict(xarr)
+
     @property
     def transform(self):
         """
@@ -393,16 +444,17 @@ class PowerRegression(PolynomialRegression):
     ):
         X = self._simplify(xarr, "X")
         K = X.map(self.transform)
+        K.insert(0, "beta0", 1)
 
         if (K <= 0).any().any():
             raise ValueError(
                 "All values in X must be positive for power transformation."
             )
 
-        b0 = self._betas.loc["beta0"].values.astype(float)
-        b1 = self._betas.drop(index="beta0").values.astype(float)
-
-        y_pred = np.prod([K.values**b for b in b1], axis=0) * b0
+        y_pred = np.prod(
+            K.values[:, :, np.newaxis] ** self.betas.values[np.newaxis, :, :],
+            axis=1,
+        )
         return pd.DataFrame(y_pred, columns=self._names_out, index=X.index)
 
     def copy(self):
