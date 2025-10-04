@@ -409,17 +409,15 @@ class PowerRegression(PolynomialRegression):
     ):
         X = self._simplify(xarr, "X")
         K = X.map(self.transform)
-        K.insert(0, "beta0", 1)
 
         if (K <= 0).any().any():
             raise ValueError(
                 "All values in X must be positive for power transformation."
             )
 
-        y_pred = np.prod(
-            K.values[:, :, np.newaxis] ** self.betas.values[np.newaxis, :, :],
-            axis=1,
-        )
+        vals = K.values[:, :, np.newaxis]
+        coefs = self.betas.iloc[1:, :].values[np.newaxis, :, :]
+        y_pred = np.prod(vals**coefs, axis=1) * self.betas.iloc[0, :].values
         return pd.DataFrame(y_pred, columns=self._names_out, index=X.index)
 
     def copy(self):
