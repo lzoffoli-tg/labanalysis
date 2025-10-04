@@ -35,7 +35,7 @@ def test_polynomial_regression(sample_data):
     X, Y = sample_data
     model = PolynomialRegression(degree=2)
     model.fit(X, Y)
-    preds = model.predict(X)
+    preds = model(X)
     assert isinstance(preds, pd.DataFrame)
     assert preds.shape[0] == len(X)
     assert isinstance(model.betas, pd.DataFrame)
@@ -48,7 +48,7 @@ def test_power_regression(sample_data):
     X, Y = sample_data
     model = PowerRegression()
     model.fit(X, Y)
-    preds = model.predict(X)
+    preds = model(X)
     assert isinstance(preds, pd.DataFrame)
     assert preds.shape[0] == len(X)
     assert isinstance(model.betas, pd.DataFrame)
@@ -60,7 +60,7 @@ def test_exponential_regression(sample_data):
     X, Y = sample_data
     model = ExponentialRegression()
     model.fit(X, Y)
-    preds = model.predict(X)
+    preds = model(X)
     assert isinstance(preds, pd.DataFrame)
     assert preds.shape[0] == len(X)
     assert isinstance(model.betas, pd.DataFrame)
@@ -72,7 +72,7 @@ def test_multisegment_regression(sample_data):
     X, Y = sample_data
     model = MultiSegmentRegression(degree=1, n_segments=2)
     model.fit(X[:, 0], Y)
-    preds = model.predict(X[:, 0])
+    preds = model(X[:, 0])
     assert isinstance(preds, pd.DataFrame)
     assert preds.shape[0] == len(X)
     assert isinstance(model.betas, pd.DataFrame)
