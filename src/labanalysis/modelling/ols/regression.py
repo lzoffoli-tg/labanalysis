@@ -295,8 +295,10 @@ class PolynomialRegression(BaseRegression):
 class PowerRegression(PolynomialRegression):
     """
     Power regression model of the form:
+    Y = b0 * X1**b1 * X2**b2 * ... * Xn**bn + e
 
-        Y = b0 * fn(X) ** b1 + e
+    This model supports multivariate input features and multi-output targets.
+    It fits a log-log linear model to estimate the power coefficients.
 
     Parameters
     ----------
@@ -312,9 +314,8 @@ class PowerRegression(PolynomialRegression):
     ----------
     betas : pandas.DataFrame
         A DataFrame containing the estimated regression coefficients.
-
-    Additional attributes are inherited from the scikit-learn LinearRegression class:
-    https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.LinearRegression.html
+        The first row corresponds to b0 (intercept), and the remaining rows
+        correspond to the power coefficients for each input feature.
     """
 
     def __init__(
@@ -334,83 +335,48 @@ class PowerRegression(PolynomialRegression):
         xarr: np.ndarray | pd.DataFrame | pd.Series | list | int | float,
         yarr: np.ndarray | pd.DataFrame | pd.Series | list | int | float,
     ):
-        """
-        Fit the power regression model to the given data.
-
-        Parameters
-        ----------
-        xarr : array-like
-            Input features. Must be one-dimensional.
-
-        yarr : array-like
-            Target values. Can be one-dimensional or multi-output.
-
-        Returns
-        -------
-        self : PowerRegression
-            The fitted model instance.
-        """
         X = self._simplify(xarr, "X")
-        K = X.map(self.transform)
         Y = self._simplify(yarr, "Y")
-        if K.shape[1] != 1:
-            raise ValueError("xarr must be a 1D array or equivalent structure.")
 
-        # Apply log transformation to both X and Y
-        Yt = Y.map(np.log)
+        K = X.map(self.transform)
+        if (K <= 0).any().any() or (Y <= 0).any().any():
+            raise ValueError(
+                "All values in X and Y must be positive for log transformation."
+            )
+
         Xt = K.map(np.log)
+        Yt = Y.map(np.log)
 
-        # Fit linear model in log-log space
-        fitted = super().fit(Xt, Yt)
-        b0 = float(np.e**fitted.intercept_)
-        b1 = float(np.squeeze(fitted.coef_)[-1])
+        fitted = LinearRegression(fit_intercept=True).fit(Xt, Yt)
 
-        # Store coefficients
-        self._betas = pd.DataFrame(
-            data=[b0, b1],
-            index=[f"beta{i}" for i in range(2)],
-            columns=Y.columns,
-        )
+        b0 = np.exp(fitted.intercept_)
+        b1 = fitted.coef_
 
+        coefs = np.vstack([b0, b1])
+        index = ["beta0"] + [f"beta{i+1}" for i in range(b1.shape[0])]
+        self._betas = pd.DataFrame(coefs, index=index, columns=Y.columns)
+
+        self._names_in = X.columns.tolist()
+        self._names_out = Y.columns.tolist()
         return self
 
     def predict(
         self,
         xarr: np.ndarray | pd.DataFrame | pd.Series | list | int | float,
     ):
-        """
-        Predict target values using the fitted power regression model.
-
-        Parameters
-        ----------
-        xarr : array-like
-            Input features. Must be one-dimensional.
-
-        Returns
-        -------
-        y_pred : pandas.DataFrame
-            Predicted values.
-        """
         X = self._simplify(xarr, "X")
-        if X.shape[1] != 1:
-            raise ValueError("xarr must be a 1D array or equivalent structure.")
+        K = X.map(self.transform)
 
-        b0, b1 = self.betas.values.astype(float).flatten()
-        return b0 * (X.map(self.transform) ** b1)
+        if (K <= 0).any().any():
+            raise ValueError(
+                "All values in X must be positive for power transformation."
+            )
 
-    def copy(self):
-        """
-        Create a copy of the current model instance.
+        b0 = self._betas.loc["beta0"].values.astype(float)
+        b1 = self._betas.drop(index="beta0").values.astype(float)
 
-        Returns
-        -------
-        PowerRegression
-            A new instance with the same parameters.
-        """
-        return self.__class__(
-            transform=self._transform,
-            positive=self.positive,  # type: ignore
-        )
+        y_pred = np.prod(K.values**b1.T, axis=1) * b0
+        return pd.DataFrame(y_pred, columns=self._names_out, index=X.index)
 
 
 class ExponentialRegression(BaseRegression):
