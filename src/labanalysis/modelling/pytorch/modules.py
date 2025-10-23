@@ -24,9 +24,6 @@ class FeaturesGenerator(torch.nn.Module):
         self.include_interactions = include_interactions
         self.input_keys = input_keys if input_keys is not None else None
 
-    def is_boolean_tensor(self, tensor: torch.Tensor):
-        return torch.all((tensor == 0) | (tensor == 1))
-
     def forward(self, inputs: Dict[str, torch.Tensor]):
         outputs: Dict[str, torch.Tensor] = {}
         transformed_by_var: Dict[str, List[str]] = {}
@@ -46,7 +43,7 @@ class FeaturesGenerator(torch.nn.Module):
             transformed_by_var[name] = [name]
 
             # Apply transformations only if not boolean
-            if not self.is_boolean_tensor(tensor):
+            if torch.all((tensor == 0) or (tensor == 1)):
                 if self.apply_inverse_transform:
                     inv_name = name + "_inv"
                     outputs[inv_name] = torch.sign(tensor) / torch.clamp(
