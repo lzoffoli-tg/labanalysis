@@ -43,7 +43,7 @@ class FeaturesGenerator(torch.nn.Module):
             transformed_by_var[name] = [name]
 
             # Apply transformations only if not boolean
-            if torch.all((tensor == 0) or (tensor == 1)):
+            if tensor.dtype == torch.bool:
                 if self.apply_inverse_transform:
                     inv_name = name + "_inv"
                     outputs[inv_name] = torch.sign(tensor) / torch.clamp(
