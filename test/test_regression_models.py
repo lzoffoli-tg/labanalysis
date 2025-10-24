@@ -4,8 +4,8 @@ import pandas as pd
 import sys
 from os.path import dirname, abspath, join
 
-sys.path += [join(dirname(dirname(abspath(__file__))), "src")]
-from labanalysis import (
+sys.path += [dirname(dirname(abspath(__file__)))]
+from src.labanalysis import (
     BaseRegression,
     PolynomialRegression,
     PowerRegression,
@@ -14,12 +14,16 @@ from labanalysis import (
 )
 
 
-@pytest.fixture
-def sample_data():
+def get_data():
     X = np.atleast_2d(np.linspace(1, 10, 10)).T
     X = np.concatenate([X, X**0.5, X**2], axis=1)
     Y = 2 * X + 3
     return X, Y
+
+
+@pytest.fixture
+def sample_data():
+    return get_data()
 
 
 def test_base_regression(sample_data):
@@ -80,3 +84,11 @@ def test_multisegment_regression(sample_data):
     assert model.min_samples == 2
     model_copy = model.copy()
     assert isinstance(model_copy, MultiSegmentRegression)
+
+
+if __name__ == "__main__":
+    test_base_regression(get_data())
+    test_polynomial_regression(get_data())
+    test_power_regression(get_data())
+    test_exponential_regression(get_data())
+    test_multisegment_regression(get_data())

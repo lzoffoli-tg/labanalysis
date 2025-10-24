@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import PolynomialFeatures
 
 __all__ = [
     "BaseRegression",
@@ -60,6 +61,7 @@ class BaseRegression(LinearRegression):
         self._betas = pd.DataFrame()
         self._names_in = None
         self._names_out = None
+        self.fit_intercept = fit_intercept
 
     def __call__(self, xarr):
         """
@@ -213,6 +215,8 @@ class PolynomialRegression(BaseRegression):
         self,
         degree: int = 1,
         fit_intercept: bool = True,
+        include_main_terms: bool = True,
+        include_interactions: bool = True,
         transform: Callable = lambda x: x,
         positive: bool = False,
     ):
@@ -220,6 +224,8 @@ class PolynomialRegression(BaseRegression):
             fit_intercept=fit_intercept, transform=transform, positive=positive
         )
         self._degree = degree
+        self.include_interactions = include_interactions
+        self.include_main_terms = include_main_terms
 
     @property
     def degree(self):
@@ -247,14 +253,27 @@ class PolynomialRegression(BaseRegression):
         pandas.DataFrame
             Transformed features including polynomial terms.
         """
-        feats = []
-        for i in np.arange(self.degree):
-            new = xarr.copy() ** (i + 1)
-            lbl = "" if i == 0 else f"^{i+1}"
-            new.columns = new.columns.map(lambda x: x + lbl)
-            feats += [new]
-        feats = pd.concat(feats, axis=1)
-        return feats
+        transformer = PolynomialFeatures(
+            degree=self.degree,
+            interaction_only=False,
+            include_bias=False,
+        )
+        transformer = transformer.fit(xarr.to_numpy())
+        feats = pd.DataFrame(
+            data=np.asarray(transformer.transform(xarr.to_numpy())),
+            columns=transformer.get_feature_names_out(),
+            index=xarr.index,
+        )
+
+        # get main effets
+        if self.include_main_terms and self.include_interactions:
+            return feats
+        if self.include_main_terms:
+            return feats[[i for i in feats.columns if " " not in i]]
+        if self.include_interactions:
+            return feats[[i for i in feats.columns if " " in i]]
+        msg = "include_interactions and include_main_terms cannot be both False."
+        raise ValueError(msg)
 
     def fit(self, xarr, yarr):
         """
@@ -369,6 +388,8 @@ class PowerRegression(PolynomialRegression):
             transform=transform,
             positive=positive,
             degree=1,
+            include_interactions=False,
+            include_main_terms=True,
         )
 
     def fit(
@@ -651,7 +672,12 @@ class MultiSegmentRegression(PolynomialRegression):
         positive: bool = False,
     ):
         super().__init__(
-            degree=degree, transform=transform, fit_intercept=False, positive=positive
+            degree=degree,
+            transform=transform,
+            fit_intercept=False,
+            positive=positive,
+            include_interactions=False,
+            include_main_terms=True,
         )
         self._n_segments = n_segments
         self._min_samples = min_samples if min_samples is not None else self.degree + 1
