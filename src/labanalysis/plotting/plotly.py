@@ -35,158 +35,137 @@ __all__ = ["plot_comparisons", "bars_with_normative_bands"]
 
 
 def plot_comparisons(
-    xarr: np.ndarray,
-    yarr: np.ndarray,
-    color: np.ndarray | None = None,
-    xlabel: str = "",
-    ylabel: str = "",
+    data_frame: pd.DataFrame | None,
+    true_data: np.ndarray | str,
+    pred_data: np.ndarray | str,
+    color_data: np.ndarray | str | None = None,
     confidence: float = 0.95,
     parametric: bool = False,
-    figure: go.Figure | go.FigureWidget | None = None,
-    row: int = 1,
-    showlegend: bool = True,
+    color_scale: str = "temps",
 ):
-    """
-    A combination of regression and bland-altmann plots
 
-    Parameters
-    ----------
-    xarr: np.ndarray[Literal[1], np.dtype[np.float64 | np.int64]],
-        the array defining the x-axis in the regression plot.
+    # * PREPARATION
 
-    yarr: np.ndarray[Literal[1], np.dtype[np.float64 | np.int64]],
-        the array defining the y-axis in the regression plot.
+    # check the inputs
+    if data_frame is None:
+        msg = "'{}' must be a list or a numpy ndarray if data_frame is None."
+        if not isinstance(true_data, (list, np.ndarray)):
+            raise ValueError(msg.format("true_data"))
+        if not isinstance(pred_data, (list, np.ndarray)):
+            raise ValueError(msg.format("pred_data"))
+        if color_data is not None:
+            if not isinstance(color_data, (list, np.ndarray)):
+                raise ValueError(msg.format("color_data"))
 
-    color: np.ndarray[Literal[1], np.dtype[Any]] | None (default = None)
-        the array defining the color of each sample in the regression plot.
-
-    xlabel: str (default = "")
-        the label of the x-axis in the regression plot.
-
-    ylabel: str (default = "")
-        the label of the y-axis in the regression plot.
-
-    confidence: float (default = 0.95)
-        the confidence interval to be displayed on the Bland-Altmann plot.
-
-    parametric: bool (default = False)
-        if True, parametric Bland-Altmann confidence intervals are reported.
-        Otherwise, non parametric confidence intervals are provided.
-
-    figure: go.Figure | go.FigureWidget | None (default = None)
-        an already existing figure where to add the plot along the passed row
-
-    row: int (default = 1)
-        the index of the row where to put the plots
-
-    showlegend: bool (default = True)
-        If True show the legend of the figure.
-    """
-
-    # generate the figure
-    if figure is None:
-        fig = make_subplots(
-            rows=max(1, row),
-            cols=2,
-            shared_xaxes=False,
-            shared_yaxes=False,
-            column_titles=[
-                "FITTING MEASURES",
-                " ".join(["" if parametric else "NON PARAMETRIC", "BLAND-ALTMAN"]),
-            ],
+    elif isinstance(data_frame, pd.DataFrame):
+        msg = "if data_frame is provided, '{}' must be the name of one column "
+        msg += "in data_frame."
+        if not isinstance(true_data, str) or true_data not in data_frame.columns:  # type: ignore
+            raise ValueError(msg.format("true_data"))
+        if not isinstance(pred_data, str) or pred_data not in data_frame.columns:  # type: ignore
+            raise ValueError(msg.format("pred_data"))
+        true_data, pred_data = (
+            data_frame[[true_data, pred_data]].to_numpy().astype(float).T
         )
-        fig.update_layout(
-            template="plotly",
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                # entrywidth=15,
-                # entrywidthmode="fraction",
-                y=1.15,
-                xanchor="right",
-                x=1,
-            ),
-            legend2=dict(
-                orientation="h",
-                yanchor="bottom",
-                # entrywidth=15,
-                # entrywidthmode="fraction",
-                y=1.1,
-                xanchor="right",
-                x=1,
-            ),
-            legend3=dict(
-                orientation="h",
-                yanchor="bottom",
-                # entrywidth=15,
-                # entrywidthmode="fraction",
-                y=1.05,
-                xanchor="right",
-                x=1,
-            ),
-        )
+        if color_data is None:
+            color_data = np.tile("ALL", len(true_data))
+        else:
+            if not isinstance(color_data, str) or color_data not in data_frame.columns:
+                raise ValueError(msg.format("color_data"))
+            color_data = data_frame[color_data].to_numpy().flatten()
+
     else:
-        fig = figure
+        raise ValueError("'data_frame' must be None or a pandas DataFrame.")
 
-    fig.update_xaxes(title=xlabel, col=1, row=row)
-    fig.update_yaxes(title=ylabel, col=1, row=row)
-    fig.update_xaxes(title="MEAN", col=2, row=row)
-    fig.update_yaxes(title="DELTA", col=2, row=row)
+    if not isinstance(confidence, float) or not (0 < confidence < 1):
+        raise ValueError("'confidence' must be a value within the (0, 1) range.")
 
-    # set the colormap
-    if color is None:
-        color = np.tile("none", len(xarr))
-    pmap = pcolors.qualitative.Plotly
-    colmap = np.unique(np.array(color).flatten().astype(str))
-    colmap = [(i, color == i, k) for i, k in zip(colmap, pmap)]
+    if not isinstance(parametric, bool):
+        raise ValueError("'parametric' must be True or False.")
 
-    # add the identity line to the regression plot
-    ymin = min(np.min(yarr), np.min(xarr))
-    ymax = max(np.max(yarr), np.max(xarr))
-    fig.add_trace(
-        row=row,
-        col=1,
-        trace=go.Scatter(
-            x=[ymin, ymax],
-            y=[ymin, ymax],
-            mode="lines",
-            line_dash="dash",
-            line_color="black",
-            name="IDENTITY LINE",
-            # legendgroup="IDENTITY LINE",
-            showlegend=showlegend,
-            legend="legend",
-        ),
-    )
-
-    # add the scatter points to the regression plot and prepare the textbox
-    text = []
+    # prepare the axes and labels for the bland-altmann plot
     loa_lbl = f"{confidence * 100:0.0f}% LIMITS OF AGREEMENT"
     eps = 1e-15
-    x_rng2 = (xarr + yarr) / 2
+    x_rng2 = (true_data + pred_data) / 2
     x_rng2 = [np.min(x_rng2), np.max(x_rng2)]
     x_diff = abs(np.diff(x_rng2))[0]
     x_rng2 = [x_rng2[0] - x_diff * 0.05, x_rng2[1] + x_diff * 0.05]
-    for n, (name, idx, col) in enumerate(colmap):
-        xarri = xarr[idx]
-        yarri = yarr[idx]
 
-        # plot the true vs predicted values in the regression plot
-        fig.add_trace(
-            row=row,
-            col=1,
-            trace=go.Scatter(
-                x=xarri,
-                y=yarri,
-                mode="markers",
-                marker_color=col,
-                showlegend=color is not None and showlegend,
-                opacity=0.5,
-                name=name,
-                # legendgroup=name,
-                legend=f"legend{n + 2}",
-            ),
-        )
+    # get the colormap
+    pmap = pcolors.qualitative.Plotly
+    colmap = np.unique(np.array(color_data).flatten().astype(str))
+    colmap = [(i, color_data == i, k) for i, k in zip(colmap, pmap)]
+    n_colors = len(colmap)
+
+    # get the colorscale based on the deviation between true and pred values
+    # this colors will be used to color the lines in the link plot
+    diffs_data = pred_data - true_data
+    colorscale = pcolors.get_colorscale(color_scale)
+    max_diff = np.max(abs(diffs_data))
+
+    def map_to_color(val):
+        t = val / max_diff
+        t = max(0, min(1, t))  # clamp
+
+        def as_rgb(cs):
+            try:
+                rgb = pcolors.hex_to_rgb(cs)
+            except Exception as e:
+                rgb = pcolors.unlabel_rgb(colorscale[i][1])
+            return pcolors.label_rgb(rgb)
+
+        for i in range(len(colorscale) - 1):
+            if t <= colorscale[i + 1][0]:
+                frac = (t - colorscale[i][0]) / (
+                    colorscale[i + 1][0] - colorscale[i][0]
+                )
+                c1 = pcolors.unlabel_rgb(as_rgb(colorscale[i][1]))
+                c2 = pcolors.unlabel_rgb(as_rgb(colorscale[i + 1][1]))
+                rgb = [int(c1[j] + frac * (c2[j] - c1[j])) for j in range(3)]
+                return pcolors.label_rgb(rgb)
+        return as_rgb(colorscale[-1][1])
+
+    diff_colors = np.array(list(map(map_to_color, abs(diffs_data))))
+
+    # generate the figure
+    fig = make_subplots(
+        rows=2,
+        cols=3,
+        shared_xaxes=False,
+        shared_yaxes=False,
+        subplot_titles=[
+            "",
+            "TRUE vs PREDICTED",
+            ("NON-" if not parametric else "") + "PARAMETRIC BLAND-ALTMAN",
+            "ERRORS DISTRIBUTION",
+            "LINK PLOT",
+        ],
+        specs=[[{"rowspan": 2, "type": "table"}, {}, {}], [None, {}, {}]],
+        horizontal_spacing=0.1,
+        vertical_spacing=0.15,
+    )
+
+    # prepare the data storage for the fitting metrics
+    headers = [""]
+    rows = [
+        ["#"],
+        ["RMSE"],
+        ["MAPE"],
+        ["R<sup>2</sup>"],
+        ["T<sub>Paired</sub>"],
+        ["T<sub>Independent</sub>"],
+        ["Bias"],
+        ["LOA<sub>Upper</sub>"],
+        ["LOA<sub>Lower</sub>"],
+    ]
+
+    # * ADD DATA TO FIGURE
+
+    for name, idx, col in colmap:
+        xarri = true_data[idx]
+        yarri = pred_data[idx]
+        diffi = diffs_data[idx]
+        diffc = diff_colors[idx]
 
         # add the fitting metrics
         rmse = np.mean((yarri - xarri) ** 2) ** 0.5
@@ -194,35 +173,48 @@ def plot_comparisons(
         r2 = np.corrcoef(xarri, yarri)[0][1] ** 2
         tt_rel = ttest_rel(xarri, yarri)
         tt_ind = ttest_ind(xarri, yarri)
-        txt = [name + ":"]
-        txt += [f"&#9;&#9;&#9;&#9;# = {len(xarri)}"]
-        txt += [f"&#9;&#9;&#9;&#9;RMSE = {rmse:0.4f}"]
-        txt += [f"&#9;&#9;&#9;&#9;MAPE = {mape:0.1f} %"]
-        txt += [f"&#9;&#9;&#9;&#9;R<sup>2</sup> = {r2:0.2f}"]
-        txt += [
-            f"&#9;&#9;&#9;&#9;Paired T<sub>df={tt_rel.df:0.0f}</sub> = "  # type: ignore
-            + f"{tt_rel.statistic:0.2f} (p={tt_rel.pvalue:0.3f})"  # type: ignore
-        ]
-        txt += [
-            f"&#9;&#9;&#9;&#9;Indipendent T<sub>df={tt_ind.df:0.0f}</sub> = "  # type: ignore
-            + f"{tt_ind.statistic:0.2f} (p={tt_ind.pvalue:0.3f})"  # type: ignore
-        ]
-        txt = "<br>".join(txt)
-        text += [txt]
-
-        # plot the data on the bland-altman subplot
         means = (xarri + yarri) / 2
         diffs = yarri - xarri
         if not parametric:
             ref = (1 - confidence) / 2
-            loalow, loasup, bias = np.quantile(diffs, [ref, 1 - ref, 0.5])
+            loalow, loasup, bias = np.quantile(diffi, [ref, 1 - ref, 0.5])
         else:
             bias = np.mean(diffs)
             scale = np.std(diffs)
             loalow, loasup = norm.interval(confidence, loc=bias, scale=scale)
+        headers += [name]
+        rows[0] += [str(len(xarri))]
+        rows[1] += [f"{rmse:0.4f}"]
+        rows[2] += [f"{mape:0.1f}%"]
+        rows[3] += [f"{r2:0.3f}"]
+        rows[4] += [
+            f"df={tt_rel.df:0.0f}<br>t={tt_rel.statistic:0.2f}<br>p={tt_rel.pvalue:0.3f}"
+        ]
+        rows[5] += [f"df={tt_ind.df:0.0f}<br>t={tt_ind.statistic:0.2f}<br>p={tt_ind.pvalue:0.3f}"]  # type: ignore
+        rows[6] += [f"{bias:+0.3f}"]
+        rows[7] += [f"{loalow:+0.3f}"]
+        rows[8] += [f"{loasup:+0.3f}"]
+
+        # plot the true vs predicted values in the regression plot
         fig.add_trace(
-            row=row,
+            row=1,
             col=2,
+            trace=go.Scatter(
+                x=xarri,
+                y=yarri,
+                mode="markers",
+                marker_color=col,
+                showlegend=n_colors > 1,
+                opacity=0.5,
+                name=name,
+                legendgroup=name,
+            ),
+        )
+
+        # plot the data on the bland-altman subplot
+        fig.add_trace(
+            row=1,
+            col=3,
             trace=go.Scatter(
                 x=means,
                 y=diffs,
@@ -231,8 +223,7 @@ def plot_comparisons(
                 showlegend=False,
                 opacity=0.5,
                 name=name,
-                # legendgroup=name,
-                legend=f"legend{n + 2}",
+                legendgroup=name,
             ),
         )
 
@@ -240,81 +231,25 @@ def plot_comparisons(
         f_bias = np.polyfit(means, diffs, 1)
         y_bias = np.polyval(f_bias, x_rng2)
         fig.add_trace(
-            row=row,
-            col=2,
+            row=1,
+            col=3,
             trace=go.Scatter(
                 x=x_rng2,
                 y=y_bias,
                 mode="lines",
                 line_color=col,
                 line_dash="dot",
-                name="Trend",
+                name=name,
+                legendgroup=name,
                 opacity=0.7,
-                showlegend=showlegend,
-                legend=f"legend{n + 2}",
-            ),
-        )
-        chrs = np.max([len(str(i).split(".")[0]) + 2 for i in f_bias] + [6])
-        msg = [f"{i:+}" for i in f_bias]
-        msg = f"y = {msg[0][:chrs]}x {msg[1][:chrs]}"
-        fig.add_annotation(
-            row=row,
-            col=2,
-            x=x_rng2[-1],
-            y=y_bias[-1],
-            text=msg,
-            showarrow=False,
-            xanchor="right",
-            yanchor="bottom",
-            standoff=5,
-            align="right",
-            valign="bottom",
-            opacity=0.7,
-            font=dict(
-                family="sans serif",
-                size=12,
-                color=col,
-            ),
-        )
-
-        # plot the bias
-        fig.add_trace(
-            row=row,
-            col=2,
-            trace=go.Scatter(
-                x=x_rng2,
-                y=np.tile(bias, len(x_rng2)),
-                name="Bias",
-                line_dash="solid",
-                line_color=col,
-                line_width=1,
-                opacity=0.7,
-                showlegend=showlegend,
-                legend=f"legend{n + 2}",
-                mode="lines",
-            ),
-        )
-        fig.add_annotation(
-            row=row,
-            col=2,
-            x=x_rng2[-1],
-            y=bias,
-            text=f"{bias:0.2f}",
-            showarrow=False,
-            xanchor="left",
-            align="left",
-            opacity=0.7,
-            font=dict(
-                family="sans serif",
-                size=12,
-                color=col,
+                showlegend=False,
             ),
         )
 
         # plot the limits of agreement
         fig.add_trace(
-            row=row,
-            col=2,
+            row=1,
+            col=3,
             trace=go.Scatter(
                 x=x_rng2,
                 y=[loalow, loalow],
@@ -322,82 +257,173 @@ def plot_comparisons(
                 line_color=col,
                 line_dash="dashdot",
                 name=loa_lbl,
-                # legendgroup=loa_lbl,
+                legendgroup=name,
                 opacity=0.3,
-                showlegend=showlegend,
-                legend=f"legend{n + 2}",
+                showlegend=False,
             ),
         )
         fig.add_trace(
-            row=row,
-            col=2,
+            row=1,
+            col=3,
             trace=go.Scatter(
                 x=x_rng2,
                 y=[loasup, loasup],
                 mode="lines",
                 line_color=col,
                 line_dash="dashdot",
-                name=loa_lbl,
-                # legendgroup=loa_lbl,
+                name=name,
+                legendgroup=name,
                 opacity=0.3,
                 showlegend=False,
             ),
         )
 
-        fig.add_annotation(
-            row=row,
+        # plot the errors distribution plot
+        fig.add_trace(
+            row=2,
             col=2,
-            x=x_rng2[-1],
-            y=loalow,
-            text=f"{loalow:0.2f}",
-            showarrow=False,
-            xanchor="left",
-            align="left",
-            opacity=0.7,
-            font=dict(
-                family="sans serif",
-                size=12,
-                color=col,
+            trace=go.Histogram(
+                x=diffi,
+                marker_color=col,
+                name=name,
+                legendgroup=name,
+                opacity=0.3,
+                showlegend=False,
+                textposition="outside",
             ),
-            name=loa_lbl,
         )
 
-        fig.add_annotation(
-            row=row,
-            col=2,
-            x=x_rng2[-1],
-            y=loasup,
-            text=f"{loasup:0.2f}",
-            showarrow=False,
-            xanchor="left",
-            align="left",
-            opacity=0.7,
-            font=dict(
-                family="sans serif",
-                size=12,
-                color=col,
-            ),
-            name=loa_lbl,
-        )
+        # fill the link-plot
+        for x, y, c in zip(xarri, yarri, diffc):
+            fig.add_trace(
+                row=2,
+                col=3,
+                trace=go.Scatter(
+                    x=["TRUE", "PREDICTED"],
+                    y=[x, y],
+                    mode="markers+lines",
+                    marker=dict(color=col, coloraxis="coloraxis", showscale=True),
+                    line=dict(color=c),
+                    name=name,
+                    legendgroup=name,
+                    opacity=0.3,
+                    showlegend=False,
+                ),
+            )
 
-    # add the fitting metrics to the regression plot
-    fig.add_annotation(
-        row=row,
+    # add the table with the fitting metrics
+    fig.add_trace(
+        row=1,
         col=1,
-        x=ymin,
-        y=ymax,
-        text="<br>".join(text),
-        showarrow=False,
-        xanchor="left",
-        align="left",
-        valign="top",
-        font=dict(family="sans serif", size=12, color="black"),
-        bgcolor="white",
-        opacity=0.7,
+        trace=go.Table(
+            header=dict(
+                values=headers,
+                fill_color="lightgrey",
+                align="center",
+                font=dict(size=12),
+            ),
+            cells=dict(
+                values=np.array(rows).T.tolist(),
+                fill_color="white",
+                align="center",
+                font=dict(size=12),
+                height=50,
+            ),
+            name="fitting metrics",
+        ),
     )
 
-    if figure is None:
-        return go.FigureWidget(data=fig.data, layout=fig.layout)
+    # add the identity line to the regression plot
+    ymin = min(np.min(pred_data), np.min(true_data))
+    ymax = max(np.max(pred_data), np.max(true_data))
+    fig.add_trace(
+        row=1,
+        col=2,
+        trace=go.Scatter(
+            x=[ymin, ymax],
+            y=[ymin, ymax],
+            mode="lines",
+            line_dash="dash",
+            line_color="black",
+            name="IDENTITY LINE",
+            legendgroup="IDENTITY LINE",
+            showlegend=False,
+            opacity=0.3,
+        ),
+    )
+
+    # add the zero lines to the errors and bland-altman plots
+    fig.add_hline(
+        row=1,  # type: ignore
+        col=3,  # type: ignore
+        y=0,
+        line_dash="dash",
+        line_color="black",
+        name="ZERO LINE",
+        legendgroup="ZERO LINE",
+        showlegend=False,
+        opacity=0.3,
+        exclude_empty_subplots=False,
+    )
+    fig.add_vline(
+        row=2,  # type: ignore
+        col=2,  # type: ignore
+        x=0,
+        line_dash="dash",
+        line_color="black",
+        name="ZERO LINE",
+        legendgroup="ZERO LINE",
+        showlegend=False,
+        opacity=0.3,
+        exclude_empty_subplots=False,
+    )
+
+    # update the layout
+    fig.update_layout(
+        barmode="group",
+        bargap=0.05,
+        template="plotly",
+        legend=dict(
+            title="groups",
+            orientation="h",
+            yanchor="bottom",
+            y=1.05,
+            xanchor="right",
+            x=1,
+        ),
+        margin=dict(t=50),
+        coloraxis=dict(
+            colorscale=color_scale,
+            cmin=0,
+            cmax=max(abs(diffs_data)),
+            colorbar=dict(
+                title="absolute<br>difference",
+                x=1.05,
+                y=0.5,
+                len=0.8,
+            ),
+        ),
+    )
+
+    # regression figure axes labels
+    fig.update_xaxes(title="TRUE", col=2, row=1)
+    fig.update_yaxes(title="PREDICTED", col=2, row=1)
+
+    # bland-altmann axes labels
+    fig.update_xaxes(title="MEAN", col=3, row=1)
+    fig.update_yaxes(title="DELTA", col=3, row=1)
+
+    # errors distribution axes labels
+    e_rng = max(abs(np.min(diffs_data)), abs(np.max(diffs_data)))
+    e_rng = [-e_rng, e_rng]
+    fig.update_xaxes(title="ERROR", range=e_rng, col=2, row=2)
+    fig.update_yaxes(title="FREQUENCY (#)", col=2, row=2)
+
+    # link plot axes labels
+    fig.update_xaxes(title="", col=3, row=2)
+    fig.update_yaxes(title="", col=3, row=2)
+
+    return fig
 
 
 def bars_with_normative_bands(
