@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, Union
 
 import torch
 
-__all__ = ["FeaturesGenerator", "BoxCoxTransform", "MinMaxScaler", "PCA", "Lasso"]
+__all__ = ["FeaturesGenerator", "BoxCoxTransform", "SigmoidTransformer", "PCA", "Lasso"]
 
 
 class FeaturesGenerator(torch.nn.Module):
@@ -149,146 +149,48 @@ class BoxCoxTransform(torch.nn.Module):
         return out
 
 
-class MinMaxScaler(torch.nn.Module):
+class SigmoidTransformer(torch.nn.Module):
     """
-    Min-Max scaling layer with optional learnable parameters.
+    Sigmoid transformation layer with learnable parameters.
+
+    Applies the transformation:
+        Y = sigmoid(softplus((X - J) @ Q))
 
     Parameters
     ----------
-    min_value : list or torch.Tensor or None, optional
-        Minimum values for each input feature. If None, initialized as learnable
-        parameters.
-    max_value : list or torch.Tensor or None, optional
-        Maximum values for each input feature. If None, initialized as learnable
-        parameters.
-    input_dim : int or None, optional
-        Number of input features. Required if min_value or max_value is None.
+    input_dim : int
+        Dimension of the input features (K).
+    output_dim : int
+        Dimension of the output features (M).
+    transform_dim : int
+        Axis along which to apply the transformation.
     """
 
-    def __init__(
-        self,
-        min_value: Optional[Union[List[float], torch.Tensor]] = None,
-        max_value: Optional[Union[List[float], torch.Tensor]] = None,
-        input_dim: Optional[int] = None,
-    ):
+    def __init__(self, input_dim: int, output_dim: int, transform_dim: int):
         super().__init__()
-
-        if (min_value is None or max_value is None) and input_dim is None:
-            msg = "'input_dim' must be provided if either 'min_value' or "
-            msg += "'max_value' is None."
-            raise ValueError(msg)
-
         self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.transform_dim = transform_dim
 
-        if min_value is None:
-            if input_dim is None:
-                raise ValueError("min_value and input_dim cannot be both None.")
-            self.min_value = torch.nn.Parameter(torch.zeros(1, input_dim))
-        else:
-            min_tensor = torch.tensor(min_value, dtype=torch.float32).view(1, -1)
-            self.register_buffer("min_value", min_tensor)
-
-        if max_value is None:
-            if input_dim is None:
-                raise ValueError("max_value and input_dim cannot be both None.")
-            self.max_value = torch.nn.Parameter(torch.ones(1, input_dim))
-        else:
-            max_tensor = torch.tensor(max_value, dtype=torch.float32).view(1, -1)
-            self.register_buffer("max_value", max_tensor)
+        self.J = torch.nn.Parameter(torch.zeros(1, input_dim))
+        self.Q = torch.nn.Parameter(torch.randn(input_dim, output_dim))
 
     def forward(self, x: torch.Tensor):
-        """
-        Apply min-max scaling to input features.
+        if x.size(self.transform_dim) != self.input_dim:
+            raise ValueError(
+                f"Dimension {self.transform_dim} of input must be {self.input_dim}."
+            )
 
-        Parameters
-        ----------
-        x : torch.Tensor
-            Input tensor of shape (batch_size, input_dim).
+        # Move transform_dim to last
+        x = x.transpose(self.transform_dim, -1)
 
-        Returns
-        -------
-        scaled : torch.Tensor
-            Scaled tensor of shape (batch_size, input_dim).
-        """
-        if x.ndim == 1:
-            x = x.unsqueeze(0)
+        # Apply transformation
+        projected = (x - self.J) @ self.Q
+        activated = torch.sigmoid(torch.nn.functional.softplus(projected))
 
-        slope = self.max_value - self.min_value
-        intercept = self.min_value
-        return torch.nn.functional.sigmoid(x) * slope + intercept
-
-    def inverse(self, y: torch.Tensor):
-        """
-        Invert the min-max scaling transformation.
-
-        Parameters
-        ----------
-        y : torch.Tensor
-            Scaled tensor of shape (batch_size, input_dim).
-
-        Returns
-        -------
-        original : torch.Tensor
-            Original tensor before scaling.
-        """
-        if y.ndim == 1:
-            y = y.unsqueeze(0)
-
-        slope = self.max_value - self.min_value
-        intercept = self.min_value
-        # Undo min-max scaling
-        sig_x = (y - intercept) / slope
-        # Clamp to avoid logit instability at 0 or 1
-        sig_x = torch.clamp(sig_x, min=1e-6, max=1 - 1e-6)
-        # Apply inverse sigmoid (logit)
-        original = torch.log(sig_x / (1 - sig_x))
-        return original
-
-    def get_config(self):
-        """
-        Return the configuration of the module.
-
-        Returns
-        -------
-        config : dict
-            Dictionary containing the values of initialization parameters.
-        """
-        return {
-            "input_dim": self.input_dim,
-            "min_value": (
-                self.min_value.detach().cpu().numpy().tolist()
-                if isinstance(self.min_value, torch.Tensor)
-                and not self.min_value.requires_grad
-                else None
-            ),
-            "max_value": (
-                self.max_value.detach().cpu().numpy().tolist()
-                if isinstance(self.max_value, torch.Tensor)
-                and not self.max_value.requires_grad
-                else None
-            ),
-        }
-
-    @staticmethod
-    def from_config(config: dict):
-        """
-        Create a MinMaxScaler instance from a configuration dictionary.
-
-        Parameters
-        ----------
-        config : dict
-            Dictionary containing keys: 'input_dim', 'min_value', 'max_value'.
-
-        Returns
-        -------
-        scaler : MinMaxScaler
-            A new instance of MinMaxScaler initialized with the given config.
-        """
-        return MinMaxScaler(
-            min_value=config.get("min_value", None),
-            max_value=config.get("max_value", None),
-            input_dim=config.get("input_dim", None),
-        )
+        # Move back to original dimension order
+        y = activated.transpose(-1, self.transform_dim)
+        return y
 
 
 class PCA(torch.nn.Module):
