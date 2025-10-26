@@ -1142,5 +1142,6 @@ def to_onnx(
             "output": {0: "batch_size"},
         },
         opset_version=op_version,
+        dynamo=False,
     )
     return OnnxModel(onnx_file, inputs, outputs)

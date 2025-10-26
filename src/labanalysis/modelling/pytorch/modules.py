@@ -176,10 +176,6 @@ class SigmoidTransformer(torch.nn.Module):
         self.Q = torch.nn.Parameter(torch.randn(input_dim, output_dim))
 
     def forward(self, x: torch.Tensor):
-        if x.size(self.transform_dim) != self.input_dim:
-            raise ValueError(
-                f"Dimension {self.transform_dim} of input must be {self.input_dim}."
-            )
 
         # Move transform_dim to last
         x = x.transpose(self.transform_dim, -1)
