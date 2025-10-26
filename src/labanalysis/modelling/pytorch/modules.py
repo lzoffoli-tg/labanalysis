@@ -154,7 +154,7 @@ class SigmoidTransformer(torch.nn.Module):
     Sigmoid transformation layer with learnable parameters.
 
     Applies the transformation:
-        Y = sigmoid(softplus((X - J) @ Q))
+        Y = 1 / (1 + exp(-((X - J) @ Q)))
 
     Parameters
     ----------
@@ -182,7 +182,7 @@ class SigmoidTransformer(torch.nn.Module):
 
         # Apply transformation
         projected = (x - self.J) @ self.Q
-        activated = torch.sigmoid(torch.nn.functional.softplus(projected))
+        activated = 1 / (1 + torch.exp(-projected))
 
         # Move back to original dimension order
         y = activated.transpose(-1, self.transform_dim)
