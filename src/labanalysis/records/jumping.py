@@ -516,7 +516,7 @@ class SingleJump(WholeBody):
                 mandatory[key] = record.get(lbl)
                 if mandatory[key] is None:
                     raise ValueError(f"{lbl} not found in the provided file.")
-        signals = {i: v for i, v in record.items() if i not in list(mandatory.keys())}
+        signals = {i: v for i, v in record.items() if i not in list(mandatory_labels.values())}
         return cls(
             bodymass_kg=bodymass_kg,
             **signals,  # type: ignore
