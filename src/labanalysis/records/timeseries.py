@@ -130,7 +130,7 @@ class Timeseries:
         if axis is not None:
             if not isinstance(axis, int) or axis not in [0, 1]:
                 raise ValueError("axis must be None or 0 or 1")
-        out = self.copy()
+        out = self if inplace else self.copy()
         if axis is None or axis == 0:
             index = out.to_dataframe().dropna(how="all", axis=0).index.to_numpy()
             start = float(np.min(index))
@@ -142,12 +142,7 @@ class Timeseries:
             indices = [i for i,v in enumerate(out.columns) if v in nonan_cols]
             indices = np.arange(np.min(indices), np.max(indices)+1)
             out = out[:, cols[indices]]
-        if inplace:
-            self.__setitem__(
-                (np.isin(self.index, out.index), np.isin(self.columns, out.columns)),
-                out._data,
-            )
-        else:
+        if not inplace:
             return out
 
     def reset_time(self, inplace=False):
@@ -176,6 +171,22 @@ class Timeseries:
             out.index = np.array(new_index)
             return out
 
+    def _slice(self, start: float | int, stop: float | int, inplace: bool = False):
+        if not isinstance(start, (float, int)):
+            raise ValueError("start must be int or float")
+        if not isinstance(stop, (float, int)):
+            raise ValueError("stop must be int or float")
+        if not isinstance(inplace, bool):
+            raise ValueError("inplace must be True or False")
+        mask = (self.index >= start) & (self.index <= stop)
+        if inplace:
+            self._data = self._data[mask, :]
+            self.index = self.index[mask]
+        else:
+            out = self.copy()
+            out._slice(start, stop, True)
+            return out
+        
     def copy(self):
         """
         Return a deep copy of the Timeseries.
@@ -399,9 +410,12 @@ class Timeseries:
             col_mask = slice(None)
         elif isinstance(cols, slice):
             start = cols.start
+            if start is None:
+                start = self.columns[0]
             stop = cols.stop
-            col_mask = np.isin([start, stop], self.columns)
-            col_idx = np.where(col_mask)[0]
+            if stop is None:
+                stop = self.columns[-1]
+            col_idx = [i for i, v in enumerate(self.columns) if v in [start, stop]]
             col_idx = np.arange(col_idx[0], col_idx[-1] + 1)
             col_mask = np.isin(col_idx, np.arange(len(self.columns)))
         else:
@@ -718,7 +732,6 @@ class Timeseries:
             raise ValueError("Unsupported key type for __setitem__")
 
         self._check_consistency()
-
 
     def __init__(
         self,
