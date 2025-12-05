@@ -232,13 +232,11 @@ class Record:
         if axis is not None:
             if not isinstance(axis, int) or axis not in [0, 1]:
                 raise ValueError("axis must be None or 0 or 1")
-        if inplace:
-            out = self.copy()
-            for key, val in out.items():
-                val.strip(axis=axis, inplace=True)
+        out = self if inplace else self.copy()
+        for key in out.keys():
+            out[key].strip(axis=axis, inplace=True)
+        if not inplace:
             return out
-        for key, val in self.items():
-            val.strip(axis=axis, inplace=True)
 
     def reset_time(self, inplace=False, time_zero: float | int | None = None):
         """
