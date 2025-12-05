@@ -137,8 +137,11 @@ class Timeseries:
             stop = float(np.max(index))
             out = out[start:stop]
         if axis is None or axis == 1:
-            cols = out.to_dataframe().dropna(how="all", axis=1).columns.to_numpy()
-            out = out[:cols]
+            cols = out.columns
+            nonan_cols = out.to_dataframe().dropna(how="all", axis=1).columns.to_numpy()
+            indices = [i for i,v in enumerate(out.columns) if v in nonan_cols]
+            indices = np.arange(np.min(indices), np.max(indices)+1)
+            out = out[:, cols[indices]]
         if inplace:
             self.__setitem__(
                 (np.isin(self.index, out.index), np.isin(self.columns, out.columns)),
