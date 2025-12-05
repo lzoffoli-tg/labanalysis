@@ -611,6 +611,7 @@ class Timeseries:
                 mask = np.asarray(key, bool)
                 mask = np.isin(self.index[mask], self.index)
                 mask = mask.astype(bool)
+                key = self.index[key]
             else:
                 mask = np.isin(key, self.index)  # type: ignore
                 mask = mask.astype(bool)
@@ -624,9 +625,15 @@ class Timeseries:
             mask = np.isin(key, self.index)  # type: ignore
             return mask.astype(bool)
 
-        def add_cols(key: list[str]):
-            mask = np.isin(key, self.columns)  # type: ignore
-            mask = mask.astype(bool)
+        def add_cols(key: list[str | bool]):
+            if np.all([isinstance(i, str) for i in key]):
+                mask = np.isin(key, self.columns)  # type: ignore
+                mask = mask.astype(bool)
+            elif np.all([isinstance(i, bool) for i in key]):
+                mask = np.asarray(key, bool)
+                key = self.columns[mask]  # type: ignore
+            else:
+                raise ValueError("key must include string only or bool only.")
             if not np.all(mask):
                 new_data = np.full(
                     (self._data.shape[0], len(mask) - np.sum(mask)),
@@ -689,14 +696,14 @@ class Timeseries:
                 stop = self.index[-1 if row_key.stop is None else row_key.stop]
                 row_key = (self.index >= start) & (self.index <= stop)
                 row_key = self.index[row_key].tolist()
+            elif isinstance(row_key, np.ndarray):
+                row_key = row_key.tolist()
             if not isinstance(row_key, list):
                 raise ValueError("Unsupported row key")
             else:
                 row_mask = add_rows(row_key)
 
             # Assegna i valori
-            if vals.shape != (len(row_key), len(col_key)):
-                raise ValueError("Shape mismatch between value and target slice")
             self._data[np.ix_(row_mask, col_mask)] = vals
 
             # ordina righe
@@ -708,6 +715,7 @@ class Timeseries:
             raise ValueError("Unsupported key type for __setitem__")
 
         self._check_consistency()
+
 
     def __init__(
         self,
