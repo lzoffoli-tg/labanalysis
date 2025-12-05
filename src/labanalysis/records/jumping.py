@@ -279,7 +279,7 @@ class SingleJump(WholeBody):
         if vgrf is None:
             return TimeseriesRecord()
         grfy = vgrf.force.copy()[self.vertical_axis].to_numpy().flatten()
-        grfy = fillna(arr=grfy, value=0).flatten()
+        grfy = fillna(arr=grfy, value=0).flatten()  # type: ignore
         grft = self.index
         batches = continuous_batches(grfy <= MINIMUM_CONTACT_FORCE_N)
         msg = "No flight phase found."
@@ -348,7 +348,7 @@ class SingleJump(WholeBody):
         if con is None:
             return np.nan
         grf = con.copy().force[self.vertical_axis].to_numpy().flatten()
-        grfy = fillna(arr=grf, value=0).flatten()
+        grfy = fillna(arr=grf, value=0).flatten()  # type: ignore
         time = con.index
 
         # get the output velocity
@@ -470,12 +470,12 @@ class SingleJump(WholeBody):
             self._bodymass_kg = float(bodymass_kg)
         except Exception as exc:
             raise ValueError("bodymass_kg must be a float or int")
-        
+
         # strip NANs at the ends ignoring EMG
         indices = [obj for obj in self.values() if not isinstance(obj, EMGSignal)]
-        indices = [obj.strip().index for obj in indices]
+        indices = [obj.strip().index for obj in indices]  # type: ignore
         indices = np.unique(np.concatenate(indices).flatten())
-        self._slice(start=indices[0], stop=indices[-1], inplace = True)
+        self._slice(start=indices[0], stop=indices[-1], inplace=True)
 
     @classmethod
     def from_tdf(
@@ -524,7 +524,9 @@ class SingleJump(WholeBody):
                 mandatory[key] = record.get(lbl)
                 if mandatory[key] is None:
                     raise ValueError(f"{lbl} not found in the provided file.")
-        signals = {i: v for i, v in record.items() if i not in list(mandatory_labels.values())}
+        signals = {
+            i: v for i, v in record.items() if i not in list(mandatory_labels.values())
+        }
         return cls(
             bodymass_kg=bodymass_kg,
             **signals,  # type: ignore
@@ -736,4 +738,3 @@ class JumpExercise(WholeBody):
             **mandatory,  # type: ignore
             **signals,  # type: ignore
         )
-
