@@ -340,6 +340,19 @@ class Record:
                 _ = out._data.pop(element)
         if not inplace:
             return out
+    
+    def _slice(self, start: float | int, stop: float | int, inplace: bool = False):
+        if not isinstance(start, (float, int)):
+            raise ValueError("start must be int or float")
+        if not isinstance(stop, (float, int)):
+            raise ValueError("stop must be int or float")
+        if not isinstance(inplace, bool):
+            raise ValueError("inplace must be True or False")
+        out = self if inplace else self.copy()
+        for key in out.keys():
+            out[key]._slice(start, stop, True)
+        if not inplace:
+            return out
 
     def to_plotly_figure(self):
         df = self.to_dataframe()
