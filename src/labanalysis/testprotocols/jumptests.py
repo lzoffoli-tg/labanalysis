@@ -31,7 +31,7 @@ class JumpTest(TestProtocol):
     def __init__(
         self,
         participant: Participant,
-        normative_data_path: str = "",
+        normative_data: pd.DataFrame = pd.DataFrame(),
         jumps: list[SingleJump] = [],
     ):
         if not isinstance(participant, Participant):
@@ -39,7 +39,7 @@ class JumpTest(TestProtocol):
         if participant.weight is None:
             raise ValueError("participant's weight must be assigned.")
         self.set_participant(participant)
-        self.set_normative_data_path(normative_data_path)
+        self.set_normative_data(normative_data)
         self._jumps = []
         for jump in jumps:
             self.add_jump(jump)
@@ -47,7 +47,7 @@ class JumpTest(TestProtocol):
     def copy(self):
         return JumpTest(
             participant=self.participant.copy(),
-            normative_data_path=self.normative_data_path,
+            normative_data=self.normative_data,
             jumps=self.jumps,
         )
 

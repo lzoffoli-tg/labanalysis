@@ -1,3 +1,3 @@
 """normative data module"""
 
-from .paths import *
+from .normative_data import *

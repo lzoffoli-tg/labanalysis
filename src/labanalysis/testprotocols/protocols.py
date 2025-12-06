@@ -571,26 +571,8 @@ class TestProtocol(Protocol):
     ----------
     participant : Participant
         The participant associated with the test.
-    normative_data_path : str, optional
-        Path to a CSV file containing normative data.
-
-    Attributes
-    ----------
-    _normative_data_path : str
-        Path to the CSV file with normative data.
-    _participant : Participant
-        The participant object.
-
-    Properties
-    ----------
-    participant : Participant
-        The participant associated with the test.
-    name : str
-        The name of the test (class name).
-    normative_data_path : str
-        Path to the CSV file with normative data.
-    normative_values : pandas.DataFrame
-        Normative values loaded from the CSV file.
+    normative_data : pandas DataFrame, optional
+        a dataframe containing normative data.
 
     Methods
     -------
@@ -608,20 +590,20 @@ class TestProtocol(Protocol):
         Return a figure displaying the raw data (optional, may raise NotImplementedError).
     """
 
-    _normative_data_path: str
+    _normative_data: pd.DataFrame
     _participant: Participant
 
-    def set_normative_data_path(self, path: str):
-        if not isinstance(path, str) or not exists(path) or not path.endswith(".csv"):
+    def set_normative_data(self, data: pd.DataFrame):
+        if not isinstance(data, pd.DataFrame):
             warn(
-                "'normative_data_path' is not valid."
+                "'normative_data' is not valid."
                 + " If provided, it should be a "
-                + " .csv table containing normative data."
+                + " pandas DataFrame containing normative data."
                 + " Not having valid normative references might affect"
                 + " the implementation of specific test reports."
             )
-            self._normative_data_path = ""
-        self._normative_data_path = path
+            self._normative_data = pd.DataFrame()
+        self._normative_data = data
 
     def set_participant(self, participant: Participant):
         if not isinstance(participant, Participant):
@@ -645,42 +627,11 @@ class TestProtocol(Protocol):
         return type(self).__name__
 
     @property
-    def normative_data_path(self):
+    def normative_data(self):
         """
-        Returns the path to the CSV file containing normative data.
-
-        Returns
-        -------
-        str
-            The path to the CSV file containing normative data.
+        Returns the normative data.
         """
-        return self._normative_data_path
-
-    @property
-    def normative_values(self):
-        """
-        Returns the normative values loaded from the CSV file.
-
-        Returns
-        -------
-        pandas.DataFrame
-            The normative values loaded from the CSV file.
-        """
-        if self.normative_data_path == "":
-            return pd.DataFrame()
-
-        data = pd.read_csv(self.normative_data_path)
-        for row, line in data.iterrows():
-            row = int(row)  # type: ignore
-            ranges = np.arange(100)
-            percs = normal_distribution.ppf(
-                ranges / 100,
-                loc=line["mean"],
-                scale=line["std"],
-            )
-            labels = [f"{i:02}" for i in ranges]
-            data.loc[row, labels] = percs
-        return data
+        return self._normative_data
 
     def save(self, file_path: str):
         """
@@ -689,12 +640,8 @@ class TestProtocol(Protocol):
         Parameters
         ----------
         file_path : str
-            Path where to save the file. The file extension should match the test name.
-            If not, the appropriate extension is appended.
-
-        Returns
-        -------
-        None
+            Path where to save the file. The file extension should match the
+            test name. If not, the appropriate extension is appended.
         """
         if not isinstance(file_path, str):
             raise ValueError("'file_path' must be a str instance.")
@@ -772,15 +719,6 @@ class TestBattery(Protocol):
     ----------
     participant : Participant
         The participant associated with the test.
-    normative_data_path : str, optional
-        Path to a CSV file containing normative data.
-
-    Attributes
-    ----------
-    _normative_data_path : str
-        Path to the CSV file with normative data.
-    _participant : Participant
-        The participant object.
 
     Properties
     ----------
@@ -788,10 +726,6 @@ class TestBattery(Protocol):
         The participant associated with the test.
     name : str
         The name of the test (class name).
-    normative_data_path : str
-        Path to the CSV file with normative data.
-    normative_values : pandas.DataFrame
-        Normative values loaded from the CSV file.
 
     Methods
     -------

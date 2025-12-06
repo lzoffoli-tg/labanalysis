@@ -62,7 +62,7 @@ class RunningTest(RunningExercise, TestProtocol):
     def __init__(
         self,
         participant: Participant,
-        normative_data_path: str = "",
+        normative_data: pd.DataFrame = pd.DataFrame(),
         algorithm: Literal["kinematics", "kinetics"] = "kinematics",
         ground_reaction_force_threshold: float | int = DEFAULT_MINIMUM_CONTACT_GRF_N,
         height_threshold: float | int = DEFAULT_MINIMUM_HEIGHT_PERCENTAGE,
@@ -155,14 +155,14 @@ class RunningTest(RunningExercise, TestProtocol):
             **extra_signals,
         )
         self.set_participant(participant)
-        self.set_normative_data_path(normative_data_path)
+        self.set_normative_data(normative_data)
 
     @classmethod
     def from_tdf(
         cls,
         file: str,
         participant: Participant,
-        normative_data_path: str = "",
+        normative_data: pd.DataFrame = pd.DataFrame(),
         algorithm: Literal["kinematics", "kinetics"] = "kinematics",
         ground_reaction_force_threshold: float | int = DEFAULT_MINIMUM_CONTACT_GRF_N,
         height_threshold: float | int = DEFAULT_MINIMUM_HEIGHT_PERCENTAGE,
@@ -301,7 +301,7 @@ class RunningTest(RunningExercise, TestProtocol):
 
         return cls(
             participant=participant,
-            normative_data_path=normative_data_path,
+            normative_data=normative_data,
             algorithm=algorithm,
             ground_reaction_force_threshold=ground_reaction_force_threshold,
             height_threshold=height_threshold,
@@ -315,7 +315,7 @@ class WalkingTest(WalkingExercise, TestProtocol):
     def __init__(
         self,
         participant: Participant,
-        normative_data_path: str = "",
+        normative_data: pd.DataFrame = pd.DataFrame(),
         algorithm: Literal["kinematics", "kinetics"] = "kinematics",
         ground_reaction_force_threshold: float | int = DEFAULT_MINIMUM_CONTACT_GRF_N,
         height_threshold: float | int = DEFAULT_MINIMUM_HEIGHT_PERCENTAGE,
@@ -408,7 +408,7 @@ class WalkingTest(WalkingExercise, TestProtocol):
             **extra_signals,
         )
         self.set_participant(participant)
-        self.set_normative_data_path(normative_data_path)
+        self.set_normative_data(normative_data)
 
     @property
     def results(self):
@@ -453,7 +453,7 @@ class WalkingTest(WalkingExercise, TestProtocol):
         cls,
         file: str,
         participant: Participant,
-        normative_data_path: str = "",
+        normative_data: pd.DataFrame = pd.DataFrame(),
         algorithm: Literal["kinematics", "kinetics"] = "kinematics",
         ground_reaction_force_threshold: float | int = DEFAULT_MINIMUM_CONTACT_GRF_N,
         height_threshold: float | int = DEFAULT_MINIMUM_HEIGHT_PERCENTAGE,
@@ -592,7 +592,7 @@ class WalkingTest(WalkingExercise, TestProtocol):
 
         return cls(
             participant=participant,
-            normative_data_path=normative_data_path,
+            normative_data=normative_data,
             algorithm=algorithm,
             ground_reaction_force_threshold=ground_reaction_force_threshold,
             height_threshold=height_threshold,

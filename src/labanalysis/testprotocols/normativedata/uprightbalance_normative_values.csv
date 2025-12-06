@@ -1,7 +1,0 @@
-﻿parameter,side,eyes,mean,std
-area_of_stability_mm2,bilateral,open,125,82
-area_of_stability_mm2,bilateral,closed,175,125
-area_of_stability_mm2,right,open,400,264
-area_of_stability_mm2,right,closed,800,528
-area_of_stability_mm2,left,open,400,264
-area_of_stability_mm2,left,closed,800,528

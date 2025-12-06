@@ -11,7 +11,7 @@ import pandas as pd
 from ..constants import G
 from ..records import IsokineticExercise, IsometricExercise, EMGSignal, Signal1D
 from ..io.read.biostrength import PRODUCTS, BiostrengthProduct
-from .normativedata import ISOKINETIC_TEST_NORMATIVE_DATA_PATH
+from .normativedata import isok_1rm_normative_values
 from .protocols import Participant, TestProtocol
 
 #! CONSTANTS
@@ -31,7 +31,7 @@ class Isokinetic1RMTest(IsokineticExercise, TestProtocol):
         side: Literal["bilateral", "left", "right"],
         force: Signal1D,
         position: Signal1D,
-        normative_data_path: str = ISOKINETIC_TEST_NORMATIVE_DATA_PATH,
+        normative_data: pd.DataFrame = isok_1rm_normative_values,
         synchronize_signals: bool = True,
         **extra_signals: EMGSignal,
     ):
@@ -44,14 +44,14 @@ class Isokinetic1RMTest(IsokineticExercise, TestProtocol):
             **extra_signals,
         )
         self.set_participant(participant)
-        self.set_normative_data_path(normative_data_path)
+        self.set_normative_data(normative_data)
 
     def copy(self):
         return Isokinetic1RMTest(
             participant=self.participant.copy(),
             product=self.product.copy(),
             side=self.side,
-            normative_data_path=str(self.normative_data_path),
+            normative_data=self.normative_data,
             synchronize_signals=False,
             force=self.force,  # type: ignore
             position=self.position,  # type: ignore
@@ -100,7 +100,7 @@ class Isokinetic1RMTest(IsokineticExercise, TestProtocol):
             "SHOULDER PRESS",
         ],
         side: Literal["bilateral", "left", "right"],
-        normative_data_path: str = ISOKINETIC_TEST_NORMATIVE_DATA_PATH,
+        normative_data: pd.DataFrame = isok_1rm_normative_values,
     ):
         prod = PRODUCTS[product].from_txt_file(filename)
         load_kgf = prod.load_lever_kgf
@@ -118,7 +118,7 @@ class Isokinetic1RMTest(IsokineticExercise, TestProtocol):
         )
         return cls(
             participant=participant,
-            normative_data_path=normative_data_path,
+            normative_data=normative_data,
             force=force,
             position=position,
             product=prod,
@@ -135,7 +135,7 @@ class IsometricTest(IsometricExercise, TestProtocol):
         side: Literal["bilateral", "left", "right"],
         force: Signal1D,
         position: Signal1D,
-        normative_data_path: str = "",
+        normative_data: pd.DataFrame = pd.DataFrame(),
         synchronize_signals: bool = True,
         **extra_signals: EMGSignal,
     ):
@@ -148,14 +148,14 @@ class IsometricTest(IsometricExercise, TestProtocol):
             **extra_signals,
         )
         self.set_participant(participant)
-        self.set_normative_data_path(normative_data_path)
+        self.set_normative_data(normative_data)
 
     def copy(self):
         return IsometricTest(
             participant=self.participant.copy(),
             product=self.product.copy(),
             side=self.side,
-            normative_data_path=str(self.normative_data_path),
+            normative_data=self.normative_data,
             synchronize_signals=False,
             force=self.force,  # type: ignore
             position=self.position,  # type: ignore
@@ -204,7 +204,7 @@ class IsometricTest(IsometricExercise, TestProtocol):
             "SHOULDER PRESS",
         ],
         side: Literal["bilateral", "left", "right"],
-        normative_data_path: str = "",
+        normative_data: pd.DataFrame = pd.DataFrame(),
     ):
         prod = PRODUCTS[product].from_txt_file(filename)
         load_kgf = prod.load_lever_kgf
@@ -222,7 +222,7 @@ class IsometricTest(IsometricExercise, TestProtocol):
         )
         return cls(
             participant=participant,
-            normative_data_path=normative_data_path,
+            normative_data=normative_data,
             force=force,
             position=position,
             product=prod,

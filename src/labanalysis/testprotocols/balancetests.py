@@ -11,7 +11,10 @@ import pandas as pd
 from ..constants import G
 from ..records import *
 from ..modelling import Ellipse
-from .normativedata import *
+from .normativedata import (
+    uprightbalance_normative_values,
+    plankbalance_normative_values,
+)
 from .protocols import Participant, TestProtocol
 
 
@@ -175,7 +178,7 @@ class UprightBalanceTest(WholeBody, TestProtocol):
         self,
         participant: Participant,
         eyes: Literal["open", "closed"],
-        normative_data_path: str = UPRIGHTBALANCE_NORMATIVE_DATA_PATH,
+        normative_data: pd.DataFrame = uprightbalance_normative_values,
         left_foot_ground_reaction_force: ForcePlatform | None = None,
         right_foot_ground_reaction_force: ForcePlatform | None = None,
         **signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
@@ -187,14 +190,14 @@ class UprightBalanceTest(WholeBody, TestProtocol):
             **signals,  # type: ignore
         )
         self.set_participant(participant)
-        self.set_normative_data_path(normative_data_path)
+        self.set_normative_data(normative_data)
         self.set_eyes(eyes)
 
     def copy(self):
         return UprightBalanceTest(
             participant=self.participant.copy(),
             eyes=self.eyes,
-            normative_data_path=self.normative_data_path,
+            normative_data=self.normative_data,
             **{i: v.copy() for i, v in self.items()},  # type: ignore
         )
 
@@ -229,7 +232,7 @@ class UprightBalanceTest(WholeBody, TestProtocol):
         eyes: Literal["open", "closed"],
         left_foot_ground_reaction_force: str | None = None,
         right_foot_ground_reaction_force: str | None = None,
-        normative_data_path: str = UPRIGHTBALANCE_NORMATIVE_DATA_PATH,
+        normative_data: pd.DataFrame = uprightbalance_normative_values,
     ):
         tdf = WholeBody.from_tdf(
             filename=filename,
@@ -244,7 +247,7 @@ class UprightBalanceTest(WholeBody, TestProtocol):
         signals = {i: v for i, v in tdf.items() if i not in mandatory}
         return cls(
             participant=participant,
-            normative_data_path=normative_data_path,
+            normative_data=normative_data,
             eyes=eyes,
             **mandatory,  # type: ignore
             **signals,  # type: ignore
@@ -261,13 +264,13 @@ class PlankBalanceTest(UprightBalanceTest):
         left_hand_ground_reaction_force: ForcePlatform,
         right_hand_ground_reaction_force: ForcePlatform,
         eyes: Literal["open", "closed"],
-        normative_data_path: str = PLANKBALANCE_NORMATIVE_DATA_PATH,
+        normative_data: pd.DataFrame = plankbalance_normative_values,
         **signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
     ):
 
         super().__init__(
             participant=participant,
-            normative_data_path=normative_data_path,
+            normative_data=normative_data,
             left_foot_ground_reaction_force=left_foot_ground_reaction_force,
             right_foot_ground_reaction_force=right_foot_ground_reaction_force,
             left_hand_ground_reaction_force=left_hand_ground_reaction_force,
@@ -280,7 +283,7 @@ class PlankBalanceTest(UprightBalanceTest):
         return PlankBalanceTest(
             participant=self.participant.copy(),
             eyes=self.eyes,
-            normative_data_path=self.normative_data_path,
+            normative_data=self.normative_data,
             **{i: v.copy() for i, v in self.items()},  # type: ignore
         )
 
@@ -294,7 +297,7 @@ class PlankBalanceTest(UprightBalanceTest):
         right_foot_ground_reaction_force: str,
         left_hand_ground_reaction_force: str,
         right_hand_ground_reaction_force: str,
-        normative_data_path: str = PLANKBALANCE_NORMATIVE_DATA_PATH,
+        normative_data: pd.DataFrame = plankbalance_normative_values,
     ):
         tdf = WholeBody.from_tdf(
             filename=filename,
@@ -318,7 +321,7 @@ class PlankBalanceTest(UprightBalanceTest):
         signals = {i: v for i, v in tdf.items() if i not in mandatory}
         return cls(
             participant=participant,
-            normative_data_path=normative_data_path,
+            normative_data=normative_data,
             eyes=eyes,
             **mandatory_dict,  # type: ignore
             **signals,  # type: ignore
