@@ -2,8 +2,6 @@
 
 #! IMPORTS
 
-from logging import warning
-import re
 import warnings
 import numpy as np
 import pandas as pd
@@ -867,6 +865,11 @@ class DropJump(SingleJump):
         """
         out: dict[str, float] = {}
         contact_onset = float(self.contact_phase.index[0])
+
+        landing_time = self.landing_phase.index[-1] - self.landing_phase.index[0]
+        contact_time = self.contact_phase.index[-1] - self.contact_phase.index[0]
+        min_time_required = min(landing_time + contact_time, 1)
+
         for muscle, threshold in self._muscle_activation_thresholds.items():
             if muscle not in self.keys():
                 warnings.warn(f"{muscle} not found in the provided data.")
@@ -877,9 +880,15 @@ class DropJump(SingleJump):
                 continue
             time = emg.index
             value = emg.to_numpy().flatten()
-            out[f"{muscle} pre-post_activation_time_ms"] = (
-                float(time[np.where(value >= threshold)[0][0]] - contact_onset) * 1000
-            )
+            above = continuous_batches(value >= threshold)
+            above_durations = [time[i[-1]]-time[i[0]] for i in above]
+            valid = np.where(np.array(above_durations) >= min_time_required)[0]
+            if len(valid) == 0:
+                out[f"{muscle} pre-post_activation_time_ms"] = np.nan
+                continue
+            first_valid = above[valid[0]]
+            onset = time[first_valid[0]]  
+            out[f"{muscle} pre-post_activation_time_ms"] = float(onset - contact_onset) * 1000
         return out
 
     @property
