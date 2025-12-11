@@ -741,6 +741,7 @@ class JumpExercise(WholeBody):
             **signals,  # type: ignore
         )
 
+
 class DropJump(SingleJump):
     """
     Represents a single jump trial, providing methods and properties to analyze
@@ -876,10 +877,10 @@ class DropJump(SingleJump):
                 continue
             time = emg.index
             value = emg.to_numpy().flatten()
-            out[f'{muscle} pre-post_activation_time_ms'] = (time[np.where(value >= threshold)[0][0]] - contact_onset) * 1000
+            out[f"{muscle} pre-post_activation_time_ms"] = (
+                float(time[np.where(value >= threshold)[0][0]] - contact_onset) * 1000
+            )
         return out
-        
-
 
     @property
     def output_metrics(self):
@@ -906,13 +907,14 @@ class DropJump(SingleJump):
             1. get the batch with grf lower than 30N occurring before the contact phase.
         """
 
-
         # # get the time samples corresponding to the start and end of each
         # batch
-        time_start = float(round(self.index[0],3))
-        contact_time_start = float(round(self.contact_phase.index[0],3))
-        time_stop = float(round(self.index[np.where(self.index < contact_time_start)[0][-1]],3))
-        
+        time_start = float(round(self.index[0], 3))
+        contact_time_start = float(round(self.contact_phase.index[0], 3))
+        time_stop = float(
+            np.round(self.index[np.where(self.index < contact_time_start)[0][-1]], 3)
+        )
+
         # return a slice of the available data
         sliced = self.copy()[time_start:time_stop]
         if sliced is None:
@@ -1026,7 +1028,9 @@ class DropJump(SingleJump):
         self.set_box_height_cm(box_height_cm)
         self.set_muscle_activation_thresholds(muscle_activation_thresholds)
 
-    def set_muscle_activation_thresholds(self, muscle_activation_thresholds: dict[str, float]):
+    def set_muscle_activation_thresholds(
+        self, muscle_activation_thresholds: dict[str, float]
+    ):
         """
         Set muscle activation thresholds.
 
@@ -1049,18 +1053,18 @@ class DropJump(SingleJump):
         """
         Set the box height in centimeters.
         """
-        #check box height
+        # check box height
         if not isinstance(box_height_cm, (float, int)):
-            raise ValueError("box_height_cm must be a float or int")    
+            raise ValueError("box_height_cm must be a float or int")
         self._box_height_cm = float(box_height_cm)
-    
+
     @property
     def box_height_cm(self):
         """
         Returns the box height in centimeters.
         """
         return self._box_height_cm
-    
+
     @property
     def muscle_activation_thresholds(self):
         """
@@ -1131,5 +1135,3 @@ class DropJump(SingleJump):
             **signals,  # type: ignore
             **mandatory,  # type: ignore
         )
-
-

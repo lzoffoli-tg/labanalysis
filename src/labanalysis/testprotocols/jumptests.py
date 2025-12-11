@@ -66,7 +66,6 @@ class JumpTest(TestProtocol):
 
             # add summary metrics
             metrics = jump.output_metrics
-            metrics.insert(0, "type", jump.__class__.__name__)
             metrics.insert(0, "jump", i + 1)
             summary += [metrics]
 
