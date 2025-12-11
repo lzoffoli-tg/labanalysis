@@ -1130,6 +1130,7 @@ class DropJump(SingleJump):
             i: v for i, v in record.items() if i not in list(mandatory_labels.values())
         }
         return cls(
+            muscle_activation_thresholds=muscle_activation_thresholds,
             box_height_cm=box_height_cm,
             bodymass_kg=bodymass_kg,
             **signals,  # type: ignore
