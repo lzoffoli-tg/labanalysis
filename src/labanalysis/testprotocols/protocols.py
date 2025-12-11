@@ -694,7 +694,7 @@ class TestProtocol(Protocol):
             raise RuntimeError(f"an error occurred importing {file_path}.")
 
     #! MANDATORY METHODS TO BE IMPLEMENTED
-
+    @property
     def results(self) -> dict[str, pd.DataFrame]:
         """
         Abstract method to return a summary of the test results.

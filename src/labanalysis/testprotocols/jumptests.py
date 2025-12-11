@@ -11,28 +11,28 @@ __all__ = ["JumpTest"]
 
 import pandas as pd
 
-from ..records import SingleJump
+from ..records import SingleJump, DropJump
 from .protocols import Participant, TestProtocol
 
 
 class JumpTest(TestProtocol):
 
-    _jumps: list[SingleJump]
+    _jumps: list[SingleJump | DropJump]
 
     @property
     def jumps(self):
         return self._jumps
 
-    def add_jump(self, jump: SingleJump):
-        if not isinstance(jump, SingleJump):
-            raise ValueError("jump must be a  SingleJump instance.")
+    def add_jump(self, jump: SingleJump | DropJump):
+        if not isinstance(jump, (SingleJump, DropJump)):
+            raise ValueError("jump must be a  SingleJump or a DropJump instance.")
         self._jumps += [jump]
 
     def __init__(
         self,
         participant: Participant,
         normative_data: pd.DataFrame = pd.DataFrame(),
-        jumps: list[SingleJump] = [],
+        jumps: list[SingleJump | DropJump] = [],
     ):
         if not isinstance(participant, Participant):
             raise ValueError("participant must be a Participant class instance.")
@@ -60,11 +60,13 @@ class JumpTest(TestProtocol):
             # generate the analytics for the jumps
             df = jump.to_dataframe()
             df.insert(0, "Time", df.index)
+            df.insert(0, "Type", jump.__class__.__name__)
             df.insert(0, "Jump", i + 1)
             analytics += [df]
 
             # add summary metrics
             metrics = jump.output_metrics
+            metrics.insert(0, "type", jump.__class__.__name__)
             metrics.insert(0, "jump", i + 1)
             summary += [metrics]
 

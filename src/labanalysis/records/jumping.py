@@ -2,7 +2,9 @@
 
 #! IMPORTS
 
-
+from logging import warning
+import re
+import warnings
 import numpy as np
 import pandas as pd
 
@@ -12,7 +14,7 @@ from .timeseries import *
 from .bodies import WholeBody
 from .records import *
 
-__all__ = ["JumpExercise", "SingleJump"]
+__all__ = ["JumpExercise", "SingleJump", "DropJump"]
 
 
 #! CLASSES
@@ -738,3 +740,396 @@ class JumpExercise(WholeBody):
             **mandatory,  # type: ignore
             **signals,  # type: ignore
         )
+
+class DropJump(SingleJump):
+    """
+    Represents a single jump trial, providing methods and properties to analyze
+    phases, forces, and performance metrics of the jump.
+
+    Parameters
+    ----------
+    bodymass_kg : float
+        The subject's body mass in kilograms.
+    left_foot_ground_reaction_force : ForcePlatform, optional
+        ForcePlatform object for the left foot.
+    right_foot_ground_reaction_force : ForcePlatform, optional
+        ForcePlatform object for the right foot.
+    vertical_axis : str, optional
+        Name of the vertical axis in the force data (default "Y").
+    anteroposterior_axis : str, optional
+        Name of the anteroposterior axis in the force data (default "X").
+    **signals : Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform
+        Additional signals to include in the record.
+
+    Attributes
+    ----------
+    _bodymass_kg : float
+        The subject's body mass in kilograms.
+    _vertical_axis : str
+        Name of the vertical axis.
+    _antpos_axis : str
+        Name of the anteroposterior axis.
+
+    Properties
+    ----------
+    vertical_axis : str
+        The vertical axis label.
+    anteroposterior_axis : str
+        The anteroposterior axis label.
+    lateral_axis : str
+        The lateral axis label.
+    vertical_force : np.ndarray
+        The mean vertical ground reaction force across both feet.
+    side : str
+        "bilateral", "left", or "right" depending on available force data.
+    bodymass_kg : float
+        The subject's body mass in kilograms.
+    eccentric_phase : TimeseriesRecord
+        Data for the eccentric phase of the jump.
+    concentric_phase : TimeseriesRecord
+        Data for the concentric phase of the jump.
+    flight_phase : TimeseriesRecord
+        Data for the flight phase of the jump.
+    contact_time_s : float
+        Duration of the contact phase (s).
+    flight_time_s : float
+        Duration of the flight phase (s).
+    takeoff_velocity_ms : float
+        Takeoff velocity at the end of the concentric phase (m/s).
+    elevation_cm : float
+        Jump elevation (cm) calculated from flight time.
+    muscle_coordination_and_balance : pd.DataFrame
+        Coordination and balance metrics from EMG signals (if available).
+    force_coordination_and_balance : pd.DataFrame
+        Coordination and balance metrics from force signals.
+    output_metrics : pd.DataFrame
+        Summary metrics for the jump.
+
+    Methods
+    -------
+    __init__(...)
+        Initialize a Jump object.
+    from_tdf(...)
+        Create a Jump object from a TDF file.
+    """
+
+    def _get_muscle_symmetry(self):
+        """
+        Returns coordination and balance metrics from EMG signals.
+
+        Returns
+        -------
+        pd.DataFrame
+            DataFrame with coordination and balance metrics, or empty if not available.
+        """
+
+        # check if a bilateral jump was performed
+        # (otherwise it makes no sense to test balance)
+        if self.side != "bilateral":
+            return pd.DataFrame()
+
+        # get the muscle activations
+        # (if there are no emg data return and empty dataframe)
+        emgs = self.contact_phase.emgsignals
+        if emgs.shape[1] == 0:
+            return pd.DataFrame()
+
+        # check the presence of left and right muscles
+        muscles = {}
+        for emg in emgs.values():
+            if isinstance(emg, EMGSignal):
+                name = emg.muscle_name
+                side = emg.side
+                if side not in ["left", "right"]:
+                    continue
+                if name not in list(muscles.keys()):
+                    muscles[name] = {}
+
+            # get the area under the curve of the muscle activation
+            muscles[name][side] = emg.copy().to_numpy().flatten()
+
+        # remove those muscles not having both sides
+        muscles = {i: v for i, v in muscles.items() if len(v) == 2}
+
+        # calculate coordination and imbalance between left and right side
+        out = {}
+        for muscle, sides in muscles.items():
+            params = self._get_symmetry(**sides)
+            out.update(**{f"{muscle}_{i}": v for i, v in params.items()})
+
+        return pd.DataFrame(pd.Series(out)).T
+
+    @property
+    def activation_time_ms(self):
+        """
+        Returns the pre/post activation time in millseconds. Negative values indicate pre-activation.
+        """
+        out: dict[str, float] = {}
+        contact_onset = float(self.contact_phase.index[0])
+        for muscle, threshold in self._muscle_activation_thresholds.items():
+            if muscle not in self.keys():
+                warnings.warn(f"{muscle} not found in the provided data.")
+                continue
+            emg = self[muscle]
+            if not isinstance(emg, EMGSignal):
+                warnings.warn(f"{muscle} is not an EMGSignal.")
+                continue
+            time = emg.index
+            value = emg.to_numpy().flatten()
+            out[f'{muscle} pre-post_activation_time_ms'] = (time[np.where(value >= threshold)[0][0]] - contact_onset) * 1000
+        return out
+        
+
+
+    @property
+    def output_metrics(self):
+        """
+        Returns summary metrics for the jump.
+
+        Returns
+        -------
+        pd.DataFrame
+            DataFrame with summary metrics for the jump.
+        """
+        new = super().output_metrics.to_dict(orient="records")[0]
+        new.update({"box_height_cm": self.box_height_cm})
+        new.update(self.activation_time_ms)
+        return pd.DataFrame(pd.Series(new)).T
+
+    @property
+    def landing_phase(self):
+        """
+        Returns the landing phase of the drop jump.
+
+        Procedure
+        ---------
+            1. get the batch with grf lower than 30N occurring before the contact phase.
+        """
+
+
+        # # get the time samples corresponding to the start and end of each
+        # batch
+        time_start = float(round(self.index[0],3))
+        contact_time_start = float(round(self.contact_phase.index[0],3))
+        time_stop = float(round(self.index[np.where(self.index < contact_time_start)[0][-1]],3))
+        
+        # return a slice of the available data
+        sliced = self.copy()[time_start:time_stop]
+        if sliced is None:
+            msg = "No landing phase found."
+            raise RuntimeError(msg)
+        out = WholeBody()
+        if isinstance(sliced, WholeBody):
+            for key, value in sliced.items():
+                out[key] = value
+        return out
+
+    @property
+    def flight_phase(self):
+        """
+        Returns the flight phase of the jump.
+
+        Returns
+        -------
+        TimeseriesRecord
+            Data for the flight phase.
+
+        Procedure
+        ---------
+            1. get the longest batch with grf lower than 30N.
+            2. define 'flight_start' as the first local minima occurring after
+            the start of the detected batch.
+            3. define 'flight_end' as the last local minima occurring before the
+            end of the detected batch.
+        """
+
+        # get vertical force
+        vgrf = self.resultant_force
+        if vgrf is None:
+            return TimeseriesRecord()
+        grfy = vgrf.force.copy()[self.vertical_axis].to_numpy().flatten()
+
+        # fill NANs with 0
+        grfy = fillna(arr=grfy, value=0).flatten()  # type: ignore
+        grft = self.index
+
+        # get batches with grf lower than the minimum contact force
+        batches = continuous_batches(grfy <= MINIMUM_CONTACT_FORCE_N)
+        msg = "No flight phase found."
+        if len(batches) < 2:
+            raise RuntimeError(msg)
+
+        # get the batch corresponding to the jump phase
+        batch = batches[1]
+
+        # # get the time samples corresponding to the start and end of each
+        # batch
+        time_start = float(np.round(grft[batch[0]], 3))
+        time_stop = float(np.round(grft[batch[-1]], 3))
+
+        # return a slice of the available data
+        sliced = self.copy()[time_start:time_stop]
+        if sliced is None:
+            raise RuntimeError(msg)
+        out = WholeBody()
+        if isinstance(sliced, WholeBody):
+            for key, value in sliced.items():
+                out[key] = value
+        return out
+
+    def __init__(
+        self,
+        box_height_cm: float,
+        bodymass_kg: float,
+        left_foot_ground_reaction_force: ForcePlatform | None = None,
+        right_foot_ground_reaction_force: ForcePlatform | None = None,
+        muscle_activation_thresholds: dict[str, float] = {},
+        **signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
+    ):
+        """
+        Initialize a Jump object.
+
+        Parameters
+        ----------
+        box_height_cm : float
+            The height of the box from which the drop jump is performed, in cm.
+        bodymass_kg : float
+            The subject's body mass in kilograms.
+        left_foot_ground_reaction_force : ForcePlatform, optional
+            ForcePlatform object for the left foot.
+        right_foot_ground_reaction_force : ForcePlatform, optional
+            ForcePlatform object for the right foot.
+        vertical_axis : str, optional
+            Name of the vertical axis in the force data (default "Y").
+        anteroposterior_axis : str, optional
+            Name of the anteroposterior axis in the force data (default "X").
+        muscle_activation_thresholds : dict[str, float], optional
+            Dictionary with muscle names as keys and activation thresholds as values.
+            These thresholds are used to determine muscle activation timing.
+        **signals : Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform
+            Additional signals to include in the record.
+
+        Raises
+        ------
+        TypeError
+            If left_foot or right_foot is not a ForcePlatform.
+        ValueError
+            If axes are not valid or bodymass_kg is not a float or int.
+        """
+
+        super().__init__(
+            bodymass_kg=bodymass_kg,
+            left_foot_ground_reaction_force=left_foot_ground_reaction_force,
+            right_foot_ground_reaction_force=right_foot_ground_reaction_force,
+            **signals,
+        )
+        self.set_box_height_cm(box_height_cm)
+        self.set_muscle_activation_thresholds(muscle_activation_thresholds)
+
+    def set_muscle_activation_thresholds(self, muscle_activation_thresholds: dict[str, float]):
+        """
+        Set muscle activation thresholds.
+
+        Parameters
+        ----------
+        muscle_activation_thresholds : dict[str, float]
+            Dictionary with muscle names as keys and activation thresholds as values.
+            These thresholds are used to determine muscle activation timing.
+        """
+        if not isinstance(muscle_activation_thresholds, dict):
+            raise ValueError("muscle_activation_thresholds must be a dictionary")
+        for key, value in muscle_activation_thresholds.items():
+            if not isinstance(value, (float, int)):
+                raise ValueError(
+                    f"muscle activation threshold for {key} must be a float or int"
+                )
+        self._muscle_activation_thresholds = muscle_activation_thresholds
+
+    def set_box_height_cm(self, box_height_cm: float):
+        """
+        Set the box height in centimeters.
+        """
+        #check box height
+        if not isinstance(box_height_cm, (float, int)):
+            raise ValueError("box_height_cm must be a float or int")    
+        self._box_height_cm = float(box_height_cm)
+    
+    @property
+    def box_height_cm(self):
+        """
+        Returns the box height in centimeters.
+        """
+        return self._box_height_cm
+    
+    @property
+    def muscle_activation_thresholds(self):
+        """
+        Returns the muscle activation thresholds.
+        """
+        return self._muscle_activation_thresholds
+
+    @classmethod
+    def from_tdf(
+        cls,
+        file: str,
+        box_height_cm: float,
+        bodymass_kg: float | int,
+        left_foot_ground_reaction_force: str | None = "left_foot",
+        right_foot_ground_reaction_force: str | None = "right_foot",
+        muscle_activation_thresholds: dict[str, float] | None = None,
+    ):
+        """
+        Create a Jump object from a TDF file.
+
+        Parameters
+        ----------
+        file : str
+            Path to the TDF file.
+        box_height_cm : float
+            The height of the box from which the drop jump is performed, in cm.
+        bodymass_kg : float or int
+            The subject's body mass in kilograms.
+        vertical_axis : str, optional
+            Name of the vertical axis in the force data.
+        anteroposterior_axis : str, optional
+            Name of the anteroposterior axis in the force data.
+        left_foot_ground_reaction_force : str or None, optional
+            Key for left foot force data.
+        right_foot_ground_reaction_force : str or None, optional
+            Key for right foot force data.
+        muscle_activation_thresholds : dict[str, float], optional
+            Dictionary with muscle names as keys and activation thresholds as values.
+            These thresholds are used to determine muscle activation timing.
+
+        Returns
+        -------
+        Jump
+            A Jump object created from the TDF file.
+        """
+        mandatory_labels = {
+            "left_foot_ground_reaction_force": left_foot_ground_reaction_force,
+            "right_foot_ground_reaction_force": right_foot_ground_reaction_force,
+        }
+        if all([i is None for i in mandatory_labels.values()]):
+            raise ValueError(
+                f"at least one of left_ground_reaction_force or"
+                + " right_ground_reaction_force must be provided."
+            )
+        record = TimeseriesRecord.from_tdf(file)
+        mandatory = {}
+        for key, lbl in mandatory_labels.items():
+            if lbl is not None:
+                mandatory[key] = record.get(lbl)
+                if mandatory[key] is None:
+                    raise ValueError(f"{lbl} not found in the provided file.")
+        signals = {
+            i: v for i, v in record.items() if i not in list(mandatory_labels.values())
+        }
+        return cls(
+            box_height_cm=box_height_cm,
+            bodymass_kg=bodymass_kg,
+            **signals,  # type: ignore
+            **mandatory,  # type: ignore
+        )
+
+
