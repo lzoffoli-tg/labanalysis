@@ -139,8 +139,8 @@ class Timeseries:
         if axis is None or axis == 1:
             cols = out.columns
             nonan_cols = out.to_dataframe().dropna(how="all", axis=1).columns.to_numpy()
-            indices = [i for i,v in enumerate(out.columns) if v in nonan_cols]
-            indices = np.arange(np.min(indices), np.max(indices)+1)
+            indices = [i for i, v in enumerate(out.columns) if v in nonan_cols]
+            indices = np.arange(np.min(indices), np.max(indices) + 1)
             out = out[:, cols[indices]]
         if not inplace:
             return out
@@ -171,7 +171,7 @@ class Timeseries:
             out.index = np.array(new_index)
             return out
 
-    def _slice(self, start: float | int, stop: float | int, inplace: bool = False):
+    def loc(self, start: float | int, stop: float | int, inplace: bool = False):
         if not isinstance(start, (float, int)):
             raise ValueError("start must be int or float")
         if not isinstance(stop, (float, int)):
@@ -184,9 +184,9 @@ class Timeseries:
             self.index = self.index[mask]
         else:
             out = self.copy()
-            out._slice(start, stop, True)
+            out.loc(start, stop, True)
             return out
-        
+
     def copy(self):
         """
         Return a deep copy of the Timeseries.
@@ -317,7 +317,7 @@ class Timeseries:
                 col=1,
                 trace=go.Scatter(
                     x=df.index.to_list(),
-                    y=values.values.astype(float).flatten().tolist(),
+                    y=values.to_numpy().astype(float).flatten().tolist(),
                     name=lbl,
                     mode="lines",
                 ),
@@ -628,7 +628,7 @@ class Timeseries:
                 mask = np.asarray(key, bool)
                 mask = np.isin(self.index[mask], self.index)
                 mask = mask.astype(bool)
-                key = self.index[key]
+                key = self.index[key]  # type: ignore
             else:
                 mask = np.isin(key, self.index)  # type: ignore
                 mask = mask.astype(bool)
@@ -703,7 +703,7 @@ class Timeseries:
             if not isinstance(col_key, list):
                 raise ValueError("Unsupported column key")
             else:
-                col_mask = add_cols(col_key)
+                col_mask = add_cols(col_key)  # type: ignore
 
             # Gestione righe
             if isinstance(row_key, (int, float)):

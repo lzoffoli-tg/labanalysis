@@ -661,7 +661,7 @@ def bars_with_normative_bands(
             for pattern in dfr[plbl].unique():
                 for trace in fig.data:
                     if trace["name"] == pattern:  # type: ignore
-                        clrs = dfr.loc[dfr[plbl] == pattern, "_Rank"].values  # type: ignore
+                        clrs = dfr.loc[dfr[plbl] == pattern, "_Color"].values  # type: ignore
                         clrs = clrs.astype(str)
                         trace.update(  # type: ignore
                             marker_color=clrs,

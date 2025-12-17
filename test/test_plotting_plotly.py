@@ -55,7 +55,7 @@ def test_bars_with_normative_bands():
             "Rank": ["Low", "Medium", "High"],
             "Lower": [0, 15, 25],
             "Upper": [14, 24, 35],
-            "Color": ["blue", "green", "red"],
+            "Color": ["#FF0000", "#00FF6A", "#1100FF"],
         }
     )
     fig, dfr = bars_with_normative_bands(

@@ -8,13 +8,15 @@ import pickle
 from datetime import date, datetime
 from os.path import exists
 from typing import Any, Protocol, runtime_checkable
-from warnings import warn
 
 import numpy as np
 import pandas as pd
-from scipy.stats.distributions import norm as normal_distribution
+import plotly.graph_objects as go
 
 from ..messages import askyesnocancel
+from ..records.records import ForcePlatform, TimeseriesRecord
+from ..records.timeseries import EMGSignal, Point3D, Signal1D, Signal3D
+from ..signalprocessing import butterworth_filt, rms_filt
 
 __all__ = ["TestProtocol", "TestBattery", "Participant"]
 
@@ -560,6 +562,174 @@ class Participant:
 
 
 @runtime_checkable
+class TestResults(Protocol):
+
+    _summary: pd.DataFrame
+    _analytics: pd.DataFrame
+    _figures: dict[str, go.Figure]
+
+    @property
+    def summary(self):
+        return self._summary
+
+    @property
+    def analytics(self):
+        return self._analytics
+
+    @property
+    def figures(self):
+        return self._figures
+
+    def __init__(self, test: Any):
+        self._summary = pd.DataFrame()
+        self._analytics = pd.DataFrame()
+        self._figures = {}
+        self._generate_results(test)
+
+    def _get_symmetry(self, left: np.ndarray, right: np.ndarray):
+        line = {"left_%": np.mean(left), "right_%": np.mean(right)}
+        line = pd.DataFrame(pd.Series(line)).T
+        norm = line.sum(axis=1).values.astype(float)
+        line.loc[line.index, line.columns] = line.values.astype(float) / norm * 100
+        return line
+
+    def _get_muscle_symmetry(self, test: TimeseriesRecord):
+        """
+        Returns coordination and balance metrics from EMG signals.
+
+        Returns
+        -------
+        pd.DataFrame
+            DataFrame with coordination and balance metrics, or empty if not available.
+        """
+
+        # get the muscle activations
+        # (if there are no emg data return and empty dataframe)
+        emgs = test.emgsignals
+        if emgs.shape[1] == 0:
+            return pd.DataFrame()
+
+        # check the presence of left and right muscles
+        muscles = {}
+        for emg in emgs.values():
+            if isinstance(emg, EMGSignal):
+                name = emg.muscle_name
+                side = emg.side
+                if side not in ["left", "right"]:
+                    continue
+                if name not in list(muscles.keys()):
+                    muscles[name] = {}
+
+                # get the area under the curve of the muscle activation
+                muscles[name][side] = emg.to_numpy().flatten()
+
+        # remove those muscles not having both sides
+        muscles = {i: v for i, v in muscles.items() if len(v) == 2}
+
+        # calculate coordination and imbalance between left and right side
+        out = {}
+        for muscle, sides in muscles.items():
+            params = self._get_symmetry(**sides)
+            out.update(**{f"{muscle}_{i}": v for i, v in params.items()})
+
+        return pd.DataFrame(pd.Series(out)).T
+
+    def _emgsignals_processing_func(self, channel: EMGSignal):
+        channel[:, :] = channel - channel.mean()
+        fsamp = 1 / np.mean(np.diff(channel.index))
+        channel.apply(
+            butterworth_filt,
+            fcut=[20, 450],
+            fsamp=fsamp,
+            order=4,
+            ftype="bandpass",
+            phase_corrected=True,
+            inplace=True,
+        )
+        channel.apply(
+            rms_filt,
+            order=int(0.1 * fsamp),
+            pad_style="reflect",
+            offset=1,
+            inplace=True,
+        )
+        return channel
+
+    def _signal1d_processing_func(self, signal: Signal1D):
+        signal.fillna(inplace=True)
+        fsamp = float(1 / np.mean(np.diff(signal.index)))
+        signal[:, :] = np.apply_along_axis(
+            func1d=lambda x: butterworth_filt(
+                x,
+                fcut=6,
+                fsamp=fsamp,
+                order=4,
+                ftype="lowpass",
+                phase_corrected=True,
+            ),
+            axis=0,
+            arr=signal.to_numpy(),
+        )
+        return signal
+
+    def _signal3d_processing_func(self, signal: Signal3D):
+        signal.fillna(inplace=True, value=0)
+        fsamp = float(1 / np.mean(np.diff(signal.index)))
+        signal[:, :] = np.apply_along_axis(
+            func1d=lambda x: butterworth_filt(
+                x,
+                fcut=[10, 200],
+                fsamp=fsamp,
+                order=4,
+                ftype="bandstop",
+                phase_corrected=True,
+            ),
+            axis=0,
+            arr=signal.to_numpy(),
+        )
+        return signal
+
+    def _point3d_processing_func(self, point: Point3D):
+        point.fillna(inplace=True)
+        fsamp = float(1 / np.mean(np.diff(point.index)))
+        point[:, :] = np.apply_along_axis(
+            func1d=lambda x: butterworth_filt(
+                x,
+                fcut=[10, 200],
+                fsamp=fsamp,
+                order=4,
+                ftype="bandstop",
+                phase_corrected=True,
+            ),
+            axis=0,
+            arr=point.to_numpy(),
+        )
+        return point
+
+    def _forceplatforms_processing_func(self, fp: ForcePlatform):
+        fp["origin"] = self._point3d_processing_func(fp["origin"])  # type: ignore
+        fp["force"] = self._signal3d_processing_func(fp["force"])  # type: ignore
+        fp["torque"] = self._signal3d_processing_func(fp["torque"])  # type: ignore
+        return fp
+
+    def _generate_results(self, raw_test: Any):
+        test = self._get_processed_data(raw_test)
+        self._summary = self._get_summary(test)
+        self._analytics = self._get_analytics(test)
+        self._figures = self._get_figures(test)
+
+    #! MANDATORY FIELDS TO BE IMPLEMENTED
+
+    def _get_processed_data(self, test: Any) -> Any: ...
+
+    def _get_summary(self, test: Any) -> pd.DataFrame: ...
+
+    def _get_analytics(self, test: Any) -> pd.DataFrame: ...
+
+    def _get_figures(self, test: Any) -> dict[str, go.Figure]: ...
+
+
+@runtime_checkable
 class TestProtocol(Protocol):
     """
     Protocol for lab test classes.
@@ -593,16 +763,19 @@ class TestProtocol(Protocol):
     _normative_data: pd.DataFrame
     _participant: Participant
 
+    def __init__(self, participant: Participant, normative_data: pd.DataFrame):
+        self.set_participant(participant)
+        self.set_normative_data(normative_data)
+
     def set_normative_data(self, data: pd.DataFrame):
         if not isinstance(data, pd.DataFrame):
-            warn(
+            raise ValueError(
                 "'normative_data' is not valid."
                 + " If provided, it should be a "
                 + " pandas DataFrame containing normative data."
                 + " Not having valid normative references might affect"
                 + " the implementation of specific test reports."
             )
-            self._normative_data = pd.DataFrame()
         self._normative_data = data
 
     def set_participant(self, participant: Participant):
@@ -695,7 +868,7 @@ class TestProtocol(Protocol):
 
     #! MANDATORY METHODS TO BE IMPLEMENTED
     @property
-    def results(self) -> dict[str, pd.DataFrame]:
+    def results(self) -> TestResults:
         """
         Abstract method to return a summary of the test results.
 
@@ -827,9 +1000,9 @@ class TestBattery(Protocol):
 
     #! MANDATORY METHODS TO BE IMPLEMENTED
 
-    def results(self) -> dict[str, pd.DataFrame]:
+    def results(self) -> TestResults:
         """
-        Abstract method to return a summary of the test results.
+        bstract method to return a summary of the test results.
 
         Returns
         -------

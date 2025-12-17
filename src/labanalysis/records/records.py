@@ -340,8 +340,8 @@ class Record:
                 _ = out._data.pop(element)
         if not inplace:
             return out
-    
-    def _slice(self, start: float | int, stop: float | int, inplace: bool = False):
+
+    def loc(self, start: float | int, stop: float | int, inplace: bool = False):
         if not isinstance(start, (float, int)):
             raise ValueError("start must be int or float")
         if not isinstance(stop, (float, int)):
@@ -350,7 +350,7 @@ class Record:
             raise ValueError("inplace must be True or False")
         out = self if inplace else self.copy()
         for key in out.keys():
-            out[key]._slice(start, stop, True)
+            out[key].loc(start, stop, True)
         if not inplace:
             return out
 
@@ -370,7 +370,7 @@ class Record:
                 col=1,
                 trace=go.Scatter(
                     x=df.index.to_list(),
-                    y=values.values.astype(float).flatten().tolist(),
+                    y=values.to_numpy().astype(float).flatten().tolist(),
                     name=lbl,
                     mode="lines",
                 ),
@@ -687,7 +687,7 @@ class TimeseriesRecord(Record):
         forces = self.forceplatforms
         rows, cols = forces.shape
         if cols == 0:
-            return None
+            raise ValueError("No forceplatforms found within the TimeseriesRecord.")
         i_total = np.asarray(forces.index, float)
         f_total = np.zeros((rows, 3))
         m_total = np.zeros_like(f_total)
@@ -868,7 +868,7 @@ class TimeseriesRecord(Record):
                 signal: pd.Series = df[col]
                 muscle_name, side, unit = col
                 record[f"{side}_{muscle_name}".lower()] = EMGSignal(
-                    data=signal.values.astype(float).flatten(),
+                    data=signal.to_numpy().astype(float).flatten(),
                     index=df.index.tolist(),
                     muscle_name=muscle_name.lower(),
                     side=side.lower(),

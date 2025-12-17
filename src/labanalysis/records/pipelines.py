@@ -7,11 +7,22 @@
 
 
 from typing import Callable, List
-from . import *
-from ..signalprocessing import *
+
 import numpy as np
 
-__all__ = ["ProcessingPipeline", "default_processing_pipeline"]
+from ..signalprocessing import *
+from .records import ForcePlatform, Record
+from .timeseries import EMGSignal, Point3D, Signal1D, Signal3D, Timeseries
+
+__all__ = [
+    "ProcessingPipeline",
+    "get_default_processing_pipeline",
+    "default_emgsignal_processing_func",
+    "default_signal1d_processing_func",
+    "default_signal3d_processing_func",
+    "default_point3d_processing_func",
+    "default_forceplatform_processing_func",
+]
 
 
 class ProcessingPipeline:
@@ -78,135 +89,105 @@ class ProcessingPipeline:
             return processed
 
 
-def default_processing_pipeline(inplace: bool = False):
+def default_emgsignal_processing_func(channel: EMGSignal):
+    channel[:, :] -= channel.to_numpy().mean()
+    fsamp = 1 / np.mean(np.diff(channel.index))
+    channel.apply(
+        butterworth_filt,
+        fcut=[20, 450],
+        fsamp=fsamp,
+        order=4,
+        ftype="bandpass",
+        phase_corrected=True,
+        inplace=True,
+        axis=0,
+    )
+    channel.apply(
+        rms_filt,
+        order=int(0.2 * fsamp),
+        pad_style="reflect",
+        offset=0.5,
+        inplace=True,
+        axis=0,
+    )
 
-    def default_emgsignal_processing_func(
-        channel: EMGSignal,
-        inplace: bool = False,
+
+def default_point3d_processing_func(point: Point3D):
+    point.fillna(inplace=True)
+    fsamp = float(1 / np.mean(np.diff(point.index)))
+    point.apply(
+        butterworth_filt,
+        fcut=6,
+        fsamp=fsamp,
+        order=4,
+        ftype="lowpass",
+        phase_corrected=True,
+        inplace=True,
+    )
+
+
+def default_signal3d_processing_func(signal: Signal3D):
+    signal.fillna(inplace=True)
+    fsamp = 1 / np.mean(np.diff(signal.index))
+    signal.apply(
+        butterworth_filt,
+        fcut=6,
+        fsamp=fsamp,
+        order=4,
+        ftype="lowpass",
+        phase_corrected=True,
+        inplace=True,
+    )
+
+
+def default_signal1d_processing_func(signal: Signal1D):
+    signal.fillna(inplace=True)
+    fsamp = 1 / np.mean(np.diff(signal.index))
+    signal.apply(
+        butterworth_filt,
+        fcut=6,
+        fsamp=fsamp,
+        order=4,
+        ftype="lowpass",
+        phase_corrected=True,
+        inplace=True,
+    )
+
+
+def default_forceplatform_processing_func(fp: ForcePlatform):
+
+    def default_3d_processing_func(
+        signal: Signal3D | Point3D,
     ):
-        out = channel if inplace else channel.copy()
-        out[:, :] -= out.to_numpy().mean()
-        fsamp = 1 / np.mean(np.diff(out.index))
-        out.apply(
+        signal.fillna(inplace=True, value=0)
+        fsamp = 1 / np.mean(np.diff(signal.index))
+        signal.apply(
             butterworth_filt,
-            fcut=[20, 450],
+            fcut=[10, 100],
             fsamp=fsamp,
             order=4,
-            ftype="bandpass",
-            phase_corrected=True,
-            inplace=True,
-            axis=1,
-        )
-        out.apply(
-            rms_filt,
-            order=int(0.2 * fsamp),
-            pad_style="reflect",
-            offset=0.5,
-            inplace=True,
-            axis=1,
-        )
-        if not inplace:
-            return out
-
-    def default_point3d_processing_func(
-        point: Point3D,
-        inplace: bool = inplace,
-    ):
-        out = point if inplace else point.copy()
-        out.fillna(inplace=True)
-        fsamp = float(1 / np.mean(np.diff(out.index)))
-        out.apply(
-            butterworth_filt,
-            fcut=6,
-            fsamp=fsamp,
-            order=4,
-            ftype="lowpass",
-            phase_corrected=True,
-            inplace=True,
-        )
-        if not inplace:
-            return out
-
-    def default_signal3d_processing_func(
-        signal: Signal3D,
-        inplace: bool = False,
-    ):
-        out = signal if inplace else signal.copy()
-        out.fillna(inplace=True)
-        fsamp = 1 / np.mean(np.diff(out.index))
-        out.apply(
-            butterworth_filt,
-            fcut=6,
-            fsamp=fsamp,
-            order=4,
-            ftype="lowpass",
-            phase_corrected=True,
-            inplace=True,
-        )
-        if not inplace:
-            return out
-
-    def default_signal1d_processing_func(
-        signal: Signal1D,
-        inplace: bool = False,
-    ):
-        out = signal if inplace else signal.copy()
-        out.fillna(inplace=True)
-        fsamp = 1 / np.mean(np.diff(out.index))
-        out.apply(
-            butterworth_filt,
-            fcut=6,
-            fsamp=fsamp,
-            order=4,
-            ftype="lowpass",
+            ftype="bandstop",
             phase_corrected=True,
             inplace=True,
         )
-        if not inplace:
-            return out
 
-    def default_forceplatforms_processing_func(
-        fp: ForcePlatform, inplace: bool = False
-    ):
-        out = fp if inplace else fp.copy()
+    fp_pipeline = ProcessingPipeline(
+        dict(
+            Point3D=[lambda x: default_3d_processing_func(x)],
+            Signal3D=[lambda x: default_3d_processing_func(x)],
+        ),
+    )
+    fp_pipeline(fp, inplace=True)
 
-        def default_3d_processing_func(
-            signal: Signal3D | Point3D,
-            inplace: bool = False,
-        ):
-            out = signal if inplace else signal.copy()
-            out.fillna(inplace=True, value=0)
-            fsamp = 1 / np.mean(np.diff(out.index))
-            out.apply(
-                butterworth_filt,
-                fcut=[10, 100],
-                fsamp=fsamp,
-                order=4,
-                ftype="bandstop",
-                phase_corrected=True,
-                inplace=True,
-            )
-            if not inplace:
-                return out
 
-        fp_pipeline = ProcessingPipeline(
-            dict(
-                Point3D=[lambda x: default_3d_processing_func(x, inplace)],
-                Signal3D=[lambda x: default_3d_processing_func(x, inplace)],
-            ),
-        )
-        fp_pipeline(out, inplace=True)
-        if not inplace:
-            return out
+def get_default_processing_pipeline():
 
     return ProcessingPipeline(
         {
-            "EMGSignal": [lambda x: default_emgsignal_processing_func(x, inplace)],
-            "Point3D": [lambda x: default_point3d_processing_func(x, inplace)],
-            "Signal1D": [lambda x: default_signal1d_processing_func(x, inplace)],
-            "Signal3D": [lambda x: default_signal3d_processing_func(x, inplace)],
-            "ForcePlatform": [
-                lambda x: default_forceplatforms_processing_func(x, inplace)
-            ],
+            "EMGSignal": [lambda x: default_emgsignal_processing_func(x)],
+            "Point3D": [lambda x: default_point3d_processing_func(x)],
+            "Signal1D": [lambda x: default_signal1d_processing_func(x)],
+            "Signal3D": [lambda x: default_signal3d_processing_func(x)],
+            "ForcePlatform": [lambda x: default_forceplatform_processing_func(x)],
         }
     )

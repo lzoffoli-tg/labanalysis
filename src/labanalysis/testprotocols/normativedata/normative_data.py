@@ -1,19 +1,5 @@
 import pandas as pd
 
-# CMJ normative values
-cmj_normative_values = pd.DataFrame(
-    {
-        "parameter": [
-            "Biceps femoris Imbalance (%)",
-            "Elevation (cm)",
-            "Takeoff Velocity (m/s)",
-            "Vastus medialis Imbalance (%)",
-        ],
-        "mean": [12.67134386, 38.5789678, 2.593533839, 12.2648072],
-        "std": [9.93246829, 4.870799856, 0.249450561, 8.423184381],
-    }
-)
-
 # ISOK 1RM normative values
 isok_1rm_normative_values = pd.DataFrame(
     {
@@ -95,13 +81,39 @@ plankbalance_normative_values = pd.DataFrame(
 # SJ normative values
 sj_normative_values = pd.DataFrame(
     {
+        "type": ["squat jump", "squat jump", "squat jump", "squat jump"],
         "parameter": [
-            "muscle_biceps_femoris_balance_%",
-            "elevation_cm",
-            "takeoff_velocity_m/s",
-            "muscle_vastus_medialis_balance_%",
+            "biceps femoris (%)",
+            "elevation (cm)",
+            "takeoff velocity (m/s)",
+            "vastus medialis (%)",
         ],
         "mean": [15.77771124, 35.92370418, 2.651046467, 14.59112967],
         "std": [9.097038503, 5.990352874, 0.264715508, 15.29637735],
     }
+)
+
+# CMJ normative values
+cmj_normative_values = pd.DataFrame(
+    {
+        "type": [
+            "counter movement jump",
+            "counter movement jump",
+            "counter movement jump",
+            "counter movement jump",
+        ],
+        "parameter": [
+            "biceps femoris (%)",
+            "elevation (cm)",
+            "takeoff velocity (m/s)",
+            "vastus medialis (%)",
+        ],
+        "mean": [12.67134386, 38.5789678, 2.593533839, 12.2648072],
+        "std": [9.93246829, 4.870799856, 0.249450561, 8.423184381],
+    }
+)
+
+jumps_normative_values = pd.concat(
+    [sj_normative_values, cmj_normative_values],
+    ignore_index=True,
 )

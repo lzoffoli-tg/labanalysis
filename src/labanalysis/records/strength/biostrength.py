@@ -21,18 +21,16 @@ from ..records import TimeseriesRecord
 
 
 __all__ = [
-    "DefaultRepetition",
-    "DefaultExercise",
-    "IsokineticRepetition",
+    "BiostrengthRepetition",
+    "BiostrengthExercise",
     "IsokineticExercise",
-    "IsometricRepetition",
     "IsometricExercise",
 ]
 
 #! CLASSES
 
 
-class DefaultRepetition(TimeseriesRecord):
+class BiostrengthRepetition(TimeseriesRecord):
     """
     Isokinetic Test 1RM instance
 
@@ -83,22 +81,10 @@ class DefaultRepetition(TimeseriesRecord):
         a figure representing the results of the test.
     """
 
-    # * class variables
-
-    _product: BiostrengthProduct
-    _side: Literal["bilateral", "left", "right"]
-
-    # * attributes
-
     @property
     def side(self):
         """get the side of the test"""
         return self._side
-
-    @property
-    def product(self):
-        """return the product on which the test has been performed"""
-        return self._product
 
     @property
     def peak_force_N(self):
@@ -109,7 +95,7 @@ class DefaultRepetition(TimeseriesRecord):
     def rom_m(self):
         """return the repetition's ROM"""
         position = self.position.to_numpy().flatten()
-        return float(np.max(position) - np.min(position))
+        return float(np.nanmax(position) - np.nanmin(position))
 
     @property
     def muscle_activations(self):
@@ -152,7 +138,6 @@ class DefaultRepetition(TimeseriesRecord):
             DataFrame with summary metrics for the jump.
         """
         new = {
-            "type": self.product.name,
             "side": self.side,
             "peak_force_N": self.peak_force_N,
             "rom_mm": self.rom_m * 1000,
@@ -160,9 +145,13 @@ class DefaultRepetition(TimeseriesRecord):
         new = pd.DataFrame(pd.Series(new)).T
         return pd.concat([new, self.muscle_activations], axis=1)
 
+    def set_side(self, side: Literal["left", "right", "bilateral"]):
+        if not isinstance(side, str) or side not in ["bilateral", "right", "left"]:
+            raise ValueError("'side' must be any of 'bilateral', 'left', 'right'.")
+        self._side = side
+
     def __init__(
         self,
-        product: BiostrengthProduct,
         side: Literal["bilateral", "left", "right"],
         force: Signal1D,
         position: Signal1D,
@@ -170,8 +159,6 @@ class DefaultRepetition(TimeseriesRecord):
     ):
 
         # check the input
-        if not issubclass(product.__class__, BiostrengthProduct):
-            raise ValueError("'product' must be a valid Biostrength Product.")
         if not side in ["bilateral", "left", "right"]:
             raise ValueError("'side' must be any of 'bilateral', 'left', 'right'")
 
@@ -187,11 +174,10 @@ class DefaultRepetition(TimeseriesRecord):
         super().__init__(force=force, position=position, **signals)
 
         # get the raw data
-        self._product = product  # type: ignore
-        self._side = side
+        self.set_side(side)
 
 
-class DefaultExercise(TimeseriesRecord):
+class BiostrengthExercise(TimeseriesRecord):
     """
     Isokinetic Test 1RM instance
 
@@ -203,11 +189,8 @@ class DefaultExercise(TimeseriesRecord):
     position: Iterable[int | float]
         the array containing the displacement of the handles for each sample
 
-    load: Iterable[int | float]
-        the array containing the load measured at each sample in kgf
-
-    coefs_1rm: tuple[int | float, int | float]
-        the b0 and b1 coefficients used to estimated the 1RM.
+    force: Iterable[int | float]
+        the array containing the force measured at each sample in N
 
     Attributes
     ----------
@@ -241,12 +224,6 @@ class DefaultExercise(TimeseriesRecord):
     summary_plot: FigureWidget
         a figure representing the results of the test.
     """
-
-    # * class variables
-
-    _side: Literal["bilateral", "left", "right"]
-    _product: BiostrengthProduct
-    _repetition_type = DefaultRepetition
 
     def _get_repetitions_index(self, array: np.ndarray, time: np.ndarray):
         return []
@@ -282,7 +259,7 @@ class DefaultExercise(TimeseriesRecord):
             )
             m_time = np.round(np.array(emgs.index) * 1000).astype(int)
             m_vals = emgs.to_dataframe().sum(axis=1)
-            m_vals = m_vals.values.astype(float).flatten()
+            m_vals = m_vals.to_numpy().astype(float).flatten()
 
             # filter the emg data
             fsamp_muscles = float(1000 / np.mean(np.diff(m_time)))
@@ -403,14 +380,13 @@ class DefaultExercise(TimeseriesRecord):
         """return the tracked repetitions data"""
         arr, time = self._get_repetitions_splitting_signal()
         reps_idx = self._get_repetitions_index(arr, time)
-        reps: list[DefaultRepetition] = []
+        reps: list[BiostrengthRepetition] = []
         for rep in reps_idx:
             rep_time = time[rep]
             start = rep_time[0]
             stop = rep_time[-1]
-            repetition = self._repetition_type(
-                product=self.product.copy().slice(start, stop),
-                side=self.side,
+            repetition = BiostrengthRepetition(
+                side=self.side,  # type: ignore
                 force=self.force.copy()[start:stop],  # type: ignore
                 position=self.position.copy()[start:stop],  # type: ignore
                 **{i: v.copy()[start:stop] for i, v in self.emgsignals.items()},  # type: ignore
@@ -419,25 +395,8 @@ class DefaultExercise(TimeseriesRecord):
 
         return reps
 
-    @property
-    def product(self):
-        """return the product on which the test has been performed"""
-        return self._product
-
-    def reset_time(self, inplace: bool = False):
-        if not isinstance(inplace, bool):
-            raise ValueError("inplace must be True or False")
-        if inplace:
-            super().reset_time(inplace)
-            self.product._time_s -= np.min(self.product._time_s)
-        else:
-            out = self.copy()
-            out.reset_time(True)
-            return out
-
     def __init__(
         self,
-        product: BiostrengthProduct,
         side: Literal["bilateral", "left", "right"],
         force: Signal1D,
         position: Signal1D,
@@ -446,8 +405,6 @@ class DefaultExercise(TimeseriesRecord):
     ):
 
         # check the input
-        if not issubclass(product.__class__, BiostrengthProduct):
-            raise ValueError("'product' must be a valid Biostrength Product.")
         if not side in ["bilateral", "left", "right"]:
             raise ValueError("'side' must be any of 'bilateral', 'left', 'right'")
 
@@ -478,13 +435,7 @@ class DefaultExercise(TimeseriesRecord):
         )
 
         # set the class-specific attributes
-        self.set_product(product)
         self.set_side(side)
-
-    def set_product(self, product: BiostrengthProduct):
-        if not isinstance(product, BiostrengthProduct):
-            raise ValueError("product must be a BiostrengthProduct instance.")
-        self._product = product
 
     def set_side(self, side: Literal["left", "right", "bilateral"]):
         if not isinstance(side, str) or side not in ["bilateral", "right", "left"]:
@@ -525,33 +476,13 @@ class DefaultExercise(TimeseriesRecord):
         return cls(
             force=force,
             position=position,
-            product=prod,
             side=side,
         )
 
-    def to_plotly_figure(self):
-        fig = super().to_plotly_figure()
-        for r, repetition in enumerate(self.repetitions):
-            df = repetition.to_dataframe()
-            for i, (column, values) in enumerate(df.items()):
-                fig.add_trace(
-                    row=i + 1,
-                    col=1,
-                    trace=go.Scatter(
-                        x=df.index.to_list(),
-                        y=values.values.astype(float).flatten().tolist(),
-                        name=f"repetition {r + 1}",
-                        mode="lines",
-                        showlegend=bool(i == 0),
-                        legendgroup=f"repetition {r + 1}",
-                    ),
-                )
-        return fig
 
-
-class IsokineticRepetition(DefaultRepetition):
+class IsokineticExercise(BiostrengthExercise):
     """
-    Isokinetic Test 1RM instance
+    Isokinetic resistance Exercise
 
     Parameters
     ----------
@@ -599,116 +530,6 @@ class IsokineticRepetition(DefaultRepetition):
     summary_plot: FigureWidget
         a figure representing the results of the test.
     """
-
-    @property
-    def estimated_1rm_kg(self):
-        """return the predicted 1RM"""
-        b1, b0 = self.product.rm1_coefs
-        return self.peak_force_N / G * b1 + b0
-
-    @property
-    def output_metrics(self):
-        """
-        Returns summary metrics for the jump.
-
-        Returns
-        -------
-        pd.DataFrame
-            DataFrame with summary metrics for the jump.
-        """
-        new = super().output_metrics
-        new.insert(
-            new.shape[1],
-            "estimated_1rm_kg",
-            self.estimated_1rm_kg,
-        )
-        return new
-
-    def __init__(
-        self,
-        product: BiostrengthProduct,
-        side: Literal["bilateral", "left", "right"],
-        force: Signal1D,
-        position: Signal1D,
-        **signals: EMGSignal,
-    ):
-
-        # check the input
-        if not issubclass(product.__class__, BiostrengthProduct):
-            raise ValueError("'product' must be a valid Biostrength Product.")
-        if not side in ["bilateral", "left", "right"]:
-            raise ValueError("'side' must be any of 'bilateral', 'left', 'right'")
-
-        # check the required data
-        if not isinstance(force, Signal1D) and force.unit != "N":
-            raise ValueError("force must be a Signal1D with 'N' as unit")
-        if not isinstance(position, Signal1D) and position.unit != "m":
-            raise ValueError("position must be a Signal1D with 'm' as unit")
-        for key, val in signals.items():
-            if not isinstance(val, EMGSignal):
-                raise ValueError(f"{key} must be an EMGSignal")
-
-        super().__init__(
-            product=product,
-            side=side,
-            force=force,
-            position=position,
-            **signals,
-        )
-
-
-class IsokineticExercise(DefaultExercise):
-    """
-    Isokinetic Test 1RM instance
-
-    Parameters
-    ----------
-    time: Iterable[int | float]
-        the array containing the time instant of each sample in seconds
-
-    position: Iterable[int | float]
-        the array containing the displacement of the handles for each sample
-
-    load: Iterable[int | float]
-        the array containing the load measured at each sample in kgf
-
-    coefs_1rm: tuple[int | float, int | float]
-        the b0 and b1 coefficients used to estimated the 1RM.
-
-    Attributes
-    ----------
-    raw: DataFrame
-        a DataFrame containing the input data
-
-    repetitions: list[DataFrame]
-        a list of dataframes each defining one single repetition
-
-    product: BiostrengthProduct
-        the product on which the test has been performed
-
-    peak_load: float
-        the peak load measured during the isokinetic repetitions
-
-    rom0: float
-        the start of the user's range of movement in meters
-
-    rom1: float
-        the end of the user's range of movement in meters
-
-    rom: float
-        the range of movement amplitude in meters
-
-    results_table: DataFrame
-        a table containing the data obtained during the test
-
-    summary_table: DataFrame
-        a table containing summary statistics about the test
-
-    summary_plot: FigureWidget
-        a figure representing the results of the test.
-    """
-
-    _repetition_type = IsokineticRepetition
 
     def _get_repetitions_splitting_signal(self):
         arr = self.position.to_numpy().flatten()
@@ -767,7 +588,6 @@ class IsokineticExercise(DefaultExercise):
 
     def __init__(
         self,
-        product: BiostrengthProduct,
         side: Literal["bilateral", "left", "right"],
         force: Signal1D,
         position: Signal1D,
@@ -775,7 +595,6 @@ class IsokineticExercise(DefaultExercise):
         **signals: EMGSignal,
     ):
         super().__init__(
-            product=product,
             side=side,
             force=force,
             position=position,
@@ -784,7 +603,7 @@ class IsokineticExercise(DefaultExercise):
         )
 
 
-class IsometricRepetition(DefaultRepetition):
+class IsometricExercise(BiostrengthExercise):
     """
     Isokinetic Test 1RM instance
 
@@ -834,130 +653,6 @@ class IsometricRepetition(DefaultRepetition):
     summary_plot: FigureWidget
         a figure representing the results of the test.
     """
-
-    @property
-    def rate_of_force_development(self):
-        force = self.force.to_numpy().flatten()
-        time = np.array(self.index)
-        peaks = find_peaks(force, height=float(np.max(force) * 0.8))
-        peak = np.argmax(force) if len(peaks) == 0 else peaks[0]
-        return (force[peak] - force[0]) / (time[peak] - time[0])
-
-    @property
-    def time_to_peak_force(self):
-        force = self.force.to_numpy().flatten()
-        time = np.array(self.index)
-        peak = np.argmax(force)
-        return time[peak] - time[0]
-
-    @property
-    def output_metrics(self):
-        """
-        Returns summary metrics for the jump.
-
-        Returns
-        -------
-        pd.DataFrame
-            DataFrame with summary metrics for the jump.
-        """
-        new = super().output_metrics
-        new.insert(
-            new.shape[1],
-            "rate_of_force_development_N/s",
-            self.rate_of_force_development,
-        )
-        new.insert(
-            new.shape[1],
-            "time_to_peak_force_ms",
-            self.time_to_peak_force * 1000,
-        )
-        return new
-
-    def __init__(
-        self,
-        product: BiostrengthProduct,
-        side: Literal["bilateral", "left", "right"],
-        force: Signal1D,
-        position: Signal1D,
-        **signals: EMGSignal,
-    ):
-
-        # check the input
-        if not issubclass(product.__class__, BiostrengthProduct):
-            raise ValueError("'product' must be a valid Biostrength Product.")
-        if not side in ["bilateral", "left", "right"]:
-            raise ValueError("'side' must be any of 'bilateral', 'left', 'right'")
-
-        # check the required data
-        if not isinstance(force, Signal1D) and force.unit != "N":
-            raise ValueError("force must be a Signal1D with 'N' as unit")
-        if not isinstance(position, Signal1D) and position.unit != "m":
-            raise ValueError("position must be a Signal1D with 'm' as unit")
-        for key, val in signals.items():
-            if not isinstance(val, EMGSignal):
-                raise ValueError(f"{key} must be an EMGSignal")
-
-        super().__init__(
-            product=product,
-            side=side,
-            force=force,
-            position=position,
-            **signals,
-        )
-
-
-class IsometricExercise(DefaultExercise):
-    """
-    Isokinetic Test 1RM instance
-
-    Parameters
-    ----------
-    time: Iterable[int | float]
-        the array containing the time instant of each sample in seconds
-
-    position: Iterable[int | float]
-        the array containing the displacement of the handles for each sample
-
-    load: Iterable[int | float]
-        the array containing the load measured at each sample in kgf
-
-    coefs_1rm: tuple[int | float, int | float]
-        the b0 and b1 coefficients used to estimated the 1RM.
-
-    Attributes
-    ----------
-    raw: DataFrame
-        a DataFrame containing the input data
-
-    repetitions: list[DataFrame]
-        a list of dataframes each defining one single repetition
-
-    product: BiostrengthProduct
-        the product on which the test has been performed
-
-    peak_load: float
-        the peak load measured during the isokinetic repetitions
-
-    rom0: float
-        the start of the user's range of movement in meters
-
-    rom1: float
-        the end of the user's range of movement in meters
-
-    rom: float
-        the range of movement amplitude in meters
-
-    results_table: DataFrame
-        a table containing the data obtained during the test
-
-    summary_table: DataFrame
-        a table containing summary statistics about the test
-
-    summary_plot: FigureWidget
-        a figure representing the results of the test.
-    """
-
-    _repetition_type = IsometricRepetition
 
     def _get_repetitions_splitting_signal(self):
         arr = self.force.to_numpy().flatten()
@@ -1010,7 +705,6 @@ class IsometricExercise(DefaultExercise):
 
     def __init__(
         self,
-        product: BiostrengthProduct,
         side: Literal["bilateral", "left", "right"],
         force: Signal1D,
         position: Signal1D,
@@ -1018,7 +712,6 @@ class IsometricExercise(DefaultExercise):
         **signals: EMGSignal,
     ):
         super().__init__(
-            product=product,
             side=side,
             force=force,
             position=position,
