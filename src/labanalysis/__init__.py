@@ -10,4 +10,4 @@ from .utils import *
 from .constants import *
 from .records import *
 from .records.pipelines import *
-from .testprotocols import *
+from .protocols import *

@@ -17,11 +17,11 @@ from .timeseries import EMGSignal, Point3D, Signal1D, Signal3D, Timeseries
 __all__ = [
     "ProcessingPipeline",
     "get_default_processing_pipeline",
-    "default_emgsignal_processing_func",
-    "default_signal1d_processing_func",
-    "default_signal3d_processing_func",
-    "default_point3d_processing_func",
-    "default_forceplatform_processing_func",
+    "get_default_emgsignal_processing_func",
+    "get_default_signal1d_processing_func",
+    "get_default_signal3d_processing_func",
+    "get_default_point3d_processing_func",
+    "get_default_forceplatform_processing_func",
 ]
 
 
@@ -33,30 +33,26 @@ class ProcessingPipeline:
     for each supported object type and apply them to a collection of objects.
     """
 
-    def __init__(self, callables: dict[str, Callable | List[Callable]]):
+    def __init__(self, **callables: Callable | List[Callable]):
         """
         Initialize a ProcessingPipeline.
         """
-        self.pipeline: dict[str, List[Callable]] = {
-            i: [v] if not isinstance(v, list) else v for i, v in callables.items()
-        }
+        object.__setattr__(self, "_items", {})
+        self.add(**callables)
 
-    def __call__(
-        self,
-        object: Timeseries | Record,
-        inplace: bool = False,
-    ):
-        return self.apply(object, inplace)
+    def add(self, **callables: Callable | List[Callable]):
+        for k, v in callables.items():
+            self[k] = v
 
-    def _apply_recursively(self, obj: Timeseries | Record):
-        obj_type = type(obj)
-        funcs = self.pipeline.get(obj_type.__name__, [])
-        if len(funcs) > 0:
-            for func in funcs:
-                func(obj)
-        elif isinstance(obj, Record):
-            for val in obj.values():
-                self._apply_recursively(val)
+    def remove(self, key: str):
+        self._items.pop(key)
+
+    def pop(self, key: str):
+        return self._items.pop(key)
+
+    def get(self, key: str):
+        default: list[Callable] = []
+        return self._items.get(key, default)
 
     def apply(
         self,
@@ -88,8 +84,57 @@ class ProcessingPipeline:
         if not inplace:
             return processed
 
+    def keys(self):
+        return list(self._items.keys())
 
-def default_emgsignal_processing_func(channel: EMGSignal):
+    def values(self):
+        return list(self._items.values())
+
+    def items(self):
+        return self._items.items()
+
+    def __repr__(self):
+        return self._items.__repr__()
+
+    def __str__(self):
+        return self._items.__str__()
+
+    def __setitem__(self, item, value):
+        calls = [value] if not isinstance(value, list) else value
+        if not all([isinstance(i, Callable) for i in calls]):
+            msg = "callables must be Callable objects or lists of "
+            msg += "Callable objects."
+            raise ValueError(msg)
+        self._items[item] = value
+
+    def __getitem__(self, item: str):
+        return self._items[item]
+
+    def __getattr__(self, attr: str):
+        return self._items[attr]
+
+    def __setattr__(self, attr, value):
+        self._items.__setitem__(attr, value)
+
+    def __call__(
+        self,
+        object: Timeseries | Record,
+        inplace: bool = False,
+    ):
+        return self.apply(object, inplace)
+
+    def _apply_recursively(self, obj: Timeseries | Record):
+        obj_type = type(obj)
+        funcs = self.get(obj_type.__name__)
+        if len(funcs) > 0:
+            for func in funcs:
+                func(obj)
+        elif isinstance(obj, Record):
+            for val in obj.values():
+                self._apply_recursively(val)
+
+
+def get_default_emgsignal_processing_func(channel: EMGSignal):
     channel[:, :] -= channel.to_numpy().mean()
     fsamp = 1 / np.mean(np.diff(channel.index))
     channel.apply(
@@ -112,7 +157,7 @@ def default_emgsignal_processing_func(channel: EMGSignal):
     )
 
 
-def default_point3d_processing_func(point: Point3D):
+def get_default_point3d_processing_func(point: Point3D):
     point.fillna(inplace=True)
     fsamp = float(1 / np.mean(np.diff(point.index)))
     point.apply(
@@ -126,7 +171,7 @@ def default_point3d_processing_func(point: Point3D):
     )
 
 
-def default_signal3d_processing_func(signal: Signal3D):
+def get_default_signal3d_processing_func(signal: Signal3D):
     signal.fillna(inplace=True)
     fsamp = 1 / np.mean(np.diff(signal.index))
     signal.apply(
@@ -140,7 +185,7 @@ def default_signal3d_processing_func(signal: Signal3D):
     )
 
 
-def default_signal1d_processing_func(signal: Signal1D):
+def get_default_signal1d_processing_func(signal: Signal1D):
     signal.fillna(inplace=True)
     fsamp = 1 / np.mean(np.diff(signal.index))
     signal.apply(
@@ -154,7 +199,7 @@ def default_signal1d_processing_func(signal: Signal1D):
     )
 
 
-def default_forceplatform_processing_func(fp: ForcePlatform):
+def get_default_forceplatform_processing_func(fp: ForcePlatform):
 
     def default_3d_processing_func(
         signal: Signal3D | Point3D,
@@ -172,10 +217,8 @@ def default_forceplatform_processing_func(fp: ForcePlatform):
         )
 
     fp_pipeline = ProcessingPipeline(
-        dict(
-            Point3D=[lambda x: default_3d_processing_func(x)],
-            Signal3D=[lambda x: default_3d_processing_func(x)],
-        ),
+        Point3D=[default_3d_processing_func],
+        Signal3D=[default_3d_processing_func],
     )
     fp_pipeline(fp, inplace=True)
 
@@ -183,11 +226,9 @@ def default_forceplatform_processing_func(fp: ForcePlatform):
 def get_default_processing_pipeline():
 
     return ProcessingPipeline(
-        {
-            "EMGSignal": [lambda x: default_emgsignal_processing_func(x)],
-            "Point3D": [lambda x: default_point3d_processing_func(x)],
-            "Signal1D": [lambda x: default_signal1d_processing_func(x)],
-            "Signal3D": [lambda x: default_signal3d_processing_func(x)],
-            "ForcePlatform": [lambda x: default_forceplatform_processing_func(x)],
-        }
+        EMGSignal=[get_default_emgsignal_processing_func],
+        Point3D=[get_default_point3d_processing_func],
+        Signal1D=[get_default_signal1d_processing_func],
+        Signal3D=[get_default_signal3d_processing_func],
+        ForcePlatform=[get_default_forceplatform_processing_func],
     )

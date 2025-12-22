@@ -75,6 +75,9 @@ class Record:
     def shape(self):
         return self.to_dataframe().shape
 
+    def __len__(self):
+        return len(self._data)
+
     def _view(
         self,
         rows: slice | list[int | float | bool] | np.ndarray | None = None,
@@ -812,7 +815,7 @@ class TimeseriesRecord(Record):
                     )
         else:
             out = self.copy()
-            for key, value in out.values():
+            for value in out.values():
                 if isinstance(value, (Point3D, Signal3D, ForcePlatform)):
                     value.change_reference_frame(
                         new_x,
@@ -847,14 +850,14 @@ class TimeseriesRecord(Record):
             A TimeseriesRecord populated with the data from the TDF file.
         """
         data = read_tdf(filename)
-        record = cls()
+        vals = {}
 
         # Handle 3D points from CAMERA TRACKED
         if data.get("CAMERA") and data["CAMERA"].get("TRACKED"):  # type: ignore
             df = data["CAMERA"]["TRACKED"]["TRACKS"]  # type: ignore
             for label in df.columns.get_level_values(0).unique():
                 sub_df: pd.DataFrame = df[label]
-                record[label] = Point3D(
+                vals[label] = Point3D(
                     data=sub_df.values,
                     index=sub_df.index.tolist(),
                     columns=sub_df.columns.get_level_values(0).tolist(),
@@ -867,7 +870,7 @@ class TimeseriesRecord(Record):
             for col in df.columns:
                 signal: pd.Series = df[col]
                 muscle_name, side, unit = col
-                record[f"{side}_{muscle_name}".lower()] = EMGSignal(
+                vals[f"{side}_{muscle_name}".lower()] = EMGSignal(
                     data=signal.to_numpy().astype(float).flatten(),
                     index=df.index.tolist(),
                     muscle_name=muscle_name.lower(),
@@ -882,7 +885,7 @@ class TimeseriesRecord(Record):
                 origin: pd.DataFrame = df[label]["ORIGIN"]
                 force: pd.DataFrame = df[label]["FORCE"]
                 torque: pd.DataFrame = df[label]["TORQUE"]
-                record[label] = ForcePlatform(
+                vals[label] = ForcePlatform(
                     origin=Point3D(
                         data=origin.values,
                         index=origin.index.tolist(),
@@ -903,7 +906,7 @@ class TimeseriesRecord(Record):
                     ),
                 )
 
-        return record
+        return cls(**vals)
 
     def __init__(
         self,

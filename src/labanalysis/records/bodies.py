@@ -188,19 +188,11 @@ class WholeBody(TimeseriesRecord):
         sc: str | None = None,
     ):
 
-        # generate the new object
-        obj = cls()
-
         # read the file
         tdf = TimeseriesRecord.from_tdf(filename)
 
         # check the inputs
-        inputs = {
-            "ground_reaction_force": ground_reaction_force,
-            "left_hand_ground_reaction_force": left_hand_ground_reaction_force,
-            "right_hand_ground_reaction_force": right_hand_ground_reaction_force,
-            "left_foot_ground_reaction_force": left_foot_ground_reaction_force,
-            "right_foot_ground_reaction_force": right_foot_ground_reaction_force,
+        points = {
             "left_heel": left_heel,
             "right_heel": right_heel,
             "left_toe": left_toe,
@@ -238,32 +230,32 @@ class WholeBody(TimeseriesRecord):
             "l2": l2,
             "sc": sc,
         }
-        inputs = {i: v for i, v in inputs.items() if v is not None}
+        forces = {
+            "ground_reaction_force": ground_reaction_force,
+            "left_hand_ground_reaction_force": left_hand_ground_reaction_force,
+            "right_hand_ground_reaction_force": right_hand_ground_reaction_force,
+            "left_foot_ground_reaction_force": left_foot_ground_reaction_force,
+            "right_foot_ground_reaction_force": right_foot_ground_reaction_force,
+        }
         keys = tdf.keys()
-        for lbl, inp in inputs.items():
-            if inp not in keys:
-                raise ValueError(f"{inp} not found.")
-            val = tdf[inp]
-            if inp in [
-                left_foot_ground_reaction_force,
-                right_foot_ground_reaction_force,
-                ground_reaction_force,
-                left_hand_ground_reaction_force,
-                right_hand_ground_reaction_force,
-            ]:
-                if not isinstance(val, ForcePlatform):
-                    msg = f"{inp} has to be a ForcePlatform instance."
-                    raise ValueError(msg)
-            else:
-                if not isinstance(val, Point3D):
-                    msg = f"{inp} has to be a Point3D instance."
-                    raise ValueError(msg)
-            obj[lbl] = val
-        for key, val in tdf.items():
-            if key not in list(inputs.values()):
-                obj[key] = val
+        mandatory = {}
+        for key, lbl in forces.items():
+            if lbl is not None:
+                if lbl not in keys:
+                    raise ValueError(f"{lbl} not found.")
+                if not isinstance(tdf[lbl], ForcePlatform):
+                    raise ValueError(f"{lbl} must be a ForcePlatform instance.")
+                mandatory[key] = tdf[lbl]
+        for key, lbl in points.items():
+            if lbl is not None:
+                if lbl not in keys:
+                    raise ValueError(f"{lbl} not found.")
+                if not isinstance(tdf[lbl], Point3D):
+                    raise ValueError(f"{lbl} must be a Point3D instance.")
+                mandatory[key] = tdf[lbl]
+        extras = {i: v for i, v in tdf.items() if i not in list(mandatory.keys())}
 
-        return obj
+        return cls(**mandatory, **extras)  # type: ignore
 
     def to_dataframe(self):
         out = [super().to_dataframe()]

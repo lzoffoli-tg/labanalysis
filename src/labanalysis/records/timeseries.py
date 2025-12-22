@@ -577,10 +577,24 @@ class Timeseries:
         super().__setattr__(name, value)
 
     def __getattr__(self, name: str):
+        # we return the "column" named "name"
+        if name in self.columns:
+            if len(self.columns) == 1:
+                return self._data.flatten()
+            loc = np.where(self.columns == name)[0]
+            return Timeseries(
+                self._data[:, loc],
+                self.index,
+                [name],
+                self.unit,
+            )
+
+        # if None, raise an error
         attr = getattr(self._data, name, None)
         if attr is None:
             raise AttributeError(f"'{type(self)}' object has no attribute '{name}'")
 
+        # is a function (e.g. arr.mean())
         if callable(attr):
 
             def wrapper(*args, **kwargs):
@@ -598,6 +612,7 @@ class Timeseries:
 
             return wrapper
 
+        # its a property to be returned
         return attr
 
     def __getitem__(self, key):
@@ -802,9 +817,6 @@ class Signal3D(Timeseries):
     A 3D signal (three columns: X, Y, Z) time series.
     """
 
-    _vertical_axis: str
-    _anteroposterior_axis: str
-
     @property
     def vertical_axis(self):
         return self._vertical_axis
@@ -841,13 +853,19 @@ class Signal3D(Timeseries):
         if data.shape[1] != 3:
             raise ValueError("Signal3D must have exactly 3 columns.")
 
-        # check axex
-        if vertical_axis not in self.columns:
+        # check axes
+        self.set_vertical_axis(vertical_axis)
+        self.set_anteroposterior_axis(anteroposterior_axis)
+
+    def set_vertical_axis(self, axis: str):
+        if axis not in self.columns:
             raise ValueError(f"vertical_axis must be any of {self.columns}")
-        if anteroposterior_axis not in self.columns:
+        self._vertical_axis = str(axis)
+
+    def set_anteroposterior_axis(self, axis: str):
+        if axis not in self.columns:
             raise ValueError(f"anteroposterior_axis must be any of {self.columns}")
-        self._vertical_axis = str(vertical_axis)
-        self._anteroposterior_axis = str(anteroposterior_axis)
+        self._anteroposterior_axis = str(axis)
 
     def change_reference_frame(
         self,
@@ -1028,6 +1046,8 @@ class Point3D(Signal3D):
         index: list[float] | FloatArray1D,
         unit: str | pint.Quantity = "m",
         columns: list[str] | TextArray1D = ["X", "Y", "Z"],
+        vertical_axis: str = "Y",
+        anteroposterior_axis: str = "Z",
     ):
         """
         Initialize a Point3D.
@@ -1053,6 +1073,8 @@ class Point3D(Signal3D):
             index,
             unit,
             columns,
+            vertical_axis,
+            anteroposterior_axis,
         )
 
         # check the unit
