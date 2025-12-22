@@ -12,7 +12,7 @@ from plotly.subplots import make_subplots
 
 from ..records.timeseries import EMGSignal, Point3D
 
-from ..constants import G
+from ..constants import G, RANK_COLORS
 from ..modelling import Ellipse
 from ..records.pipelines import get_default_processing_pipeline
 from ..records.posture import PronePosture, UprightPosture
@@ -47,7 +47,6 @@ def _get_sway_figure(
         emg_signals[chn.muscle_name][chn.side] = chn.to_dataframe()
 
     # generate the figure and setup the layout
-    colors = ["#54A3E7", "#8EE09D", "#EEF862", "#EE9547"]
     if len(emg_signals) == 0 and normative_data.empty:
         fig = make_subplots(
             rows=1,
@@ -104,7 +103,7 @@ def _get_sway_figure(
             x1=1,
             y0=0,
             y1=1,
-            fillcolor=colors[-1],
+            fillcolor=RANK_COLORS[-1],
             layer="below",
             line_width=0,
             row=1,
@@ -148,7 +147,7 @@ def _get_sway_figure(
         cop_area = ellipse.area
 
         samples_within = {}
-        for area, color, label in zip(areas[::-1], colors[:-1][::-1], ranks[::-1]):
+        for area, color, label in zip(areas[::-1], RANK_COLORS[:-1][::-1], ranks[::-1]):
 
             # scale the axes according to the ratio between the ellipses area
             ratio = area / cop_area
@@ -205,7 +204,7 @@ def _get_sway_figure(
                     x=[float(value)],
                     y=[rank],
                     text=[f"{value:0.2f}%"],
-                    marker_color=colors[::-1][i],
+                    marker_color=RANK_COLORS[::-1][i],
                     name=rank,
                     textposition="outside",
                     textangle=0,
@@ -242,7 +241,9 @@ def _get_sway_figure(
         col = 2 if normative_data.empty else 3
 
         # plot the muscle balance
-        cscales = [[i / (len(colors) - 1), col] for i, col in enumerate(colors)]
+        cscales = [
+            [i / (len(RANK_COLORS) - 1), col] for i, col in enumerate(RANK_COLORS)
+        ]
         vals = []
         for i, (muscle, dct) in enumerate(emg_signals.items()):
             lt, rt = [float(m.mean()) for m in dct.values()]
@@ -510,7 +511,7 @@ class UprightBalanceTest(TestProtocol):
                 cop = force.origin
                 if not isinstance(cop, Point3D):
                     raise ValueError("force must be a ForcePlatform instance.")
-                cop = cop.copy() * 1000
+                cop = cop.copy()
                 return cop.to_numpy().astype(float).mean(axis=0)
 
             # on bilateral test, we rotate the system of forces to a
@@ -836,7 +837,7 @@ class PlankBalanceTest(TestProtocol):
             cop = force.origin
             if not isinstance(cop, Point3D):
                 raise ValueError("force must be a ForcePlatform instance.")
-            cop = cop.copy() * 1000
+            cop = cop.copy()
             return cop.to_numpy().astype(float).mean(axis=0)
 
         # on bilateral test, we rotate the system of forces to a
@@ -976,7 +977,7 @@ class PlankBalanceTestResults(TestResults):
         lh_x, lh_y = extract_cop(exe.left_hand_ground_reaction_force)  # type: ignore
         rh_x, rh_y = extract_cop(exe.right_hand_ground_reaction_force)  # type: ignore
         cop_x0 = np.mean((lf_x + rf_x + lh_x + rh_x) / 4)
-        cop_y0 = np.mean((lf_y + rf_y + lh_y + rh_y) / 4)
+        cop_y0 = np.mean(cop_y)
         cop_x -= cop_x0
         cop_y -= cop_y0
 

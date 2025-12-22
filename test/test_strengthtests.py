@@ -119,6 +119,7 @@ def test_isometrictest():
         le_path + ".tdf",
         re_path + ".tdf",
         None,
+        relevant_muscle_map=["vastus medialis", "biceps femoris"],
     )
 
     # Verify test instance and basic properties

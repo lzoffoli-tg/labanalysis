@@ -36,9 +36,8 @@ def _get_force_figure(
 
     # generate the figure
     def get_muscles():
-        lbls = ["side", "repetition", "time_s", "force_amplitude", "position_amplitude"]
-        lbls = [i for i in tracks.columns if i not in lbls]
-        return np.unique([i.split("_")[1] for i in lbls]).tolist()
+        lbls = [i for i in summary.parameter if "uV" in i or "%" in i]
+        return np.unique([i.rsplit(" ", 1)[0] for i in lbls]).tolist()
 
     def plot_muscle_balance():
         return len(get_muscles()) > 0
@@ -89,27 +88,10 @@ def _get_force_figure(
         )
 
     # plot force profiles
-    force_data = [
-        "side",
-        "repetition",
-        "time_s",
-        "force_amplitude",
-        "position_amplitude",
-    ]
-    force_data = tracks[force_data].copy()
-    force_arr = {side: [] for side in sides}
-    pos_arr = {side: [] for side in sides}
-    for (side, rep), dfr in force_data.groupby(by=["side", "repetition"]):
-        pos = dfr.position_amplitude.to_numpy().flatten()
-        force = dfr.force_amplitude.to_numpy().flatten()
-        pint = cubicspline_interp(pos, 201)
-        fint = cubicspline_interp(force, 201)
-        force_arr[side].append(np.atleast_2d(fint))
-        pos_arr[side].append(np.atleast_2d(pint))
+    x_lbl = [i for i in tracks.columns if i not in ["Force (N)", "side"]][0]
     for i, side in enumerate(sides):
-        y = np.vstack(force_arr[side]).max(axis=0)
-        x = np.vstack(pos_arr[side]).mean(axis=0)
-        x = (x - x.min()) * 1000
+        y = tracks.loc[tracks.side == side, "y"].to_numpy().astype(float).flatten()  # type: ignore
+        x = tracks.loc[tracks.side == side, x_lbl].to_numpy().astype(float).flatten()  # type: ignore
         fig.add_trace(
             go.Scatter(
                 x=x,
@@ -168,11 +150,11 @@ def _get_force_figure(
         )
 
     # update force profiles figure layout
-    force_data = tracks.force_amplitude.to_numpy().flatten()
+    force_data = tracks.y.to_numpy().flatten()
     yrange = [np.min(force_data) * 0.9, np.max(force_data) * 1.5]
     for i in range(len(sides)):
         fig.update_xaxes(
-            title="Concentric ROM (mm)",
+            title=x_lbl,
             row=1,
             col=i + 1,
             showline=True,
@@ -618,9 +600,41 @@ class Isokinetic1RMTestResults(TestResults):
         return pd.concat(analytics, ignore_index=True)
 
     def _get_figures(self, test: Isokinetic1RMTest):
+
+        # force data
+        tracks = self.analytics
+        sides = np.unique(tracks.side).tolist()
+        force_data = [
+            "side",
+            "repetition",
+            "time_s",
+            "force_amplitude",
+            "position_amplitude",
+        ]
+        force_data = tracks[force_data].copy()
+        y_arr = {side: [] for side in sides}
+        x_arr = {side: [] for side in sides}
+        for (side, rep), dfr in force_data.groupby(by=["side", "repetition"]):
+            pos = dfr.position_amplitude.to_numpy().flatten()
+            force = dfr.force_amplitude.to_numpy().flatten()
+            pint = cubicspline_interp(pos, 201)
+            fint = cubicspline_interp(force, 201)
+            y_arr[side].append(np.atleast_2d(fint))
+            x_arr[side].append(np.atleast_2d(pint))
+        tracks = []
+        for i, side in enumerate(sides):
+            y = np.vstack(y_arr[side]).max(axis=0)
+            x = np.vstack(x_arr[side]).mean(axis=0) * 1000
+            x = x - np.min(x)
+            df = pd.DataFrame({"Concentric ROM (mm)": x, "y": y})
+            df.insert(0, "side", side)
+            tracks.append(df)
+        tracks = pd.concat(tracks, ignore_index=True)
+
+        # muscle data
         return {
             "force_profiles_with_muscle_balance": _get_force_figure(
-                self.analytics,
+                tracks,
                 self.summary,
             )
         }
@@ -956,9 +970,35 @@ class IsometricTestResults(TestResults):
         return pd.concat(analytics, ignore_index=True)
 
     def _get_figures(self, test: IsometricTest):
+
+        # force data
+        tracks = self.analytics
+        sides = np.unique(tracks.side).tolist()
+        force_data = [
+            "side",
+            "repetition",
+            "time_s",
+            "force_amplitude",
+            "position_amplitude",
+        ]
+        force_data = tracks[force_data].copy()
+        y_arr = {side: [] for side in sides}
+        for (side, rep), dfr in force_data.groupby(by=["side", "repetition"]):
+            force = dfr.force_amplitude.to_numpy().flatten()
+            fint = cubicspline_interp(force, 201)
+            y_arr[side].append(np.atleast_2d(fint))
+        tracks = []
+        for i, side in enumerate(sides):
+            y = np.vstack(y_arr[side]).max(axis=0)
+            x = np.linspace(0, 5, len(y))
+            df = pd.DataFrame({"Time (s)": x, "y": y})
+            df.insert(0, "side", side)
+            tracks.append(df)
+        tracks = pd.concat(tracks, ignore_index=True)
+
         return {
             "force_profiles_with_muscle_balance": _get_force_figure(
-                self.analytics,
+                tracks,
                 self.summary,
             )
         }
