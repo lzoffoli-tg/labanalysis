@@ -117,6 +117,9 @@ class UprightPosture(WholeBody):
             )
         return cls(**record._data)  # type: ignore
 
+    def copy(self):
+        return UprightPosture(**self._data)  # type: ignore
+
 
 class PronePosture(WholeBody):
     """Represents a prone (plank) posture stance."""
@@ -176,3 +179,6 @@ class PronePosture(WholeBody):
             if record.get(key) is None:
                 raise ValueError(f"{key} not found within the provided file.")
         return cls(**record._data)  # type: ignore
+
+    def copy(self):
+        return PronePosture(**self._data)  # type: ignore

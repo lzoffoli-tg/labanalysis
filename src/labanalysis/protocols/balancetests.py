@@ -209,6 +209,7 @@ def _get_sway_figure(
                     textposition="outside",
                     textangle=0,
                     orientation="h",
+                    legendgroup=rank,
                 ),
                 row=1,
                 col=2,
@@ -339,8 +340,8 @@ def _get_sway_figure(
     # add the sway
     fig.add_trace(
         trace=go.Scatter(
-            x=cop_x.tolist(),
-            y=cop_y.tolist(),
+            x=cop_x,
+            y=cop_y,
             mode="lines",
             opacity=0.5,
             line_width=1,
@@ -449,10 +450,6 @@ class UprightBalanceTest(TestProtocol):
             ),
         )
 
-    @property
-    def results(self):
-        return UprightBalanceTestResults(self)
-
     def set_exercise(self, exercise: UprightPosture):
         if not isinstance(exercise, UprightPosture):
             raise ValueError("exercise must be an UprightPosture instance.")
@@ -471,6 +468,7 @@ class UprightBalanceTest(TestProtocol):
             emg_normalization_references=self.emg_activation_references,
             emg_activation_references=self.emg_activation_references,
             emg_activation_threshold=self.emg_activation_threshold,
+            relevant_muscle_map=self.relevant_muscle_map,
         )
 
     @property
@@ -496,7 +494,7 @@ class UprightBalanceTest(TestProtocol):
             if isinstance(m, EMGSignal):
                 for (name, side), val in norms.items():
                     if m.muscle_name == name and m.side == side:
-                        exe[k] = m.to_numpy() / val
+                        exe[k] = m / val * 100
                         exe[k].set_unit("%")  # type: ignore
                     break
         if len(to_remove) > 0:
@@ -525,12 +523,12 @@ class UprightBalanceTest(TestProtocol):
             vt = np.array([0, 1, 0])
             ap = np.cross(ml, vt)
             origin = (rt + lt) / 2
-            exe = exe.change_reference_frame(
+            exe.change_reference_frame(
                 ml,
                 vt,
                 ap,
                 origin,
-                inplace=False,
+                inplace=True,
             )
             if exe is None:
                 raise ValueError("reference frame alignment returned None")
@@ -546,13 +544,19 @@ class UprightBalanceTest(TestProtocol):
     def processing_pipeline(self):
         return get_default_processing_pipeline()
 
+    def results(self, include_emg: bool = True):
+        return UprightBalanceTestResults(
+            self.processed_data,
+            include_emg,
+        )
+
 
 class UprightBalanceTestResults(TestResults):
 
-    def __init__(self, test: UprightBalanceTest):
+    def __init__(self, test: UprightBalanceTest, include_emg: bool):
         if not isinstance(test, UprightBalanceTest):
             raise ValueError("'test' must be an UprightBalanceTest instance.")
-        super().__init__(test)
+        super().__init__(test, include_emg)
 
     def _get_bodymass_kg(self, exe: TimeseriesRecord):
         """
@@ -612,17 +616,8 @@ class UprightBalanceTestResults(TestResults):
         return pd.concat(out, ignore_index=True)
 
     def _get_area_of_stability_mm2(self, exe: TimeseriesRecord):
-        cop = exe.resultant_force
-        if cop is None:
-            return np.nan
-        cop = cop.origin.to_dataframe().dropna()
-        horizontal_axes = [
-            exe.anteroposterior_axis,
-            exe.lateral_axis,
-        ]
-        ap, ml = cop[horizontal_axes].values.astype(float).T * 1000
-        ellipse = Ellipse().fit(ap.astype(float), ml.astype(float))
-        return ellipse.area
+        x, y = self._get_cop_mm(exe).to_numpy().astype(float).T
+        return Ellipse().fit(x, y).area
 
     def _get_cop_mm(self, exe: TimeseriesRecord):
         def extract_cop(force: ForcePlatform):
@@ -659,40 +654,36 @@ class UprightBalanceTestResults(TestResults):
         )
 
     def _get_summary(self, test: UprightBalanceTest):
-        processed = test.processed_data
         summary = {
-            "type": processed.name,
-            "eyes": processed.eyes,
-            "side": processed.side,
-            "bodymass_kg": self._get_bodymass_kg(processed.exercise),
-            "area_of_stability_mm2": self._get_area_of_stability_mm2(
-                processed.exercise
-            ),
+            "type": test.name,
+            "eyes": test.eyes,
+            "side": test.side,
+            "bodymass_kg": self._get_bodymass_kg(test.exercise),
+            "area_of_stability_mm2": self._get_area_of_stability_mm2(test.exercise),
         }
         summary = [pd.DataFrame(pd.Series(summary)).T]
-        summary.append(self._get_force_symmetry(processed.exercise))
-        if test.side == "bilateral":
-            summary.append(self._get_muscle_symmetry(processed.exercise))
+        summary.append(self._get_force_symmetry(test.exercise))
+        if test.side == "bilateral" and self.include_emg:
+            summary.append(self._get_muscle_symmetry(test.exercise))
         return pd.concat(summary, axis=1)
 
     def _get_analytics(self, test: UprightBalanceTest):
-        processed = test.processed_data
-        cop = self._get_cop_mm(processed.exercise)
-        emgs = processed.exercise.emgsignals.to_dataframe()
-        return pd.concat([cop, emgs], axis=1).dropna()
+        out = self._get_cop_mm(test.exercise)
+        if self.include_emg:
+            emgs = test.exercise.emgsignals.to_dataframe()
+            out = pd.concat([out, emgs], axis=1)
+        return out.dropna()
 
     def _get_figures(self, test: UprightBalanceTest):
-        processed = test.processed_data
 
         # get the cop coordinates in mm
-        cop_x, cop_y = self._get_cop_mm(processed.exercise).to_numpy().T
+        cop_x, cop_y = self._get_cop_mm(test.exercise).to_numpy().T
 
         # get the emgsignals
-        emgs = (
-            processed.exercise.emgsignals
-            if test.side == "bilateral"
-            else TimeseriesRecord()
-        )
+        if self.include_emg and test.side == "bilateral":
+            emgs = test.exercise.emgsignals
+        else:
+            emgs = TimeseriesRecord()
 
         # get the normative data
         norms = test.normative_data
@@ -734,8 +725,8 @@ class PlankBalanceTest(TestProtocol):
         relevant_muscle_map: list[str] | None = None,
     ):
         super().__init__(
-            participant,
-            normative_data,
+            participant=participant,
+            normative_data=normative_data,
             emg_activation_references=emg_activation_references,
             emg_activation_threshold=emg_activation_threshold,
             emg_normalization_references=emg_normalization_references,
@@ -753,6 +744,7 @@ class PlankBalanceTest(TestProtocol):
             emg_normalization_references=self.emg_activation_references,
             emg_activation_references=self.emg_activation_references,
             emg_activation_threshold=self.emg_activation_threshold,
+            relevant_muscle_map=self.relevant_muscle_map,
         )
 
     def set_exercise(self, exercise: PronePosture):
@@ -763,10 +755,6 @@ class PlankBalanceTest(TestProtocol):
     @property
     def exercise(self):
         return self._exercise
-
-    @property
-    def results(self):
-        return PlankBalanceTestResults(self)
 
     @classmethod
     def from_files(
@@ -824,7 +812,7 @@ class PlankBalanceTest(TestProtocol):
             if isinstance(m, EMGSignal):
                 for (name, side), val in norms.items():
                     if m.muscle_name == name and m.side == side:
-                        exe[k] = m.to_numpy() / val
+                        exe[k] = m / val * 100
                         exe[k].set_unit("%")  # type: ignore
                     break
         if len(to_remove) > 0:
@@ -874,13 +862,19 @@ class PlankBalanceTest(TestProtocol):
     def processing_pipeline(self):
         return get_default_processing_pipeline()
 
+    def results(self, include_emg: bool = True):
+        return PlankBalanceTestResults(
+            self.processed_data,
+            include_emg,
+        )
+
 
 class PlankBalanceTestResults(TestResults):
 
-    def __init__(self, test: PlankBalanceTest):
+    def __init__(self, test: PlankBalanceTest, include_emg: bool):
         if not isinstance(test, PlankBalanceTest):
             raise ValueError("'test' must be a PlankBalanceTest instance.")
-        super().__init__(test)
+        super().__init__(test, include_emg)
 
     def _get_force_symmetry(self, exe: TimeseriesRecord):
         """
@@ -951,17 +945,8 @@ class PlankBalanceTestResults(TestResults):
         return float(exe.resultant_force.force[exe.vertical_axis].to_numpy().mean() / G)
 
     def _get_area_of_stability_mm2(self, exe: TimeseriesRecord):
-        cop = exe.resultant_force
-        if cop is None:
-            return np.nan
-        cop = cop.origin.to_dataframe().dropna()
-        horizontal_axes = [
-            exe.anteroposterior_axis,
-            exe.lateral_axis,
-        ]
-        ap, ml = cop[horizontal_axes].values.astype(float).T * 1000
-        ellipse = Ellipse().fit(ap.astype(float), ml.astype(float))
-        return ellipse.area
+        x, y = self._get_cop_mm(exe).to_numpy().astype(float).T
+        return Ellipse().fit(x, y).area
 
     def _get_cop_mm(self, exe: TimeseriesRecord):
         def extract_cop(force: ForcePlatform):
@@ -987,34 +972,32 @@ class PlankBalanceTestResults(TestResults):
         )
 
     def _get_summary(self, test: PlankBalanceTest):
-        processed = test.processed_data
         summary = {
             "type": test.__class__.__name__,
             "eyes": test.eyes,
-            "bodymass_kg": self._get_bodymass_kg(processed.exercise),
-            "area_of_stability_mm2": self._get_area_of_stability_mm2(
-                processed.exercise
-            ),
+            "bodymass_kg": self._get_bodymass_kg(test.exercise),
+            "area_of_stability_mm2": self._get_area_of_stability_mm2(test.exercise),
         }
         summary = [pd.DataFrame(pd.Series(summary)).T]
-        summary.append(self._get_force_symmetry(processed.exercise))
-        summary.append(self._get_muscle_symmetry(processed.exercise))
+        summary.append(self._get_force_symmetry(test.exercise))
+        if self.include_emg:
+            summary.append(self._get_muscle_symmetry(test.exercise))
         return pd.concat(summary, axis=1)
 
     def _get_analytics(self, test: PlankBalanceTest):
-        exe = test.processed_data.exercise
-        cop = self._get_cop_mm(exe)
-        emgs = exe.emgsignals.to_dataframe()
-        return pd.concat([cop, emgs], axis=1).dropna()
+        out = self._get_cop_mm(test.exercise)
+        if self.include_emg:
+            emgs = test.exercise.emgsignals.to_dataframe()
+            out = pd.concat([out, emgs], axis=1)
+        return out.dropna()
 
     def _get_figures(self, test: PlankBalanceTest):
-        exe = test.processed_data.exercise
 
         # get the cop coordinates in mm
-        cop_x, cop_y = self._get_cop_mm(exe).to_numpy().T
+        cop_x, cop_y = self._get_cop_mm(test.exercise).to_numpy().T
 
         # get the emgsignals
-        emgs = test.exercise.emgsignals
+        emgs = test.exercise.emgsignals if self.include_emg else TimeseriesRecord()
 
         # get the normative data
         norms = test.normative_data

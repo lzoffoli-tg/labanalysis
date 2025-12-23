@@ -569,6 +569,7 @@ class TestResults(Protocol):
     _summary: pd.DataFrame
     _analytics: pd.DataFrame
     _figures: dict[str, go.Figure]
+    _include_emg: bool
 
     @property
     def summary(self):
@@ -582,7 +583,14 @@ class TestResults(Protocol):
     def figures(self):
         return self._figures
 
-    def __init__(self, test: Any):
+    @property
+    def include_emg(self):
+        return self._include_emg
+
+    def __init__(self, test: Any, include_emg):
+        if not isinstance(include_emg, bool):
+            raise ValueError("include_emg must be True or False.")
+        self._include_emg = include_emg
         self._summary = pd.DataFrame()
         self._analytics = pd.DataFrame()
         self._figures = {}
@@ -978,22 +986,12 @@ class TestProtocol(Protocol):
 
     #! MANDATORY METHODS TO BE IMPLEMENTED
 
+    def results(self, include_emg: bool) -> TestResults: ...
+
     @property
     def processing_pipeline(self) -> ProcessingPipeline:
         """
         exercise data processing pipeline
-        """
-        ...
-
-    @property
-    def results(self) -> TestResults:
-        """
-        Abstract method to return a summary of the test results.
-
-        Returns
-        -------
-        dict[str, pandas.DataFrame]
-            Dictionary of summary tables for the test results.
         """
         ...
 

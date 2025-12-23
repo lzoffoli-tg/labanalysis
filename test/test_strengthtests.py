@@ -84,7 +84,7 @@ def test_isokinetic1rmtest():
 
     # test the results
     assert hasattr(test, "results")
-    res = test.results
+    res = test.results()
 
     # check the summary
     assert hasattr(res, "summary")
@@ -134,7 +134,7 @@ def test_isometrictest():
 
     # test the results
     assert hasattr(test, "results")
-    res = test.results
+    res = test.results(include_emg=False)
 
     # check the summary
     assert hasattr(res, "summary")

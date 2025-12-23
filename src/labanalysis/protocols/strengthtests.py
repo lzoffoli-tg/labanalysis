@@ -8,7 +8,6 @@ from typing import Literal
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-from plotly.colors import qualitative as colormaps
 from plotly.subplots import make_subplots
 
 from ..constants import RANK_COLORS, G
@@ -450,9 +449,11 @@ class Isokinetic1RMTest(TestProtocol):
             relevant_muscle_map=relevant_muscle_map,
         )
 
-    @property
-    def results(self):
-        return Isokinetic1RMTestResults(self)
+    def results(self, include_emg: bool = True):
+        return Isokinetic1RMTestResults(
+            self.processed_data,
+            include_emg,
+        )
 
     def _process_exercise(self, exercise: IsokineticExercise):
         # apply the pipeline to the test data
@@ -475,7 +476,7 @@ class Isokinetic1RMTest(TestProtocol):
             if isinstance(m, EMGSignal):
                 for (name, side), val in norms.items():
                     if m.muscle_name == name and m.side == side:
-                        exe[k] = m.to_numpy() / val
+                        exe[k] = m.to_numpy() / val * 100
                         exe[k].set_unit("%")  # type: ignore
                     break
         if len(to_remove) > 0:
@@ -519,10 +520,10 @@ class Isokinetic1RMTest(TestProtocol):
 
 class Isokinetic1RMTestResults(TestResults):
 
-    def __init__(self, test: Isokinetic1RMTest):
+    def __init__(self, test: Isokinetic1RMTest, include_emg: bool):
         if not isinstance(test, Isokinetic1RMTest):
             raise ValueError("'test' must be an Isokinetic1RMTest instance.")
-        super().__init__(test)
+        super().__init__(test, include_emg)
 
     def _get_estimated_1rm(
         self,
@@ -546,20 +547,14 @@ class Isokinetic1RMTestResults(TestResults):
             for rep in trial.repetitions:
                 new = pd.DataFrame()
                 new.loc["rom (m)", side] = rep.rom_m
-                for m in rep.emgsignals.values():
-                    emg_name = str(m.muscle_name)
-                    emg_side = str(m.side)
-                    if any(
-                        [
-                            i[0] == emg_name and i[1] == emg_side
-                            for i in emg_norms.keys()
-                        ]
-                    ):
-                        unit = " (%)"
-                    else:
-                        unit = " (uV)"
-                    emg_name += unit
-                    new.loc[emg_name, emg_side] = m.to_numpy().mean()
+                if self.include_emg:
+                    for m in rep.emgsignals.values():
+                        ename = str(m.muscle_name)
+                        eside = str(m.side)
+                        keys = emg_norms.keys()
+                        check = [i[0] == ename and i[1] == eside for i in keys]
+                        ename += " (%)" if any(check) else " (uV)"
+                        new.loc[ename, eside] = m.to_numpy().mean()
                 metrics = pd.concat([metrics, new])
             metrics.loc["estimated 1RM (kg)", side] = self._get_estimated_1rm(
                 trial,
@@ -583,15 +578,17 @@ class Isokinetic1RMTestResults(TestResults):
         return summary
 
     def _get_analytics(self, test: Isokinetic1RMTest):
-        processed = test.processed_data
         analytics = []
-        trials = [processed.left, processed.right, processed.bilateral]
+        trials = [test.left, test.right, test.bilateral]
         sides = ["left", "right", "bilateral"]
         for side, trial in zip(sides, trials):
             if trial is None:
                 continue
             for i, rep in enumerate(trial.repetitions):
-                cycle = rep.to_dataframe()
+                cycle = rep.copy()
+                if not self.include_emg:
+                    cycle.drop(cycle.emgsignals.keys(), inplace=True)
+                cycle = cycle.to_dataframe()
                 time = cycle.index - cycle.index.min()
                 cycle.insert(0, "time_s", time)
                 cycle.insert(0, "repetition", i + 1)
@@ -679,9 +676,11 @@ class IsometricTest(TestProtocol):
             relevant_muscle_map=self.relevant_muscle_map,
         )
 
-    @property
-    def results(self):
-        return IsometricTestResults(self)
+    def results(self, include_emg: bool = True):
+        return IsometricTestResults(
+            self.processed_data,
+            include_emg,
+        )
 
     def set_left_test(self, test: IsometricExercise | None):
         if test is not None and not isinstance(test, IsometricExercise):
@@ -734,7 +733,7 @@ class IsometricTest(TestProtocol):
             if isinstance(m, EMGSignal):
                 for (name, side), val in norms.items():
                     if m.muscle_name == name and m.side == side:
-                        exe[k] = m.to_numpy() / val
+                        exe[k] = m.to_numpy() / val * 100
                         exe[k].set_unit("%")  # type: ignore
                     break
         if len(to_remove) > 0:
@@ -881,54 +880,46 @@ class IsometricTest(TestProtocol):
 
 class IsometricTestResults(TestResults):
 
-    def __init__(self, test: IsometricTest):
+    def __init__(self, test: IsometricTest, include_emg: bool):
         if not isinstance(test, IsometricTest):
             raise ValueError("'test' must be an IsometricTest instance.")
-        super().__init__(test)
+        super().__init__(test, include_emg)
 
     def _get_peak_force(self, test: IsometricExercise):
         return float(test.force.to_numpy().max())
 
-    def _get_rate_of_force_development_kns(self, test: IsometricExercise):
-        force = test.force.to_numpy().flatten()
-        time = np.array(test.index)
+    def _get_rate_of_force_development_kns(self, exe: IsometricExercise):
+        force = exe.repetitions[0].force.to_numpy().flatten()
+        time = np.array(exe.index)
         peaks = find_peaks(force, height=float(np.max(force) * 0.8))
         peak = np.argmax(force) if len(peaks) == 0 else peaks[0]
         return (force[peak] - force[0]) / (time[peak] - time[0]) / 1000
 
-    def _get_time_to_peak_force_ms(self, test: IsometricExercise):
-        force = test.force.to_numpy().flatten()
-        time = np.array(test.index)
+    def _get_time_to_peak_force_ms(self, exe: IsometricExercise):
+        force = exe.repetitions[0].force.to_numpy().flatten()
+        time = np.array(exe.index)
         peak = np.argmax(force)
         return (time[peak] - time[0]) * 1000
 
     def _get_summary(self, test: IsometricTest):
-        processed = test.processed_data
-        trials = [processed.left, processed.right, processed.bilateral]
+        trials = [test.left, test.right, test.bilateral]
         sides = ["left", "right", "bilateral"]
         metrics = pd.DataFrame()
         for side, trial in zip(sides, trials):
             if trial is None:
                 continue
             emg_norms = test.emg_normalization_values
-            for rep in trial.repetitions:
-                new = pd.DataFrame()
-                new.loc["rom (m)", side] = rep.rom_m
-                for m in rep.emgsignals.values():
-                    emg_name = str(m.muscle_name)
-                    emg_side = str(m.side)
-                    if any(
-                        [
-                            i[0] == emg_name and i[1] == emg_side
-                            for i in emg_norms.keys()
-                        ]
-                    ):
-                        unit = " (%)"
-                    else:
-                        unit = " (uV)"
-                    emg_name += unit
-                    new.loc[emg_name, emg_side] = m.to_numpy().mean()
-                metrics = pd.concat([metrics, new])
+            if self.include_emg:
+                for rep in trial.repetitions:
+                    new = pd.DataFrame()
+                    for m in rep.emgsignals.values():
+                        ename = str(m.muscle_name)
+                        eside = str(m.side)
+                        keys = emg_norms.keys()
+                        check = [i[0] == ename and i[1] == eside for i in keys]
+                        ename += " (%)" if any(check) else " (uV)"
+                        new.loc[ename, eside] = m.to_numpy().mean()
+                    metrics = pd.concat([metrics, new])
             metrics.loc["rate of force development (kN/s)", side] = (
                 self._get_rate_of_force_development_kns(trial)
             )
@@ -961,7 +952,10 @@ class IsometricTestResults(TestResults):
             if trial is None:
                 continue
             for i, rep in enumerate(trial.repetitions):
-                cycle = rep.to_dataframe()
+                cycle = rep.copy()
+                if not self.include_emg:
+                    cycle.drop(cycle.emgsignals.keys(), inplace=True)
+                cycle = cycle.to_dataframe()
                 time = cycle.index - cycle.index.min()
                 cycle.insert(0, "time_s", time)
                 cycle.insert(0, "repetition", i + 1)

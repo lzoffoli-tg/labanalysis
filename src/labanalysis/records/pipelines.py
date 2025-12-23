@@ -208,10 +208,10 @@ def get_default_forceplatform_processing_func(fp: ForcePlatform):
         fsamp = 1 / np.mean(np.diff(signal.index))
         signal.apply(
             butterworth_filt,
-            fcut=[10, 100],
+            fcut=30,
             fsamp=fsamp,
             order=4,
-            ftype="bandstop",
+            ftype="lowpass",
             phase_corrected=True,
             inplace=True,
         )

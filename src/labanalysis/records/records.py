@@ -484,6 +484,11 @@ class ForcePlatform(Record):
             raise ValueError("value must be a Timeseries or Record")
         self._data[key] = value
 
+    @property
+    def free_moment(self):
+        k = np.cross(self.origin.to_numpy(), self.force.to_numpy())
+        return self.torque + k
+
     def change_reference_frame(
         self,
         new_x: (
@@ -532,27 +537,36 @@ class ForcePlatform(Record):
         """
         if not isinstance(inplace, bool):
             raise ValueError("inplace must be True or False")
-        if inplace:
-            for val in self.values():
-                if isinstance(val, (Point3D, Signal3D)):
-                    val.change_reference_frame(
-                        new_x,
-                        new_y,
-                        new_z,
-                        new_origin,
-                        True,
-                    )
-        else:
-            out = self.copy()
-            for val in out.values():
-                if isinstance(val, (Point3D, Signal3D)):
-                    val.change_reference_frame(
-                        new_x,
-                        new_y,
-                        new_z,
-                        new_origin,
-                        True,
-                    )
+        out = self if inplace else self.copy()
+
+        # get the free moment
+        free_moment = self.free_moment
+
+        # translate and rotate the origin
+        out.origin.change_reference_frame(
+            new_x,
+            new_y,
+            new_z,
+            new_origin,
+            True,
+        )  # type: ignore
+
+        # rotate the force
+        out.force.change_reference_frame(
+            new_x,
+            new_y,
+            new_z,
+            [0, 0, 0],
+            True,
+        )  # type: ignore
+
+        # calculate the new torque
+        out.torque[:, :] = free_moment + np.cross(
+            out.origin.to_numpy() - new_origin,
+            out.force.to_numpy(),
+        )
+
+        if not inplace:
             return out
 
 
@@ -803,27 +817,17 @@ class TimeseriesRecord(Record):
         """
         if not isinstance(inplace, bool):
             raise ValueError("inplace must be True or False")
-        if inplace:
-            for key, value in self.items():
-                if isinstance(value, (Point3D, Signal3D, ForcePlatform)):
-                    value.change_reference_frame(
-                        new_x,
-                        new_y,
-                        new_z,
-                        new_origin,
-                        True,
-                    )
-        else:
-            out = self.copy()
-            for value in out.values():
-                if isinstance(value, (Point3D, Signal3D, ForcePlatform)):
-                    value.change_reference_frame(
-                        new_x,
-                        new_y,
-                        new_z,
-                        new_origin,
-                        True,
-                    )
+        out = self if inplace else self.copy()
+        for k in out.keys():
+            if isinstance(out[k], (Point3D, Signal3D, ForcePlatform)):
+                out[k].change_reference_frame(
+                    new_x,
+                    new_y,
+                    new_z,
+                    new_origin,
+                    True,
+                )  # type: ignore
+        if not inplace:
             return out
 
     def __setitem__(self, key, value):

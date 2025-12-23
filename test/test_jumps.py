@@ -9,6 +9,7 @@ import pandas as pd
 # add project root to path like other tests do
 sys.path.append(dirname(dirname(abspath(__file__))))
 
+from src.labanalysis.records.records import TimeseriesRecord
 from src.labanalysis.protocols.jumptests import JumpTest
 
 # import classes under test
@@ -24,19 +25,31 @@ sj_path = join(dirname(__file__), "assets", "jumptest_data", "squatjump_{}.tdf")
 dj_dx_path = join(dirname(__file__), "assets", "jumptest_data", "dropjump_dx_{}.tdf")
 dj_sx_path = join(dirname(__file__), "assets", "jumptest_data", "dropjump_sx_{}.tdf")
 
+emg_baseline_path = join(
+    dirname(__file__),
+    "assets",
+    "balance_data",
+    "normalization_data.tdf",
+)
+emg_norm_data = TimeseriesRecord.from_tdf(emg_baseline_path)
+emg_norm_data = emg_norm_data.emgsignals
+
 
 def test_jumptest():
     test = JumpTest.from_files(
-        participant,
-        pd.DataFrame(),
-        "left_frz",
-        "right_frz",
-        30,
-        3,
-        [sj_path.format(str(i + 1)) for i in range(3)],
-        [cmj_path.format(str(i + 1)) for i in range(3)],
-        [dj_dx_path.format(str(i + 1)) for i in range(3)]
+        participant=participant,
+        normative_data=pd.DataFrame(),
+        left_foot_ground_reaction_force="left_frz",
+        right_foot_ground_reaction_force="right_frz",
+        drop_jump_height_cm=30,
+        emg_normalization_references=emg_norm_data,
+        emg_activation_references=emg_norm_data,
+        emg_activation_threshold=3,
+        relevant_muscle_map=None,
+        squat_jump_files=[sj_path.format(str(i + 1)) for i in range(3)],
+        counter_movement_jump_files=[cmj_path.format(str(i + 1)) for i in range(3)],
+        drop_jump_files=[dj_dx_path.format(str(i + 1)) for i in range(3)]
         + [dj_sx_path.format(str(i + 1)) for i in range(3)],
     )
-    results = test.results
+    results = test.results()
     check = 1

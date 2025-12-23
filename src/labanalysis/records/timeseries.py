@@ -27,11 +27,6 @@ __all__ = ["Timeseries", "Signal1D", "Signal3D", "EMGSignal", "Point3D"]
 
 class Timeseries:
 
-    _unit: pint.Quantity
-    _data: FloatArray2D
-    index: FloatArray1D
-    columns: TextArray1D
-
     @property
     def ix(self):
         class TimeseriesIXIndexer:
@@ -80,17 +75,20 @@ class Timeseries:
         str
             The unit of measurement.
         """
-        return f"{self._unit.units:~}"
+        if isinstance(self._unit, pint.Quantity):
+            return f"{self._unit.units:~}"
+        else:
+            return str(self._unit)
 
     @property
     def shape(self):
         return (len(self.index), len(self.columns))
 
-    def set_unit(self, unit: str | pint.Quantity):
+    def set_unit(self, unit: str | pint.Quantity | pint.Unit):
         # set the unit of measurement
         msg = "unit must be a string representing a conventional unit "
-        msg += "of measurement in the SI sytem or a pint.Quantity"
-        if not isinstance(unit, (str, pint.Quantity)):
+        msg += "of measurement in the SI sytem or a pint.Quantity or Unit"
+        if not isinstance(unit, (str, pint.Quantity, pint.Unit)):
             raise ValueError(msg)
         if isinstance(unit, str):
             try:
@@ -800,10 +798,8 @@ class Signal1D(Timeseries):
             data_array = np.atleast_2d(data_array).T
         if data_array.ndim != 2 or data_array.shape[1] != 1:
             raise ValueError("Signal1D must have exactly one column")
-        if not isinstance(unit, (str, pint.Quantity)):
+        if not isinstance(unit, (str, pint.Quantity, pint.Unit)):
             raise ValueError("unit must be a str or a pint.Quantity")
-        if isinstance(unit, str):
-            unit = ureg(unit)
         super().__init__(
             data=data_array,
             index=index,
@@ -933,13 +929,11 @@ class Signal3D(Timeseries):
         if o.shape[0] == 1:
             o = np.ones(self.shape) * o
         rmat = gram_schmidt(i, j, k)
-        rmat = rmat.transpose([0, 2, 1])
+        # rmat = rmat.transpose([0, 2, 1])
         new = np.einsum("nij,nj->ni", rmat, self._data.copy() - o)
-        if inplace:
-            self[:, :] = new
-        else:
-            out = self.copy()
-            out[:, :] = new
+        out = self if inplace else self.copy()
+        out[:, :] = new
+        if not inplace:
             return out
 
 
@@ -980,13 +974,17 @@ class EMGSignal(Signal1D):
         ValueError
             If unit is not valid.
         """
-        # check the unit and convert to uV if required
+        # check the unit and convert if required
         if isinstance(unit, str):
             unit = ureg(unit)
-        if not unit.check("V"):
-            raise ValueError("unit must represent voltage.")
-        microvolts = pint.Quantity("uV")
-        magnitude = unit.to(microvolts).magnitude
+        if unit.check("V"):
+            unt = pint.Quantity("uV")
+            magnitude = unit.to(unt).magnitude
+        elif unit == ureg("%"):
+            unt = ureg("%")
+            magnitude = 1
+        else:
+            raise ValueError("unit must represent voltage or percentages.")
 
         # check the side
         valid_sides = ["left", "right", "bilateral"]
@@ -1005,7 +1003,7 @@ class EMGSignal(Signal1D):
         super().__init__(
             data=values,
             index=index,
-            unit=microvolts,  # type: ignore
+            unit=unt,  # type: ignore
         )
         self._side = side
         self._muscle_name = muscle_name

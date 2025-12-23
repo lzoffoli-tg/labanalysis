@@ -8,21 +8,21 @@ __all__ = ["JumpTest"]
 
 #! CLASSES
 
+from typing import Any
+
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
 import plotly.express as px
+import plotly.graph_objects as go
 from plotly.colors import qualitative as cmaps
 from plotly.subplots import make_subplots
 
-from ..records.timeseries import Point3D, Signal3D
-
-from ..records.records import ForcePlatform
-
-from ..constants import G
+from ..constants import G, RANK_COLORS
 from ..records import DropJump, SingleJump
-from ..records.pipelines import ProcessingPipeline, get_default_processing_pipeline
-from ..signalprocessing import butterworth_filt, continuous_batches, fillna
+from ..records.pipelines import get_default_processing_pipeline
+from ..records.records import ForcePlatform, TimeseriesRecord
+from ..records.timeseries import EMGSignal, Point3D
+from ..signalprocessing import continuous_batches, fillna
 from .normativedata.normative_data import jumps_normative_values
 from .protocols import Participant, TestProtocol, TestResults
 
@@ -101,16 +101,6 @@ class JumpTest(TestProtocol):
         jump = self._drop_jumps.pop(index)
         return jump
 
-    def copy(self):
-        return JumpTest(
-            participant=self.participant.copy(),
-            normative_data=self.normative_data,
-            squat_jumps=self.squat_jumps,
-            counter_movement_jumps=self.counter_movement_jumps,
-            drop_jumps=self.drop_jumps,
-            single_leg_jumps=self.single_leg_jumps,
-        )
-
     @property
     def jumps(self):
         return (
@@ -120,14 +110,14 @@ class JumpTest(TestProtocol):
             + self.single_leg_jumps
         )
 
-    @property
-    def results(self):
-        return JumpTestResults(self)
-
     def __init__(
         self,
         participant: Participant,
         normative_data: pd.DataFrame = jumps_normative_values,
+        emg_normalization_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_activation_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_activation_threshold: float = 3,
+        relevant_muscle_map: list[str] | None = None,
         squat_jumps: list[SingleJump] = [],
         counter_movement_jumps: list[SingleJump] = [],
         drop_jumps: list[DropJump] = [],
@@ -137,8 +127,14 @@ class JumpTest(TestProtocol):
             raise ValueError("participant must be a Participant class instance.")
         if participant.weight is None:
             raise ValueError("participant's weight must be assigned.")
-        self.set_participant(participant)
-        self.set_normative_data(normative_data)
+        super().__init__(
+            participant=participant,
+            normative_data=normative_data,
+            emg_activation_references=emg_activation_references,
+            emg_activation_threshold=emg_activation_threshold,
+            emg_normalization_references=emg_normalization_references,
+            relevant_muscle_map=relevant_muscle_map,
+        )
         self._squat_jumps: list[SingleJump] = []
         self._counter_movement_jumps: list[SingleJump] = []
         self._drop_jumps: list[DropJump] = []
@@ -156,14 +152,15 @@ class JumpTest(TestProtocol):
         left_foot_ground_reaction_force: str = "left_foot",
         right_foot_ground_reaction_force: str = "right_foot",
         drop_jump_height_cm: int = 40,
-        drop_jump_muscle_activation_threshold: float = 3.0,
+        emg_normalization_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_activation_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_activation_threshold: float = 3,
+        relevant_muscle_map: list[str] | None = None,
         squat_jump_files: list[str] = [],
         counter_movement_jump_files: list[str] = [],
         drop_jump_files: list[str] = [],
         single_leg_jump_files: list[str] = [],
     ):
-        if not isinstance(drop_jump_muscle_activation_threshold, (int, float)):
-            raise ValueError("drop_jump_muscle_activation_threshold must be a float.")
         if not isinstance(participant, Participant):
             raise ValueError("participant must be a Participant instance.")
         bodymass = participant.weight
@@ -198,7 +195,6 @@ class JumpTest(TestProtocol):
                 bodymass,
                 left_foot_ground_reaction_force,
                 right_foot_ground_reaction_force,
-                drop_jump_muscle_activation_threshold,
             )
             for file in drop_jump_files
         ]
@@ -211,57 +207,135 @@ class JumpTest(TestProtocol):
             )
             for file in single_leg_jump_files
         ]
-        return cls(participant, normative_data, sjs, cmjs, djs, sljs)
+        return cls(
+            participant=participant,
+            normative_data=normative_data,
+            emg_normalization_references=emg_normalization_references,
+            emg_activation_references=emg_activation_references,
+            emg_activation_threshold=emg_activation_threshold,
+            relevant_muscle_map=relevant_muscle_map,
+            squat_jumps=sjs,
+            counter_movement_jumps=cmjs,
+            drop_jumps=djs,
+            single_leg_jumps=sljs,
+        )
+
+    def results(self, include_emg: bool = True):
+        return JumpTestResults(self.processed_data, include_emg)
+
+    def copy(self):
+        return JumpTest(
+            participant=self.participant,
+            normative_data=self.normative_data,
+            emg_normalization_references=self.emg_activation_references,
+            emg_activation_references=self.emg_activation_references,
+            emg_activation_threshold=self.emg_activation_threshold,
+            relevant_muscle_map=self.relevant_muscle_map,
+            squat_jumps=self.squat_jumps,
+            counter_movement_jumps=self.counter_movement_jumps,
+            drop_jumps=self.drop_jumps,
+            single_leg_jumps=self.single_leg_jumps,
+        )
+
+    def _process_record(self, record: TimeseriesRecord):
+        # apply the pipeline to the test data
+        exe = self.processing_pipeline(record, inplace=False)
+        if not isinstance(exe, type(record)):
+            raise ValueError("Something went wrong during data processing.")
+
+        # normalize emg data and remove non-relevant muscles
+        norms = self.emg_normalization_values
+        to_remove: list[str] = []
+        for k, m in exe.emgsignals.items():
+
+            # remove if non relevant
+            if self.relevant_muscle_map is not None:
+                if not any([i.lower() in k.lower() for i in self.relevant_muscle_map]):
+                    to_remove.append(k)
+                    continue
+
+            # normalize
+            if isinstance(m, EMGSignal):
+                for (name, side), val in norms.items():
+                    if m.muscle_name == name and m.side == side:
+                        exe[k] = m / val * 100
+                        exe[k].set_unit("%")  # type: ignore
+                    break
+        if len(to_remove) > 0:
+            exe.drop(to_remove, True)
+
+        return exe
+
+    def _process_jump(self, jump: SingleJump | DropJump):
+        exe = self._process_record(jump)
+
+        # align the reference frame
+        if exe.side not in ["right", "left"]:
+
+            def extract_cop(force: Any):
+                if not isinstance(force, ForcePlatform):
+                    raise ValueError("force must be a ForcePlatform instance.")
+                cop = force.origin
+                if not isinstance(cop, Point3D):
+                    raise ValueError("force must be a ForcePlatform instance.")
+                cop = cop.copy()
+                return cop.to_numpy().astype(float).mean(axis=0)
+
+            # on bilateral test, we rotate the system of forces to a
+            rt = extract_cop(exe.right_foot_ground_reaction_force)
+            lt = extract_cop(exe.left_foot_ground_reaction_force)
+
+            def norm(arr):
+                return arr / np.sum(arr**2) ** 0.5
+
+            ml = norm(lt - rt)
+            vt = np.array([0, 1, 0])
+            ap = np.cross(ml, vt)
+            origin = (rt + lt) / 2
+            exe.change_reference_frame(
+                ml,
+                vt,
+                ap,
+                origin,
+                inplace=True,
+            )
+            if exe is None:
+                raise ValueError("reference frame alignment returned None")
+
+        return exe
+
+    @property
+    def processed_data(self):
+        out = self.copy()
+        for i, jump in enumerate(out.squat_jumps):
+            out.squat_jumps[i] = self._process_jump(jump)  # type: ignore
+        for i, jump in enumerate(out.counter_movement_jumps):
+            out.counter_movement_jumps[i] = self._process_jump(jump)  # type: ignore
+        for i, jump in enumerate(out.drop_jumps):
+            out.drop_jumps[i] = self._process_jump(jump)  # type: ignore
+        for i, jump in enumerate(out.single_leg_jumps):
+            out.single_leg_jumps[i] = self._process_jump(jump)  # type: ignore
+        if len(self.emg_normalization_references) > 0:
+            out.set_emg_normalization_references(
+                self._process_record(self.emg_normalization_references)  # type: ignore
+            )
+        if len(self.emg_activation_references) > 0:
+            out.set_emg_activation_references(
+                self._process_record(self.emg_activation_references)  # type: ignore
+            )
+        return out
+
+    @property
+    def processing_pipeline(self):
+        return get_default_processing_pipeline()
 
 
 class JumpTestResults(TestResults):
 
-    def __init__(self, test: JumpTest):
+    def __init__(self, test: JumpTest, include_emg: bool):
         if not isinstance(test, JumpTest):
             raise ValueError("'test' must be an JumpTest instance.")
-        super().__init__(test)
-
-    def _get_processed_data(self, test: JumpTest):
-
-        # get a copy of the test
-        new = test.copy()
-
-        # generate a custom processing pipeline
-        def custom_forceplatform_processing_func(fp: ForcePlatform):
-            def processing_3dsignals_func(
-                signal: Signal3D | Point3D,
-            ):
-                signal.fillna(inplace=True, value=0)
-                fsamp = 1 / np.mean(np.diff(signal.index))
-                signal.apply(
-                    butterworth_filt,
-                    fcut=30,
-                    fsamp=fsamp,
-                    order=4,
-                    ftype="lowpass",
-                    phase_corrected=True,
-                    inplace=True,
-                )
-
-            fp_pipeline = ProcessingPipeline(
-                Point3D=[processing_3dsignals_func],
-                Signal3D=[processing_3dsignals_func],
-            )
-            fp_pipeline(fp, inplace=True)
-
-        pipeline = default_processing_pipeline()
-        pipeline.add(ForcePlatform=[custom_forceplatform_processing_func])
-
-        # apply the pipeline to all jumps
-        for i in range(len(test.squat_jumps)):
-            pipeline(test.squat_jumps[i], True)
-        for i in range(len(test.counter_movement_jumps)):
-            pipeline(test.counter_movement_jumps[i], True)
-        for i in range(len(test.drop_jumps)):
-            pipeline(test.drop_jumps[i], True)
-        for i in range(len(test.single_leg_jumps)):
-            pipeline(test.single_leg_jumps[i], True)
-        return new
+        super().__init__(test, include_emg)
 
     def _get_jump_contact_time_ms(self, jump: SingleJump | DropJump):
         time = jump.contact_phase.index
@@ -271,7 +345,7 @@ class JumpTestResults(TestResults):
         time = jump.flight_phase.index
         return int(round((time[-1] - time[0]) * 1000))
 
-    def _get_takeoff_velocity_ms(self, jump: SingleJump | DropJump):
+    def _get_takeoff_velocity_ms(self, jump: SingleJump | DropJump, bodyweight: float):
 
         # get the ground reaction force during the concentric phase
         con = jump.contact_phase.resultant_force
@@ -282,10 +356,10 @@ class JumpTestResults(TestResults):
         time = con.index
 
         # get the output velocity
-        net_grf = grfy - jump.bodymass_kg * G
-        return float(np.trapezoid(net_grf, time) / jump.bodymass_kg)
+        net_grf = grfy - bodyweight * G
+        return float(np.trapezoid(net_grf, time) / bodyweight)
 
-    def _get_elevation_cm(self, jump: SingleJump | DropJump):
+    def _get_elevation_cm(self, jump: SingleJump | DropJump, bodyweight: float):
 
         # from flight time
         flight_time = jump.flight_phase.index
@@ -294,7 +368,7 @@ class JumpTestResults(TestResults):
 
         # from force impulse
         elevation_from_velocity = (
-            (self._get_takeoff_velocity_ms(jump) ** 2) / (2 * G) * 100
+            (self._get_takeoff_velocity_ms(jump, bodyweight) ** 2) / (2 * G) * 100
         )
 
         # return the lower of the two
@@ -305,100 +379,106 @@ class JumpTestResults(TestResults):
         ct = self._get_jump_contact_time_ms(jump)
         return round(ft / ct, 1)
 
-    def _get_jump_summary_table(self, jump: SingleJump | DropJump):
-        out = pd.DataFrame()
-        contact = jump.contact_phase
+    def _get_summary(self, test: JumpTest):
+        syms = []
+        muscle_map = test.relevant_muscle_map
+        if test.relevant_muscle_map is None:
+            muscle_map = []
+        else:
+            muscle_map = test.relevant_muscle_map.copy()
 
-        # get muscle balance
-        if jump.side == "bilateral":
-            emgs = pd.DataFrame()
-            for emg in contact.emgsignals.values():
-                name = emg.muscle_name.replace("_", " ").lower() + " balance (%)"  # type: ignore
-                emgs.loc[name, emg.side] = emg.to_numpy().mean()  # type: ignore
-            if not emgs.empty:
-                emgs = emgs.T
-                emgs = (emgs / emgs.sum(axis=0) * 100).T
-                for idx in emgs.index:
-                    val = float(emgs.loc[idx, "left"]) - 50  # type: ignore
-                    out.loc[idx, jump.side] = val
+        def _get_jump_summary_table(jump: SingleJump | DropJump):
+            out = pd.DataFrame()
+            contact = jump.contact_phase
+            to_remove = []
+            for k in contact.emgsignals.keys():
+                if any([i.lower() in k.lower() for i in muscle_map]):
+                    to_remove.append(k)
+            contact.drop(to_remove, inplace=True)
 
-        # get force balance
-        if jump.side == "bilateral":
-            frzs = pd.DataFrame()
+            # get muscle emg amplitude
+            if self.include_emg:
+                for emg in contact.emgsignals.values():
+                    if emg.side == jump.side or jump.side == "bilateral":
+                        name = emg.muscle_name.replace("_", " ").lower() + " amplitude"  # type: ignore
+                        name += f" ({emg.unit})"  # type: ignore
+                        out.loc[name, emg.side] = emg.to_numpy().mean()  # type: ignore
+
+            # get force
             for side in ["left", "right"]:
                 frz = contact.get(f"{side}_foot_ground_reaction_force")
                 if frz is None:
                     continue
                 val = frz["force"][frz.vertical_axis].to_numpy().mean()
-                frzs.loc["vertical force balance (%)", side] = val
-            frzs = frzs.T
-            frzs = (frzs / frzs.sum(axis=0) * 100).T
-            out.loc[frzs.index[0], jump.side] = frzs.left.to_numpy()[0] - 50
+                out.loc["vertical force (N)", side] = val
 
-        # add activations
-        if isinstance(jump, DropJump):
-            t1 = contact.index[0]
-            t2 = contact.index[-1]
-            for emg in jump.emgsignals.values():
-                if jump.side != "bilateral" and emg.side != jump.side:
-                    continue
-                val = emg.to_numpy().flatten()
-                thr = (np.max(val) - np.min(val)) * 0.05 + np.min(val)
-                avg = val.mean()
-                std = val.std()
-                thr = avg + std * jump.muscle_activation_threshold
-                time = emg.index
-                min_samples = int(0.2 / np.mean(np.diff(time)))
-                batches = continuous_batches((val >= thr) & (time < t2))
-                batch_samples = np.array([len(i) for i in batches])
-                name = emg.muscle_name.replace("_", " ").lower() + " activation (ms)"  # type: ignore
-                idx = np.where(batch_samples >= min_samples)[0]
-                if len(idx) == 0:
-                    out.loc[name, str(emg.side)] = (t2 - t1) * 1000
-                batch = batches[idx[0]]
-                name = str(emg.muscle_name).replace("_", " ").lower()
-                name += " activation (ms)"
-                if jump.side == "bilateral":
-                    name = str(emg.side) + " " + name
-                out.loc[name, jump.side] = (time[batch][0] - t1) * 1000
+            # add activations
+            refs_keys = test.emg_activation_references.keys()
+            if isinstance(jump, DropJump) and self.include_emg:
+                t1 = contact.index[0]
+                t2 = contact.index[-1]
+                for emg in jump.emgsignals.values():
+                    if jump.side != "bilateral" and emg.side != jump.side:
+                        continue
+                    lbl = "_".join([emg.side, emg.muscle_name])  # type: ignore
+                    if lbl in refs_keys:
+                        val = emg.to_numpy().flatten()
+                        thr = test.emg_activation_references[lbl]
+                        thr = thr.mean() + thr.std() * test.emg_activation_threshold  # type: ignore
+                        time = emg.index
+                        contact_time = t2 - t1
+                        min_samples = int(contact_time * 0.2 / np.mean(np.diff(time)))
+                        batches = continuous_batches((val >= thr) & (time < t2))
+                        batch_samples = np.array([len(i) for i in batches])
+                        name = emg.muscle_name.replace("_", " ").lower() + " activation (ms)"  # type: ignore
+                        idx = np.where(batch_samples >= min_samples)[0]
+                        if len(idx) == 0:
+                            val = contact_time * 1000  # type: ignore
+                        else:
+                            batch = batches[idx[0]]
+                            val = (time[batch][0] - t1) * 1000
+                        out.loc[name, str(emg.side)] = val  # type: ignore
 
-        # add jump parameters
-        out.loc["contact time (ms)", jump.side] = self._get_jump_contact_time_ms(jump)
-        out.loc["flight time (ms)", jump.side] = self._get_jump_flight_time_ms(jump)
-        out.loc["flight-to-contact ratio", jump.side] = (
-            self._get_flight_to_contact_ratio(jump)
-        )
-        out.loc["takeoff velocity (m/s)", jump.side] = self._get_takeoff_velocity_ms(
-            jump
-        )
-        out.loc["elevation (cm)", jump.side] = self._get_elevation_cm(jump)
+            # add jump parameters
+            ctime = self._get_jump_contact_time_ms(jump)
+            out.loc["contact time (ms)", jump.side] = ctime
+            ftime = self._get_jump_flight_time_ms(jump)
+            out.loc["flight time (ms)", jump.side] = ftime
+            out.loc["flight-to-contact ratio", jump.side] = ftime / ctime
+            tov = self._get_takeoff_velocity_ms(
+                jump,
+                test.participant.weight,  # type: ignore
+            )
+            out.loc["takeoff velocity (m/s)", jump.side] = tov
+            elevation = self._get_elevation_cm(
+                jump,
+                test.participant.weight,  # type: ignore
+            )
+            out.loc["elevation (cm)", jump.side] = elevation
+            out.insert(0, "parameter", out.index)
+            return out.reset_index(drop=True)
 
-        out.insert(0, "parameter", out.index)
-        return out.reset_index(drop=True)
-
-    def _get_summary(self, test: JumpTest):
-        syms = []
         for i, jump in enumerate(test.drop_jumps):
-            sym = self._get_jump_summary_table(jump)
+            sym = _get_jump_summary_table(jump)
             sym.insert(0, "n", i + 1)
-            sym.insert(0, "type", "Drop Jump")
+            sym.insert(0, "type", f"Drop Jump ({jump.box_height_cm}cm)")
             syms.append(sym)
         for i, jump in enumerate(test.squat_jumps):
-            sym = self._get_jump_summary_table(jump)
+            sym = _get_jump_summary_table(jump)
             sym.insert(0, "n", i + 1)
             sym.insert(0, "type", "Squat Jump")
             syms.append(sym)
         for i, jump in enumerate(test.counter_movement_jumps):
-            sym = self._get_jump_summary_table(jump)
+            sym = _get_jump_summary_table(jump)
             sym.insert(0, "n", i + 1)
             sym.insert(0, "type", "Counter Movement Jump")
             syms.append(sym)
         for i, jump in enumerate(test.single_leg_jumps):
-            sym = self._get_jump_summary_table(jump)
-            sym.insert(0, "type", "Drop Jump")
+            sym = _get_jump_summary_table(jump)
+            sym.insert(0, "type", "Single Leg Jump")
             syms.append(sym)
-
         summary = pd.concat(syms, ignore_index=True)
+        summary = summary.groupby(["type", "n", "parameter"]).mean()
 
         # get the best jump
         best = []
@@ -417,30 +497,41 @@ class JumpTestResults(TestResults):
 
     def _get_analytics(self, test: JumpTest):
         syms = []
+        muscle_map = test.relevant_muscle_map
+        if muscle_map is None:
+            muscle_map = []
+
+        def get_jump(jump: SingleJump | DropJump, n: int, name: str):
+            obj = jump.copy()
+
+            # handle emg data
+            to_remove = []
+            if self.include_emg:
+                for k in obj.emgsignals.keys():
+                    if any([i.lower() in k.lower() for i in muscle_map]):
+                        to_remove.append(k)
+            else:
+                to_remove = obj.emgsignals.keys()
+            obj.drop(to_remove, inplace=True)
+
+            # get analytics
+            obj = obj.to_dataframe()
+            obj.insert(0, "jump", n)
+            obj.insert(0, "side", jump.side)
+            if isinstance(jump, DropJump):
+                obj.insert(0, "box_height_cm", jump.box_height_cm)
+            obj.insert(0, "type", name)
+
+            return obj
+
         for i, jump in enumerate(test.squat_jumps):
-            sym = jump.to_dataframe()
-            sym.insert(0, "jump", i + 1)
-            sym.insert(0, "side", jump.side)
-            sym.insert(0, "type", "Squat Jump")
-            syms.append(sym)
+            syms.append(get_jump(jump, i + 1, "Squat Jump"))
         for jump in test.counter_movement_jumps:
-            sym = jump.to_dataframe()
-            sym.insert(0, "jump", i + 1)
-            sym.insert(0, "side", jump.side)
-            sym.insert(0, "type", "Counter Movement Jump")
-            syms.append(sym)
+            syms.append(get_jump(jump, i + 1, "Counter Movement Jump"))
         for jump in test.drop_jumps:
-            sym = jump.to_dataframe()
-            sym.insert(0, "jump", i + 1)
-            sym.insert(0, "side", jump.side)
-            sym.insert(0, "type", "Drop Jump")
-            syms.append(sym)
+            syms.append(get_jump(jump, i + 1, "Drop Jump"))
         for jump in test.single_leg_jumps:
-            sym = jump.to_dataframe()
-            sym.insert(0, "jump", i + 1)
-            sym.insert(0, "side", jump.side)
-            sym.insert(0, "type", "Single Leg Jump")
-            syms.append(sym)
+            syms.append(get_jump(jump, i + 1, "Single Leg Jump"))
 
         return pd.concat(syms, ignore_index=True)
 
@@ -609,9 +700,10 @@ class JumpTestResults(TestResults):
         return go.Figure()
 
     def _get_figures(self, test: JumpTest):
-        return {
-            "jumps_ground_reaction_forces": self._get_grf_profiles_figure(test),
-            "elevation_and_balance": self._get_single_jumps_figure(test),
-            "drop_jump_activations": self._get_drop_jumps_figure(test),
-            "repeated_jumps_fatigue": self._get_repeated_jumps_figure(test),
-        }
+        out: dict[str, go.Figure] = {}
+        out["jumps_ground_reaction_forces"] = self._get_grf_profiles_figure(test)
+        out["elevation_and_balance"] = self._get_single_jumps_figure(test)
+        if len(test.drop_jumps) > 0 and self.include_emg:
+            out["drop_jump_activations"] = self._get_drop_jumps_figure(test)
+        out["repeated_jumps_fatigue"] = self._get_repeated_jumps_figure(test)
+        return out

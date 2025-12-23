@@ -246,6 +246,7 @@ class WholeBody(TimeseriesRecord):
                 if not isinstance(tdf[lbl], ForcePlatform):
                     raise ValueError(f"{lbl} must be a ForcePlatform instance.")
                 mandatory[key] = tdf[lbl]
+                tdf.drop(lbl, True)
         for key, lbl in points.items():
             if lbl is not None:
                 if lbl not in keys:
@@ -253,6 +254,7 @@ class WholeBody(TimeseriesRecord):
                 if not isinstance(tdf[lbl], Point3D):
                     raise ValueError(f"{lbl} must be a Point3D instance.")
                 mandatory[key] = tdf[lbl]
+                tdf.drop(lbl, inplace=True)
         extras = {i: v for i, v in tdf.items() if i not in list(mandatory.keys())}
 
         return cls(**mandatory, **extras)  # type: ignore
