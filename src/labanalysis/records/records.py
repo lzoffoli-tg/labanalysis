@@ -208,12 +208,7 @@ class Record:
         TimeseriesRecord
             A new TimeseriesRecord object with the same data.
         """
-        args = {
-            i: v.copy() if hasattr(v, "copy") else v
-            for i, v in self._get_constructor_args().items()
-        }
-        args.update(**{i: v.copy() for i, v in self._data.items() if i not in args})
-        return self.__class__(**args)
+        return Record(**{i: v.copy() for i, v in self._data.items()})
 
     def strip(self, axis: int | None = None, inplace: bool = False):
         """
@@ -568,6 +563,13 @@ class ForcePlatform(Record):
 
         if not inplace:
             return out
+
+    def copy(self):
+        return ForcePlatform(
+            origin=self.origin.copy(),  # type: ignore
+            force=self.force.copy(),  # type: ignore
+            torque=self.torque.copy(),  # type: ignore
+        )
 
 
 class TimeseriesRecord(Record):
@@ -945,3 +947,6 @@ class TimeseriesRecord(Record):
                     ap = apaxis
                 elif ap != apaxis:
                     raise ValueError("anteroposterior axes are not aligned.")
+
+    def copy(self):
+        return TimeseriesRecord(**{i: v.copy() for i, v in self._data.items()})  # type: ignore

@@ -346,6 +346,12 @@ class SingleJump(WholeBody):
             **mandatory,  # type: ignore
         )
 
+    def copy(self):
+        return SingleJump(
+            self.bodymass_kg,
+            **{i: v.copy() for i, v in self.items()},  # type: ignore
+        )
+
 
 class DropJump(SingleJump):
     """
@@ -504,7 +510,6 @@ class DropJump(SingleJump):
         bodymass_kg: float,
         left_foot_ground_reaction_force: ForcePlatform | None = None,
         right_foot_ground_reaction_force: ForcePlatform | None = None,
-        muscle_activation_thresholds: dict[EMGSignal, float] = {},
         **signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
     ):
         """
@@ -626,6 +631,13 @@ class DropJump(SingleJump):
             bodymass_kg=bodymass_kg,
             **signals,  # type: ignore
             **mandatory,  # type: ignore
+        )
+
+    def copy(self):
+        return DropJump(
+            self.box_height_cm,
+            self.bodymass_kg,
+            **{i: v.copy() for i, v in self.items()},  # type: ignore
         )
 
 

@@ -650,9 +650,11 @@ class JumpTestResults(TestResults):
         # plot elevation
         elevation_data = summary.loc[summary.parameter == "elevation (cm)"]
         keys = ["type", "side"]
-        cmap = cmaps.Plotly
-        sides = np.array(["left", "right", "bilateral"])
-        elevation = summary.loc[summary.parameter == "elevation (cm)"]
+        sides = ["left", "right"]
+        for key in sides:
+            if key in elevation_data.columns:
+                keys.append(key)
+        elevation_data = elevation_data[keys].copy()
         side_plotted = []
         yvals = []
         for i, (typ, dfr) in enumerate(elevation.groupby("type")):

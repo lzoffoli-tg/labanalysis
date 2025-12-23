@@ -1656,3 +1656,6 @@ class WholeBody(TimeseriesRecord):
             index=p1.index,
             unit="°",
         )
+
+    def copy(self):
+        return WholeBody(**{i: v.copy() for i, v in self.items()})  # type: ignore

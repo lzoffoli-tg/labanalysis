@@ -185,22 +185,6 @@ class Timeseries:
             out.loc(start, stop, True)
             return out
 
-    def copy(self):
-        """
-        Return a deep copy of the Timeseries.
-
-        Returns
-        -------
-        Timeseries
-            A new Timeseries object with the same data, index, columns, and unit.
-        """
-        return self.__class__(
-            **{
-                i: v.copy() if hasattr(v, "copy") else v
-                for i, v in self._get_object_args().items()
-            }
-        )
-
     def fillna(self, value=None, n_regressors=None, inplace=False):
         """
         Return a copy with NaNs replaced by the specified value or using advanced imputation for all contained objects.
@@ -764,6 +748,14 @@ class Timeseries:
         self._check_consistency()
         self.set_unit(unit)
 
+    def copy(self):
+        return Timeseries(
+            self._data,
+            self.index,
+            self.columns,
+            self.unit,
+        )
+
 
 class Signal1D(Timeseries):
     """
@@ -805,6 +797,13 @@ class Signal1D(Timeseries):
             index=index,
             columns=["amplitude"],
             unit=unit,
+        )
+
+    def copy(self):
+        return Signal1D(
+            self._data,
+            self.index,
+            self.unit,
         )
 
 
@@ -936,6 +935,16 @@ class Signal3D(Timeseries):
         if not inplace:
             return out
 
+    def copy(self):
+        return Signal3D(
+            self._data,
+            self.index,
+            self.unit,
+            self.columns,
+            self.vertical_axis,
+            self.anteroposterior_axis,
+        )
+
 
 class EMGSignal(Signal1D):
     """
@@ -1042,7 +1051,16 @@ class EMGSignal(Signal1D):
         str
             The name of the muscle.
         """
-        return self._muscle_name
+        return self._name
+
+    def copy(self):
+        return EMGSignal(
+            self._data,
+            self.index,
+            self.muscle_name,
+            self.side,  # type: ignore
+            self.unit,
+        )
 
 
 class Point3D(Signal3D):
@@ -1095,3 +1113,13 @@ class Point3D(Signal3D):
         magnitude = self._unit.to(meters).magnitude
         self[:, :] = self.to_numpy() * magnitude
         self._unit = meters  # type: ignore
+
+    def copy(self):
+        return Point3D(
+            self._data,
+            self.index,
+            self.unit,
+            self.columns,
+            self.vertical_axis,
+            self.anteroposterior_axis,
+        )
