@@ -458,7 +458,7 @@ class Isokinetic1RMTest(TestProtocol):
     def _process_exercise(self, exercise: IsokineticExercise):
         # apply the pipeline to the test data
         exe = self.processing_pipeline(exercise, inplace=False)
-        if not isinstance(exe, TimeseriesRecord):
+        if not isinstance(exe, IsokineticExercise):
             raise ValueError("Something went wrong during data processing.")
 
         # normalize emg data and remove non-relevant muscles
@@ -483,8 +483,6 @@ class Isokinetic1RMTest(TestProtocol):
             exe.drop(to_remove, True)
 
         # return processed data
-        if not isinstance(exe, IsokineticExercise):
-            raise ValueError("Something went wrong during data processing.")
         return exe
 
     @property
@@ -715,7 +713,7 @@ class IsometricTest(TestProtocol):
     def _process_exercise(self, exercise: IsometricExercise):
         # apply the pipeline to the test data
         exe = self.processing_pipeline(exercise, inplace=False)
-        if not isinstance(exe, TimeseriesRecord):
+        if not isinstance(exe, IsometricExercise):
             raise ValueError("Something went wrong during data processing.")
 
         # normalize emg data and remove non-relevant muscles
@@ -740,8 +738,6 @@ class IsometricTest(TestProtocol):
             exe.drop(to_remove, True)
 
         # return processed data
-        if not isinstance(exe, IsometricExercise):
-            raise ValueError("Something went wrong during data processing.")
         return exe
 
     @property

@@ -176,6 +176,12 @@ class BiostrengthRepetition(TimeseriesRecord):
         # get the raw data
         self.set_side(side)
 
+    def copy(self):
+        return BiostrengthRepetition(
+            side=self.side,  # type: ignore
+            **{i: v for i, v in self._data.items()},  # type: ignore
+        )
+
 
 class BiostrengthExercise(TimeseriesRecord):
     """
@@ -479,6 +485,13 @@ class BiostrengthExercise(TimeseriesRecord):
             side=side,
         )
 
+    def copy(self):
+        return BiostrengthExercise(
+            side=self.side,  # type: ignore
+            synchronize_signals=False,
+            **{i: v for i, v in self._data.items()},  # type: ignore
+        )
+
 
 class IsokineticExercise(BiostrengthExercise):
     """
@@ -602,6 +615,13 @@ class IsokineticExercise(BiostrengthExercise):
             **signals,
         )
 
+    def copy(self):
+        return IsokineticExercise(
+            side=self.side,  # type: ignore
+            synchronize_signals=False,
+            **{i: v.copy() for i, v in self._data.items()},  # type: ignore
+        )
+
 
 class IsometricExercise(BiostrengthExercise):
     """
@@ -717,4 +737,11 @@ class IsometricExercise(BiostrengthExercise):
             position=position,
             synchronize_signals=synchronize_signals,
             **signals,
+        )
+
+    def copy(self):
+        return IsometricExercise(
+            side=self.side,  # type: ignore
+            synchronize_signals=False,
+            **{i: v.copy() for i, v in self._data.items()},  # type: ignore
         )
