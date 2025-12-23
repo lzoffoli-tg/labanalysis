@@ -586,7 +586,8 @@ class JumpTestResults(TestResults):
             grf = jump.copy().resultant_force.copy()
             grf = grf.force.to_dataframe()[[jump.vertical_axis]]  # type: ignore
             grf.columns = pd.Index(["grf"])
-            grf.insert(0, "time", grf.index - grf.index[0])
+            start = jump.flight_phase.index[0]
+            grf.insert(0, "time", grf.index - start)
             grf.insert(0, "jump", n)
             grf.insert(0, "type", typed)
             return grf
@@ -647,6 +648,8 @@ class JumpTestResults(TestResults):
         )
 
         # plot elevation
+        elevation_data = summary.loc[summary.parameter == "elevation (cm)"]
+        keys = ["type", "side"]
         cmap = cmaps.Plotly
         sides = np.array(["left", "right", "bilateral"])
         elevation = summary.loc[summary.parameter == "elevation (cm)"]

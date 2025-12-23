@@ -1005,8 +1005,15 @@ class EMGSignal(Signal1D):
             index=index,
             unit=unt,  # type: ignore
         )
-        self._side = side
-        self._muscle_name = muscle_name
+        self.set_side(side)
+        self.set_muscle_name(muscle_name)
+
+    def set_side(self, side: Literal["left", "right", "bilateral"] | str):
+        if not isinstance(side, str) or not any(
+            [side == i for i in ["left", "right", "bilataral"]]
+        ):
+            raise ValueError("side must be 'left', 'right' or 'bilateral'.")
+        self._side = side  # type: ignore
 
     @property
     def side(self):
@@ -1019,6 +1026,11 @@ class EMGSignal(Signal1D):
             The side of the body.
         """
         return str(self._side)
+
+    def set_muscle_name(self, name: str):
+        if not isinstance(name, str):
+            raise ValueError("name must be a string.")
+        self._name = name  # type: ignore
 
     @property
     def muscle_name(self):
