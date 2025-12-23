@@ -478,7 +478,7 @@ class Isokinetic1RMTest(TestProtocol):
                     if m.muscle_name == name and m.side == side:
                         exe[k] = m.to_numpy() / val * 100
                         exe[k].set_unit("%")  # type: ignore
-                    break
+                        break
         if len(to_remove) > 0:
             exe.drop(to_remove, True)
 
@@ -572,7 +572,7 @@ class Isokinetic1RMTestResults(TestResults):
                 lt, rt = line[["left", "right"]].to_numpy().flatten()
                 lt = float(lt)
                 rt = float(rt)
-                symm = 100 * (rt - lt) / ((rt + lt) / 2)
+                symm = 100 * (rt - lt) / ((rt + lt))
                 summary.loc[summary.index[row], "symmetry (%)"] = symm
 
         return summary
@@ -735,7 +735,7 @@ class IsometricTest(TestProtocol):
                     if m.muscle_name == name and m.side == side:
                         exe[k] = m.to_numpy() / val * 100
                         exe[k].set_unit("%")  # type: ignore
-                    break
+                        break
         if len(to_remove) > 0:
             exe.drop(to_remove, True)
 
@@ -938,7 +938,7 @@ class IsometricTestResults(TestResults):
                 lt, rt = line[["left", "right"]].to_numpy().flatten()
                 lt = float(lt)
                 rt = float(rt)
-                symm = 100 * (rt - lt) / ((rt + lt) / 2)
+                symm = 100 * (rt - lt) / ((rt + lt))
                 summary.loc[summary.index[row], "symmetry (%)"] = symm
 
         return summary

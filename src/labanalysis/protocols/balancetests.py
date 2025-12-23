@@ -496,7 +496,7 @@ class UprightBalanceTest(TestProtocol):
                     if m.muscle_name == name and m.side == side:
                         exe[k] = m / val * 100
                         exe[k].set_unit("%")  # type: ignore
-                    break
+                        break
         if len(to_remove) > 0:
             exe.drop(to_remove, True)
 
@@ -814,7 +814,7 @@ class PlankBalanceTest(TestProtocol):
                     if m.muscle_name == name and m.side == side:
                         exe[k] = m / val * 100
                         exe[k].set_unit("%")  # type: ignore
-                    break
+                        break
         if len(to_remove) > 0:
             exe.drop(to_remove, True)
 
