@@ -583,8 +583,8 @@ class JumpTestResults(TestResults):
     def _get_grf_profiles_figure(self, test: JumpTest):
 
         def get_data(jump: SingleJump | DropJump, n: int, typed: str):
-            grf = jump.resultant_force.copy().force.to_dataframe()
-            grf = grf[[jump.vertical_axis]]
+            grf = jump.copy().resultant_force.copy()
+            grf = grf.force.to_dataframe()[[jump.vertical_axis]]  # type: ignore
             grf.columns = pd.Index(["grf"])
             grf.insert(0, "time", grf.index - grf.index[0])
             grf.insert(0, "jump", n)

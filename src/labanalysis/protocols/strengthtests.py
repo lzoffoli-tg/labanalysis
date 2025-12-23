@@ -476,7 +476,7 @@ class Isokinetic1RMTest(TestProtocol):
             if isinstance(m, EMGSignal):
                 for (name, side), val in norms.items():
                     if m.muscle_name == name and m.side == side:
-                        exe[k] = m.to_numpy() / val * 100
+                        exe[k] = m / val * 100
                         exe[k].set_unit("%")  # type: ignore
                         break
         if len(to_remove) > 0:
@@ -733,7 +733,7 @@ class IsometricTest(TestProtocol):
             if isinstance(m, EMGSignal):
                 for (name, side), val in norms.items():
                     if m.muscle_name == name and m.side == side:
-                        exe[k] = m.to_numpy() / val * 100
+                        exe[k] = m / val * 100
                         exe[k].set_unit("%")  # type: ignore
                         break
         if len(to_remove) > 0:
