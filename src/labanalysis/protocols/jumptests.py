@@ -651,7 +651,7 @@ class JumpTestResults(TestResults):
 
         # plot elevation
         elevation_data = summary.loc[summary.parameter == "elevation (cm)"]
-        keys = ["type", "side"]
+        keys = ["type", "side", "parameter"]
         sides = ["left", "right"]
         for key in sides:
             if key in elevation_data.columns:
@@ -662,11 +662,11 @@ class JumpTestResults(TestResults):
         for row, line in elevation_data.iterrows():
             if not test.normative_data.empty:
                 norm = test.normative_data.copy()
-                norm_types = elevation_data["type"].str.lower().tolist()
+                norm_types = norm["type"].str.lower().tolist()
                 types_idx = [line.type.lower() in v for v in norm_types]
-                norm_sides = elevation_data["side"].str.lower().tolist()
+                norm_sides = norm["side"].str.lower().tolist()
                 sides_idx = [line.side.lower() in v for v in norm_sides]
-                norm_parameters = elevation_data["parameter"].str.lower().tolist()
+                norm_parameters = norm["parameter"].str.lower().tolist()
                 params_idx = [line.parameter.lower() in v for v in norm_parameters]
                 mask = np.array(types_idx) & np.array(sides_idx) & np.array(params_idx)
                 norm = norm.loc[mask]

@@ -42,7 +42,7 @@ def test_jumptest():
         normative_data=jumps_normative_values,
         left_foot_ground_reaction_force="left_frz",
         right_foot_ground_reaction_force="right_frz",
-        drop_jump_height_cm=30,
+        drop_jump_height_cm=40,
         emg_normalization_references=emg_norm_data,
         emg_activation_references=emg_norm_data,
         emg_activation_threshold=3,

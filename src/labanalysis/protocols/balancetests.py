@@ -189,6 +189,7 @@ def _get_sway_figure(
             samples_within[label] = np.sum(within) / len(within) * 100
 
         # get the time spent within each norm interval
+        ranks = ranks[::-1]
         for i in range(len(ranks) - 1):
             ranki = ranks[i]
             for j in range(i + 1, len(ranks)):
@@ -197,7 +198,9 @@ def _get_sway_figure(
         samples_within["Poor"] = 100 - sum(samples_within.values())
 
         # plot the cumulative time spent at each level of norm
-        for rank, color in RANK_COLORS.items():
+        ranks = list(RANK_COLORS.keys())[::-1]
+        colors = list(RANK_COLORS.values())[::-1]
+        for rank, color in zip(ranks, colors):
             value = samples_within[rank]
             fig.add_trace(
                 trace=go.Bar(
