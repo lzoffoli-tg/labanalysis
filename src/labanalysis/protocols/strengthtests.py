@@ -10,7 +10,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from ..constants import RANK_COLORS, G
+from ..constants import RANK_COLORS, G, SIDE_COLORS
 from ..io.read.biostrength import PRODUCTS
 from ..records import IsokineticExercise, IsometricExercise
 from ..records.pipelines import get_default_processing_pipeline
@@ -97,7 +97,7 @@ def _get_force_figure(
                 y=y,
                 name="force profile",
                 showlegend=False,
-                line_color="navy",
+                line_color=SIDE_COLORS[side],
             ),
             row=1,
             col=i + 1,

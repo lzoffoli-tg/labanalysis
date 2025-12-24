@@ -476,7 +476,7 @@ class JumpTestResults(TestResults):
                 out.insert(0, "side", jump_side)
                 type_name = jump_name
                 if isinstance(jump, DropJump):
-                    type_name += f" ({jump.box_height_cm}cm)"
+                    type_name += f" ({jump.box_height_cm:0.0f}cm)"
                 out.insert(0, "type", type_name)
                 out.insert(0, "parameter", out.index)
                 out.reset_index(inplace=True, drop=True)
@@ -636,7 +636,8 @@ class JumpTestResults(TestResults):
         return fig
 
     def _get_single_jumps_figure(self, test: JumpTest):
-
+        return go.Figure()
+        """
         # get the summary metrics
         summary = self.summary
 
@@ -660,6 +661,7 @@ class JumpTestResults(TestResults):
         side_plotted = []
         yvals = []
         for row, line in elevation_data.iterrows():
+            # get normative intervals
             if not test.normative_data.empty:
                 norm = test.normative_data.copy()
                 norm_types = norm["type"].str.lower().tolist()
@@ -668,10 +670,40 @@ class JumpTestResults(TestResults):
                 sides_idx = [line.side.lower() in v for v in norm_sides]
                 norm_parameters = norm["parameter"].str.lower().tolist()
                 params_idx = [line.parameter.lower() in v for v in norm_parameters]
-                mask = np.array(types_idx) & np.array(sides_idx) & np.array(params_idx)
+                types_idx = np.array(types_idx)
+                sides_idx = np.array(sides_idx)
+                params_idx = np.array(params_idx)
+                mask = types_idx & sides_idx & params_idx
                 norm = norm.loc[mask]
+                if norm.shape[0] > 1:
+                    msg = "Multiple normative values found for jump elevation."
+                    raise ValueError(msg)
                 if not norm.empty:
-                    pass
+                    avg, std = float(norm["mean"].to_numpy()), float(
+                        norm["std"].to_numpy()
+                    )
+                    rank_values = np.array([avg - 2 * std, avg, avg + 2 * std])
+                else:
+                    rank_values = np.array([])
+
+            # plot the jumps
+            jump_sides = (
+                ["left", "right"] if line.side == "unilateral" else ["bilateral"]
+            )
+            for side in jump_sides:
+                x = line.type
+                y = float(np.squeeze(line[side]))
+                if len(rank_values) == 0:
+                    c = "gray"
+                    n = "No normative data"
+                else:
+                    loc = np.where(y <= rank_values)[0]
+                    n = (
+                        "Excellent"
+                        if len(loc) == 0
+                        else list(RANK_COLORS.keys())[loc[0]]
+                    )
+                    c = RANK_COLORS[n]
 
             if line.side == "bilateral":
                 fig.add_trace(
@@ -781,8 +813,11 @@ class JumpTestResults(TestResults):
 
         # check
         return fig
+        """
 
     def _get_drop_jumps_figure(self, test: JumpTest):
+        return go.Figure()
+        """
 
         # extract the relevant data
         summ = self.summary.copy()
@@ -796,6 +831,7 @@ class JumpTestResults(TestResults):
         sides = ["left", "right", "bilateral"]
         sides = [i for i in sides if i in summ.columns]
         check = 1
+        """
 
     def _get_repeated_jumps_figure(self, test: JumpTest):
         # TODO create la figura per le repeated jumps
