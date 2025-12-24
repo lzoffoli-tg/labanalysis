@@ -1,4 +1,13 @@
+"""normative data module"""
+
 import pandas as pd
+
+__all__ = [
+    "isok_1rm_normative_values",
+    "uprightbalance_normative_values",
+    "plankbalance_normative_values",
+    "jumps_normative_values",
+]
 
 # ISOK 1RM normative values
 isok_1rm_normative_values = pd.DataFrame(
@@ -78,42 +87,19 @@ plankbalance_normative_values = pd.DataFrame(
     }
 )
 
-# SJ normative values
-sj_normative_values = pd.DataFrame(
-    {
-        "type": ["squat jump", "squat jump", "squat jump", "squat jump"],
-        "parameter": [
-            "biceps femoris (%)",
-            "elevation (cm)",
-            "takeoff velocity (m/s)",
-            "vastus medialis (%)",
-        ],
-        "mean": [15.77771124, 35.92370418, 2.651046467, 14.59112967],
-        "std": [9.097038503, 5.990352874, 0.264715508, 15.29637735],
-    }
-)
-
-# CMJ normative values
-cmj_normative_values = pd.DataFrame(
-    {
-        "type": [
-            "counter movement jump",
-            "counter movement jump",
-            "counter movement jump",
-            "counter movement jump",
-        ],
-        "parameter": [
-            "biceps femoris (%)",
-            "elevation (cm)",
-            "takeoff velocity (m/s)",
-            "vastus medialis (%)",
-        ],
-        "mean": [12.67134386, 38.5789678, 2.593533839, 12.2648072],
-        "std": [9.93246829, 4.870799856, 0.249450561, 8.423184381],
-    }
-)
-
-jumps_normative_values = pd.concat(
-    [sj_normative_values, cmj_normative_values],
-    ignore_index=True,
+jumps_normative_values = pd.DataFrame(
+    [
+        ["repeated counter movement jumps", "bilateral", "rsi (cm/s)", 1.1, 0.47],
+        ["squat jump", "bilateral", "elevation (cm)", 35.0, 9.4],
+        ["counter movement jump", "bilateral", "elevation (cm)", 36.5, 10.5],
+        ["counter movement jump free hands", "bilateral", "elevation (cm)", 41.5, 12.1],
+        ["counter movement jump", "unilateral", "elevation (cm)", 19.0, 6.2],
+        ["drop jump (40cm)", "bilateral", "rsi (cm/s)", 1.2, 0.3],
+        ["drop jump (40cm)", "bilateral", "elevation (cm)", 28.0, 6.0],
+        ["drop jump (40cm)", "bilateral", "contact time (ms)", 235, 34],
+        ["drop jump (40cm)", "unilateral", "rsi (cm/s)", 0.43, 0.12],
+        ["drop jump (40cm)", "unilateral", "elevation (cm)", 14.4, 3.1],
+        ["drop jump (40cm)", "unilateral", "contact time (ms)", 350, 60],
+    ],
+    columns=["type", "side", "parameter", "mean", "std"],
 )

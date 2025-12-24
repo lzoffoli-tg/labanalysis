@@ -11,6 +11,7 @@ sys.path.append(dirname(dirname(abspath(__file__))))
 
 from src.labanalysis.records.records import TimeseriesRecord
 from src.labanalysis.protocols.jumptests import JumpTest
+from src.labanalysis.protocols.normativedata import jumps_normative_values
 
 # import classes under test
 from src.labanalysis.protocols.protocols import Participant
@@ -38,7 +39,7 @@ emg_norm_data = emg_norm_data.emgsignals
 def test_jumptest():
     test = JumpTest.from_files(
         participant=participant,
-        normative_data=pd.DataFrame(),
+        normative_data=jumps_normative_values,
         left_foot_ground_reaction_force="left_frz",
         right_foot_ground_reaction_force="right_frz",
         drop_jump_height_cm=30,

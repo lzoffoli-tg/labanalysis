@@ -3,20 +3,19 @@
 __all__ = ["UprightBalanceTest", "PlankBalanceTest"]
 
 
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from ..records.timeseries import EMGSignal, Point3D
-
-from ..constants import G, RANK_COLORS
+from ..constants import RANK_COLORS, G
 from ..modelling import Ellipse
 from ..records.pipelines import get_default_processing_pipeline
 from ..records.posture import PronePosture, UprightPosture
 from ..records.records import ForcePlatform, TimeseriesRecord
+from ..records.timeseries import EMGSignal, Point3D
 from ..utils import FloatArray1D
 from .normativedata import (
     plankbalance_normative_values,
@@ -92,7 +91,8 @@ def _get_sway_figure(
         norms = normative_data.loc[norms_idx, ["mean", "std"]]
         avg, std = norms.values.astype(float).flatten()
         areas = np.array([avg, avg + 1 * std, avg + 2 * std])
-        ranks = ["good", "normal", "fair"]
+        ranks = list(RANK_COLORS.keys())[:-1][::-1]
+        rank_colors = list(RANK_COLORS.values())[:-1][::-1]
 
         # plot the background on the sway plot
         fig.add_shape(
@@ -103,7 +103,7 @@ def _get_sway_figure(
             x1=1,
             y0=0,
             y1=1,
-            fillcolor=RANK_COLORS[-1],
+            fillcolor=RANK_COLORS["Poor"],
             layer="below",
             line_width=0,
             row=1,
@@ -147,7 +147,7 @@ def _get_sway_figure(
         cop_area = ellipse.area
 
         samples_within = {}
-        for area, color, label in zip(areas[::-1], RANK_COLORS[:-1][::-1], ranks[::-1]):
+        for area, color, label in zip(areas[::-1], rank_colors, ranks):
 
             # scale the axes according to the ratio between the ellipses area
             ratio = area / cop_area
@@ -194,17 +194,17 @@ def _get_sway_figure(
             for j in range(i + 1, len(ranks)):
                 rankj = ranks[j]
                 samples_within[rankj] -= samples_within[ranki]
-        samples_within["poor"] = 100 - sum(samples_within.values())
+        samples_within["Poor"] = 100 - sum(samples_within.values())
 
         # plot the cumulative time spent at each level of norm
-        for i, rank in enumerate(["poor"] + ranks[::-1]):
+        for rank, color in RANK_COLORS.items():
             value = samples_within[rank]
             fig.add_trace(
                 trace=go.Bar(
                     x=[float(value)],
                     y=[rank],
                     text=[f"{value:0.2f}%"],
-                    marker_color=RANK_COLORS[::-1][i],
+                    marker_color=color,
                     name=rank,
                     textposition="outside",
                     textangle=0,
@@ -243,7 +243,8 @@ def _get_sway_figure(
 
         # plot the muscle balance
         cscales = [
-            [i / (len(RANK_COLORS) - 1), col] for i, col in enumerate(RANK_COLORS)
+            [i / (len(RANK_COLORS) - 1), col]
+            for i, col in enumerate(RANK_COLORS.values())
         ]
         vals = []
         for i, (muscle, dct) in enumerate(emg_signals.items()):
@@ -406,6 +407,7 @@ class UprightBalanceTest(TestProtocol):
         eyes: Literal["open", "closed"],
         normative_data: pd.DataFrame = uprightbalance_normative_values,
         emg_normalization_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_normalization_function: Callable = np.mean,
         emg_activation_references: TimeseriesRecord = TimeseriesRecord(),
         emg_activation_threshold: float | int = 3,
         relevant_muscle_map: list[str] | None = None,
@@ -416,6 +418,7 @@ class UprightBalanceTest(TestProtocol):
             emg_activation_references=emg_activation_references,
             emg_activation_threshold=emg_activation_threshold,
             emg_normalization_references=emg_normalization_references,
+            emg_normalization_function=emg_normalization_function,
             relevant_muscle_map=relevant_muscle_map,
         )
         self.set_eyes(eyes)
@@ -431,6 +434,7 @@ class UprightBalanceTest(TestProtocol):
         right_foot_ground_reaction_force: str | None = None,
         normative_data: pd.DataFrame = uprightbalance_normative_values,
         emg_normalization_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_normalization_function: Callable = np.mean,
         emg_activation_references: TimeseriesRecord = TimeseriesRecord(),
         emg_activation_threshold: float | int = 3,
         relevant_muscle_map: list[str] | None = None,
@@ -443,6 +447,7 @@ class UprightBalanceTest(TestProtocol):
             emg_activation_threshold=emg_activation_threshold,
             emg_normalization_references=emg_normalization_references,
             relevant_muscle_map=relevant_muscle_map,
+            emg_normalization_function=emg_normalization_function,
             exercise=UprightPosture.from_tdf(
                 file=filename,
                 left_foot_ground_reaction_force=left_foot_ground_reaction_force,
@@ -465,7 +470,8 @@ class UprightBalanceTest(TestProtocol):
             exercise=self.exercise,
             eyes=self.eyes,  # type: ignore
             normative_data=self.normative_data,
-            emg_normalization_references=self.emg_activation_references,
+            emg_normalization_references=self.emg_normalization_references,
+            emg_normalization_function=self.emg_normalization_function,
             emg_activation_references=self.emg_activation_references,
             emg_activation_threshold=self.emg_activation_threshold,
             relevant_muscle_map=self.relevant_muscle_map,
@@ -720,6 +726,7 @@ class PlankBalanceTest(TestProtocol):
         eyes: Literal["open", "closed"],
         normative_data: pd.DataFrame = plankbalance_normative_values,
         emg_normalization_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_normalization_function: Callable = np.mean,
         emg_activation_references: TimeseriesRecord = TimeseriesRecord(),
         emg_activation_threshold: float | int = 3,
         relevant_muscle_map: list[str] | None = None,
@@ -730,6 +737,7 @@ class PlankBalanceTest(TestProtocol):
             emg_activation_references=emg_activation_references,
             emg_activation_threshold=emg_activation_threshold,
             emg_normalization_references=emg_normalization_references,
+            emg_normalization_function=emg_normalization_function,
             relevant_muscle_map=relevant_muscle_map,
         )
         self.set_eyes(eyes)
@@ -741,9 +749,10 @@ class PlankBalanceTest(TestProtocol):
             exercise=self.exercise,
             eyes=self.eyes,  # type: ignore
             normative_data=self.normative_data,
-            emg_normalization_references=self.emg_activation_references,
+            emg_normalization_references=self.emg_normalization_references,
             emg_activation_references=self.emg_activation_references,
             emg_activation_threshold=self.emg_activation_threshold,
+            emg_normalization_function=self.emg_normalization_function,
             relevant_muscle_map=self.relevant_muscle_map,
         )
 
@@ -768,6 +777,7 @@ class PlankBalanceTest(TestProtocol):
         right_hand_ground_reaction_force: str = "right_hand",
         normative_data: pd.DataFrame = uprightbalance_normative_values,
         emg_normalization_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_normalization_function: Callable = np.mean,
         emg_activation_references: TimeseriesRecord = TimeseriesRecord(),
         emg_activation_threshold: float | int = 3,
         relevant_muscle_map: list[str] | None = None,
@@ -779,6 +789,7 @@ class PlankBalanceTest(TestProtocol):
             emg_activation_references=emg_activation_references,
             emg_activation_threshold=emg_activation_threshold,
             emg_normalization_references=emg_normalization_references,
+            emg_normalization_function=emg_normalization_function,
             relevant_muscle_map=relevant_muscle_map,
             exercise=PronePosture.from_tdf(
                 file=filename,

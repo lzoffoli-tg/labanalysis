@@ -3,7 +3,7 @@
 #! IMPORTS
 
 
-from typing import Literal
+from typing import Callable, Literal
 
 import numpy as np
 import pandas as pd
@@ -69,7 +69,7 @@ def _get_force_figure(
     )
     if len(get_muscles()) > 0:
         ncolors = len(RANK_COLORS) - 1
-        cscales = [[i / ncolors, col] for i, col in enumerate(RANK_COLORS)]
+        cscales = [[i / ncolors, col] for i, col in enumerate(RANK_COLORS.values())]
         fig.update_layout(
             coloraxis=dict(
                 colorscale=cscales,
@@ -262,6 +262,7 @@ class Isokinetic1RMTest(TestProtocol):
         participant: Participant,
         normative_data: pd.DataFrame = isok_1rm_normative_values,
         emg_normalization_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_normalization_function: Callable = np.mean,
         emg_activation_references: TimeseriesRecord = TimeseriesRecord(),
         emg_activation_threshold: float = 3,
         relevant_muscle_map: list[str] | None = None,
@@ -270,6 +271,7 @@ class Isokinetic1RMTest(TestProtocol):
             participant,
             normative_data,
             emg_normalization_references=emg_normalization_references,
+            emg_normalization_function=emg_normalization_function,
             emg_activation_references=emg_activation_references,
             emg_activation_threshold=emg_activation_threshold,
             relevant_muscle_map=relevant_muscle_map,
@@ -337,6 +339,7 @@ class Isokinetic1RMTest(TestProtocol):
             right=self.right,
             bilateral=self.bilateral,
             emg_normalization_references=self.emg_normalization_references,
+            emg_normalization_function=self.emg_normalization_function,
             emg_activation_references=self.emg_activation_references,
             emg_activation_threshold=self.emg_activation_threshold,
         )
@@ -364,6 +367,7 @@ class Isokinetic1RMTest(TestProtocol):
         bilateral_emg_filename: str | None = None,
         normative_data: pd.DataFrame = isok_1rm_normative_values,
         emg_normalization_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_normalization_function: Callable = np.mean,
         emg_activation_references: TimeseriesRecord = TimeseriesRecord(),
         emg_activation_threshold: float = 3,
         relevant_muscle_map: list[str] | None = None,
@@ -444,6 +448,7 @@ class Isokinetic1RMTest(TestProtocol):
             right=right,
             bilateral=bilateral,
             emg_normalization_references=emg_normalization_references,
+            emg_normalization_function=emg_normalization_function,
             emg_activation_references=emg_activation_references,
             emg_activation_threshold=emg_activation_threshold,
             relevant_muscle_map=relevant_muscle_map,
@@ -643,8 +648,9 @@ class IsometricTest(TestProtocol):
         right: IsometricExercise | None,
         bilateral: IsometricExercise | None,
         participant: Participant,
-        normative_data: pd.DataFrame = isok_1rm_normative_values,
+        normative_data: pd.DataFrame = pd.DataFrame(),
         emg_normalization_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_normalization_function: Callable = np.mean,
         emg_activation_references: TimeseriesRecord = TimeseriesRecord(),
         emg_activation_threshold: float = 3,
         relevant_muscle_map: list[str] | None = None,
@@ -653,6 +659,7 @@ class IsometricTest(TestProtocol):
             participant,
             normative_data,
             emg_normalization_references=emg_normalization_references,
+            emg_normalization_function=emg_normalization_function,
             emg_activation_references=emg_activation_references,
             emg_activation_threshold=emg_activation_threshold,
             relevant_muscle_map=relevant_muscle_map,
@@ -669,6 +676,7 @@ class IsometricTest(TestProtocol):
             right=self.right,
             bilateral=self.bilateral,
             emg_normalization_references=self.emg_normalization_references,
+            emg_normalization_function=self.emg_normalization_function,
             emg_activation_references=self.emg_activation_references,
             emg_activation_threshold=self.emg_activation_threshold,
             relevant_muscle_map=self.relevant_muscle_map,
@@ -793,6 +801,7 @@ class IsometricTest(TestProtocol):
         bilateral_emg_filename: str | None = None,
         normative_data: pd.DataFrame = isok_1rm_normative_values,
         emg_normalization_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_normalization_function: Callable = np.mean,
         emg_activation_references: TimeseriesRecord = TimeseriesRecord(),
         emg_activation_threshold: float = 3,
         relevant_muscle_map: list[str] | None = None,
@@ -868,6 +877,7 @@ class IsometricTest(TestProtocol):
             right=right,
             bilateral=bilateral,
             emg_normalization_references=emg_normalization_references,
+            emg_normalization_function=emg_normalization_function,
             emg_activation_references=emg_activation_references,
             emg_activation_threshold=emg_activation_threshold,
             relevant_muscle_map=relevant_muscle_map,

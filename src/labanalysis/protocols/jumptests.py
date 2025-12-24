@@ -14,16 +14,15 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.colors import qualitative as cmaps
 from plotly.subplots import make_subplots
 
-from ..constants import G, RANK_COLORS
+from ..constants import RANK_COLORS, G
 from ..records import DropJump, SingleJump
 from ..records.pipelines import get_default_processing_pipeline
 from ..records.records import ForcePlatform, TimeseriesRecord
 from ..records.timeseries import EMGSignal, Point3D
 from ..signalprocessing import continuous_batches, fillna
-from .normativedata.normative_data import jumps_normative_values
+from .normativedata import jumps_normative_values
 from .protocols import Participant, TestProtocol, TestResults
 
 
@@ -475,7 +474,10 @@ class JumpTestResults(TestResults):
                 # add general data
                 out.insert(0, "n", sides_counter[jump.side])
                 out.insert(0, "side", jump_side)
-                out.insert(0, "type", jump_name)
+                type_name = jump_name
+                if isinstance(jump, DropJump):
+                    type_name += f" ({jump.box_height_cm}cm)"
+                out.insert(0, "type", type_name)
                 out.insert(0, "parameter", out.index)
                 out.reset_index(inplace=True, drop=True)
 
@@ -657,6 +659,34 @@ class JumpTestResults(TestResults):
         elevation_data = elevation_data[keys].copy()
         side_plotted = []
         yvals = []
+        for row, line in elevation_data.iterrows():
+            if not test.normative_data.empty:
+                norm = test.normative_data.copy()
+                norm_types = elevation_data["type"].str.lower().tolist()
+                types_idx = [line.type.lower() in v for v in norm_types]
+                norm_sides = elevation_data["side"].str.lower().tolist()
+                sides_idx = [line.side.lower() in v for v in norm_sides]
+                norm_parameters = elevation_data["parameter"].str.lower().tolist()
+                params_idx = [line.parameter.lower() in v for v in norm_parameters]
+                mask = np.array(types_idx) & np.array(sides_idx) & np.array(params_idx)
+                norm = norm.loc[mask]
+                if not norm.empty:
+                    pass
+
+            if line.side == "bilateral":
+                fig.add_trace(
+                    row=1,
+                    col=1,
+                    trace=go.Bar(
+                        x=[line.type],
+                        y=[float(np.squeeze(line.bilateral))],
+                        text=f"{float(np.squeeze(line.bilateral)):0.1f}",
+                        marker_color=RANK_COLORS["bilateral"],
+                        name="bilateral",
+                        offsetgroup="bilateral",
+                        showlegend=row == 0,
+                    ),
+                )
         for i, (typ, dfr) in enumerate(elevation.groupby("type")):
             dfr = dfr.copy().dropna(how="all", axis=1)
             for side in sides:

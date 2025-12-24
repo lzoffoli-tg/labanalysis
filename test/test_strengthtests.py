@@ -13,7 +13,7 @@ sys.path.append(dirname(dirname(abspath(__file__))))
 from src.labanalysis.records.records import TimeseriesRecord
 from src.labanalysis.io.read.biostrength import PRODUCTS
 from src.labanalysis import Isokinetic1RMTest, Participant, IsometricTest
-from src.labanalysis.protocols.normativedata.normative_data import (
+from src.labanalysis.protocols.normativedata import (
     isok_1rm_normative_values,
 )
 

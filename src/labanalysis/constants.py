@@ -14,5 +14,14 @@ MINIMUM_FLIGHT_TIME_S = 0.1
 # constants for the strength tests
 MINIMUM_ISOMETRIC_DISPLACEMENT_M = 0.05
 
-RANK_COLORS = ["#54A3E7", "#8EE09D", "#EEF862", "#EE9547"]
-SIDE_COLORS = ["#8E0DB6", "#1773C4", "#C74C1C"]
+RANK_COLORS = {
+    "Excellent": "#54A3E7",
+    "Good": "#8EE09D",
+    "Fair": "#EEF862",
+    "Poor": "#EE9547",
+}
+SIDE_COLORS = {
+    "bilateral": "#8E0DB6",
+    "left": "#1773C4",
+    "right": "#C74C1C",
+}

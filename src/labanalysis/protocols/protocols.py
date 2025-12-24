@@ -7,7 +7,7 @@ base test module containing classes and functions used to perform lab tests.
 import pickle
 from datetime import date, datetime
 from os.path import exists
-from typing import Any, Protocol, Self, runtime_checkable
+from typing import Any, Callable, Protocol, Self, runtime_checkable
 
 import numpy as np
 import pandas as pd
@@ -774,6 +774,7 @@ class TestProtocol(Protocol):
     _emg_normalization_references: TimeseriesRecord
     _emg_activation_references: TimeseriesRecord
     _emg_activation_threshold: float
+    _emg_normalization_function: Callable
     _relevant_muscle_map: list[str] | None
 
     def __init__(
@@ -781,6 +782,7 @@ class TestProtocol(Protocol):
         participant: Participant,
         normative_data: pd.DataFrame,
         emg_normalization_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_normalization_function: Callable = np.mean,
         emg_activation_references: TimeseriesRecord = TimeseriesRecord(),
         emg_activation_threshold: float = 3,
         relevant_muscle_map: list[str] | None = None,
@@ -788,6 +790,7 @@ class TestProtocol(Protocol):
         self.set_participant(participant)
         self.set_normative_data(normative_data)
         self.set_emg_normalization_references(emg_normalization_references)
+        self.set_emg_normalization_function(emg_normalization_function)
         self.set_emg_activation_references(emg_activation_references)
         self.set_emg_activation_threshold(emg_activation_threshold)
         self.set_relevant_muscle_map(relevant_muscle_map)
@@ -804,6 +807,15 @@ class TestProtocol(Protocol):
     @property
     def relevant_muscle_map(self):
         return self._relevant_muscle_map
+
+    def set_emg_normalization_function(self, func: Callable):
+        if not callable(func):
+            raise ValueError("emg_normalization_function must be a callable.")
+        self._emg_normalization_function = func
+
+    @property
+    def emg_normalization_function(self):
+        return self._emg_normalization_function
 
     def set_emg_normalization_references(self, ref: TimeseriesRecord):
         if not isinstance(ref, TimeseriesRecord):
@@ -889,7 +901,9 @@ class TestProtocol(Protocol):
         norms: dict[tuple[str, str], float] = {}
         for i in norm.emgsignals.values():
             if isinstance(i, EMGSignal):
-                norms[(i.muscle_name, i.side)] = float(i.to_numpy().mean())
+                norms[(i.muscle_name, i.side)] = float(
+                    self.emg_normalization_function(i.to_numpy())
+                )
 
         return norms
 
