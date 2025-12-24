@@ -217,6 +217,7 @@ def _get_force_figure(
 
         # adjust the muscle balance axes
         vrange = np.max(abs(np.array(vals))) * 1.5
+        vrange = max(50, np.max(abs(np.array(vals))) * 1.5)
         vrange = [-vrange, vrange]
         fig.update_xaxes(
             row=1,

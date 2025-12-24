@@ -8,7 +8,7 @@ __all__ = ["JumpTest"]
 
 #! CLASSES
 
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 import pandas as pd
@@ -114,6 +114,7 @@ class JumpTest(TestProtocol):
         participant: Participant,
         normative_data: pd.DataFrame = jumps_normative_values,
         emg_normalization_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_normalization_function: Callable = np.mean,
         emg_activation_references: TimeseriesRecord = TimeseriesRecord(),
         emg_activation_threshold: float = 3,
         relevant_muscle_map: list[str] | None = None,
@@ -129,6 +130,7 @@ class JumpTest(TestProtocol):
         super().__init__(
             participant=participant,
             normative_data=normative_data,
+            emg_normalization_function=emg_normalization_function,
             emg_activation_references=emg_activation_references,
             emg_activation_threshold=emg_activation_threshold,
             emg_normalization_references=emg_normalization_references,
@@ -152,6 +154,7 @@ class JumpTest(TestProtocol):
         right_foot_ground_reaction_force: str = "right_foot",
         drop_jump_height_cm: int = 40,
         emg_normalization_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_normalization_function: Callable = np.mean,
         emg_activation_references: TimeseriesRecord = TimeseriesRecord(),
         emg_activation_threshold: float = 3,
         relevant_muscle_map: list[str] | None = None,
@@ -210,6 +213,7 @@ class JumpTest(TestProtocol):
             participant=participant,
             normative_data=normative_data,
             emg_normalization_references=emg_normalization_references,
+            emg_normalization_function=emg_normalization_function,
             emg_activation_references=emg_activation_references,
             emg_activation_threshold=emg_activation_threshold,
             relevant_muscle_map=relevant_muscle_map,
@@ -307,13 +311,13 @@ class JumpTest(TestProtocol):
     def processed_data(self):
         out = self.copy()
         for i, jump in enumerate(out.squat_jumps):
-            out.squat_jumps[i] = self._process_jump(jump)  # type: ignore
+            out._squat_jumps[i] = self._process_jump(jump)  # type: ignore
         for i, jump in enumerate(out.counter_movement_jumps):
-            out.counter_movement_jumps[i] = self._process_jump(jump)  # type: ignore
+            out._counter_movement_jumps[i] = self._process_jump(jump)  # type: ignore
         for i, jump in enumerate(out.drop_jumps):
-            out.drop_jumps[i] = self._process_jump(jump)  # type: ignore
+            out._drop_jumps[i] = self._process_jump(jump)  # type: ignore
         for i, jump in enumerate(out.single_leg_jumps):
-            out.single_leg_jumps[i] = self._process_jump(jump)  # type: ignore
+            out._single_leg_jumps[i] = self._process_jump(jump)  # type: ignore
         if len(self.emg_normalization_references) > 0:
             out.set_emg_normalization_references(
                 self._process_record(self.emg_normalization_references)  # type: ignore
@@ -395,8 +399,6 @@ class JumpTestResults(TestResults):
                 out = pd.DataFrame()
                 contact = jump.contact_phase
                 jump_side = "bilateral" if jump.side == "bilateral" else "unilateral"
-                if jump_side not in sides_df:
-                    sides_df[jump_side] = pd.DataFrame()
 
                 # remove unnecessary EMG data
                 if self.include_emg:
@@ -487,11 +489,19 @@ class JumpTestResults(TestResults):
                     ignore_index=True,
                 )
 
+            # get the best jump of each side
+            for side, df in sides_df.items():
+                n = df.loc[df.parameter == "elevation (cm)", ["n", side]]
+                n = n.copy().sort_values(side)["n"].to_numpy()[-1]
+                df = df.loc[df.n == n].reset_index(drop=True)
+                df.drop("n", axis=1, inplace=True)
+                sides_df[side] = df
+
             # merge sides
             if "left" in sides_df and "right" in sides_df:
                 df_unilateral = sides_df["left"].merge(
                     sides_df["right"],
-                    on=["type", "n", "parameter", "side"],
+                    on=["type", "parameter", "side"],
                 )
             else:
                 df_unilateral = pd.DataFrame()
@@ -499,27 +509,14 @@ class JumpTestResults(TestResults):
                 df_bilateral = sides_df["bilateral"]
             else:
                 df_bilateral = pd.DataFrame()
-            df = pd.concat([df_bilateral, df_unilateral], ignore_index=True)
+            best = pd.concat([df_bilateral, df_unilateral], ignore_index=True)
 
-            # get best jumps
-            if not df.empty:
-                to_remove = []
-                for (typ, sd), dfr in df.groupby(["type", "side"]):
-                    for side in ["left", "right"]:
-                        n = dfr.loc[df.parameter == "elevation (cm)", ["n", side]]
-                        n = n.copy().sort_values(side)["n"].to_numpy()[0]
-                        to_remove += dfr.loc[dfr.n != n].index.to_list()
-                best = df.drop(to_remove, axis=0)
-
-                # calculate symmetries
+            # calculate symmetries
+            if not best.empty:
                 num = best.right.to_numpy() - best.left.to_numpy()
                 den = (best.right.to_numpy() + best.left.to_numpy()) / 2
                 best.loc[best.index, "symmetry (%)"] = num / den * 100
 
-                # remove jump counter
-                best.drop("n", axis=1, inplace=True)
-            else:
-                best = pd.DataFrame()
             return best
 
         sjs = _get_jumps_summary_table(
@@ -573,11 +570,11 @@ class JumpTestResults(TestResults):
 
         for i, jump in enumerate(test.squat_jumps):
             syms.append(get_jump(jump, i + 1, "Squat Jump"))
-        for jump in test.counter_movement_jumps:
+        for i, jump in enumerate(test.counter_movement_jumps):
             syms.append(get_jump(jump, i + 1, "Counter Movement Jump"))
-        for jump in test.drop_jumps:
+        for i, jump in enumerate(test.drop_jumps):
             syms.append(get_jump(jump, i + 1, "Drop Jump"))
-        for jump in test.single_leg_jumps:
+        for i, jump in enumerate(test.single_leg_jumps):
             syms.append(get_jump(jump, i + 1, "Single Leg Jump"))
 
         return pd.concat(syms, ignore_index=True)

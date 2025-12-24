@@ -47,10 +47,10 @@ def test_jumptest():
         emg_activation_references=emg_norm_data,
         emg_activation_threshold=3,
         relevant_muscle_map=None,
-        squat_jump_files=[sj_path.format(str(i + 1)) for i in range(2)],
-        counter_movement_jump_files=[cmj_path.format(str(i + 1)) for i in range(2)],
-        drop_jump_files=[dj_dx_path.format(str(i + 1)) for i in range(1)]
-        + [dj_sx_path.format(str(i + 1)) for i in range(1)],
+        # squat_jump_files=[sj_path.format(str(i + 1)) for i in range(2)],
+        # counter_movement_jump_files=[cmj_path.format(str(i + 1)) for i in range(2)],
+        drop_jump_files=[dj_dx_path.format(str(i + 1)) for i in range(3)]
+        + [dj_sx_path.format(str(i + 1)) for i in range(3)],
     )
     results = test.results()
     check = 1

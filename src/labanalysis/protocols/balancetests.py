@@ -289,7 +289,7 @@ def _get_sway_figure(
             )
 
         # adjust the muscle balance axes
-        vrange = np.max(abs(np.array(vals))) * 1.5
+        vrange = max(50, np.max(abs(np.array(vals))) * 1.5)
         vrange = [-vrange, vrange]
         fig.update_xaxes(
             row=1,
@@ -808,7 +808,7 @@ class PlankBalanceTest(TestProtocol):
 
         # apply the pipeline to the test data
         exe = self.processing_pipeline(self.exercise, inplace=False)
-        if not isinstance(exe, TimeseriesRecord):
+        if not isinstance(exe, PronePosture):
             raise ValueError("Something went wrong during data processing.")
 
         # normalize emg data and remove non-relevant muscles
@@ -867,9 +867,7 @@ class PlankBalanceTest(TestProtocol):
 
         # return processed data
         out = self.copy()
-        if not isinstance(exe, PronePosture):
-            raise ValueError("Something went wrong during data processing.")
-        out.set_exercise(exe)
+        out.set_exercise(exe)  # type: ignore
         return out
 
     @property
