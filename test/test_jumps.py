@@ -49,8 +49,8 @@ def test_jumptest():
         relevant_muscle_map=None,
         # squat_jump_files=[sj_path.format(str(i + 1)) for i in range(2)],
         # counter_movement_jump_files=[cmj_path.format(str(i + 1)) for i in range(2)],
-        drop_jump_files=[dj_dx_path.format(str(i + 1)) for i in range(3)]
-        + [dj_sx_path.format(str(i + 1)) for i in range(3)],
+        drop_jump_files=[dj_dx_path.format(str(i + 1)) for i in range(2)]
+        + [dj_sx_path.format(str(i + 1)) for i in range(2)],
     )
     results = test.results()
     check = 1

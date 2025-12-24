@@ -493,15 +493,19 @@ class JumpTestResults(TestResults):
             for side, df in sides_df.items():
                 n = df.loc[df.parameter == "elevation (cm)", ["n", side]]
                 n = n.copy().sort_values(side)["n"].to_numpy()[-1]
-                df = df.loc[df.n == n].reset_index(drop=True)
-                df.drop("n", axis=1, inplace=True)
+                line = df.iloc[0]
+                line.parameter = "best jump"
+                line.drop("n", inplace=True)
+                line[side] = n
+                line = pd.DataFrame(pd.Series(line)).T
+                df = pd.concat([df, line], ignore_index=True)
                 sides_df[side] = df
 
             # merge sides
             if "left" in sides_df and "right" in sides_df:
                 df_unilateral = sides_df["left"].merge(
                     sides_df["right"],
-                    on=["type", "parameter", "side"],
+                    on=["type", "parameter", "n", "side"],
                 )
             else:
                 df_unilateral = pd.DataFrame()
@@ -516,6 +520,7 @@ class JumpTestResults(TestResults):
                 num = best.right.to_numpy() - best.left.to_numpy()
                 den = (best.right.to_numpy() + best.left.to_numpy()) / 2
                 best.loc[best.index, "symmetry (%)"] = num / den * 100
+                best.loc[best.parameter == "best jump", "symmetry (%)"] = None
 
             return best
 
