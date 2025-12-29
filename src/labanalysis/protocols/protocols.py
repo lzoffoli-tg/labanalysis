@@ -1000,7 +1000,7 @@ class TestProtocol(Protocol):
 
     #! MANDATORY METHODS TO BE IMPLEMENTED
 
-    def results(self, include_emg: bool) -> TestResults: ...
+    def get_results(self, include_emg: bool) -> TestResults: ...
 
     @property
     def processing_pipeline(self) -> ProcessingPipeline:

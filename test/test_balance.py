@@ -72,7 +72,7 @@ def test_upright_bilateral_eyesopen():
     )
 
     # check results
-    results = test.results()
+    results = test.get_results()
     assert hasattr(results, "summary")
     assert isinstance(results.summary, pd.DataFrame)
     assert hasattr(results, "analytics")
@@ -97,7 +97,7 @@ def test_upright_bilateral_eyesshut():
     )
 
     # check results
-    results = test.results()
+    results = test.get_results()
     assert hasattr(results, "summary")
     assert isinstance(results.summary, pd.DataFrame)
     assert hasattr(results, "analytics")
@@ -122,7 +122,7 @@ def test_upright_monolateral():
     )
 
     # check results
-    results = test.results()
+    results = test.get_results()
     assert hasattr(results, "summary")
     assert isinstance(results.summary, pd.DataFrame)
     assert hasattr(results, "analytics")
@@ -149,7 +149,7 @@ def test_plank():
     )
 
     # check results
-    results = test.results()
+    results = test.get_results()
     assert hasattr(results, "summary")
     assert isinstance(results.summary, pd.DataFrame)
     assert hasattr(results, "analytics")

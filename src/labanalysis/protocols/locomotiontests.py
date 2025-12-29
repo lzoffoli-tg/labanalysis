@@ -20,7 +20,7 @@ __all__ = ["RunningTest", "WalkingTest"]
 class RunningTest(RunningExercise, TestProtocol):
 
     @property
-    def results(self):
+    def get_results(self):
         cop_list = []
         grf_list = []
         metrics = []
@@ -411,7 +411,7 @@ class WalkingTest(WalkingExercise, TestProtocol):
         self.set_normative_data(normative_data)
 
     @property
-    def results(self):
+    def get_results(self):
         cop_list = []
         grf_list = []
         metrics = []

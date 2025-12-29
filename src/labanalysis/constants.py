@@ -14,9 +14,16 @@ MINIMUM_FLIGHT_TIME_S = 0.1
 # constants for the strength tests
 MINIMUM_ISOMETRIC_DISPLACEMENT_M = 0.05
 
-RANK_COLORS = {
+RANK_4COLORS = {
+    "Good": "#54A3E7",
+    "Normal": "#8EE09D",
+    "Fair": "#EEF862",
+    "Poor": "#EE9547",
+}
+RANK_5COLORS = {
     "Excellent": "#54A3E7",
-    "Good": "#8EE09D",
+    "Good": "#27BD6B",
+    "Normal": "#8EE09D",
     "Fair": "#EEF862",
     "Poor": "#EE9547",
 }
@@ -25,4 +32,8 @@ SIDE_COLORS = {
     "left": "#1773C4",
     "right": "#C74C1C",
 }
-PATTERNS = ["", "/", "\\", "x", "-", "+", ".", "*"]
+SIDE_PATTERNS = {
+    "bilateral": "/",
+    "left": "x",
+    "right": "+",
+}

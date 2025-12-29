@@ -10,7 +10,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from ..constants import RANK_COLORS, G
+from ..constants import RANK_4COLORS, G
 from ..modelling import Ellipse
 from ..records.pipelines import get_default_processing_pipeline
 from ..records.posture import PronePosture, UprightPosture
@@ -91,8 +91,8 @@ def _get_sway_figure(
         norms = normative_data.loc[norms_idx, ["mean", "std"]]
         avg, std = norms.values.astype(float).flatten()
         areas = np.array([avg, avg + 1 * std, avg + 2 * std])
-        ranks = list(RANK_COLORS.keys())[:-1][::-1]
-        rank_colors = list(RANK_COLORS.values())[:-1][::-1]
+        ranks = list(RANK_4COLORS.keys())[:-1][::-1]
+        rank_colors = list(RANK_4COLORS.values())[:-1][::-1]
 
         # plot the background on the sway plot
         fig.add_shape(
@@ -103,7 +103,7 @@ def _get_sway_figure(
             x1=1,
             y0=0,
             y1=1,
-            fillcolor=RANK_COLORS["Poor"],
+            fillcolor=RANK_4COLORS["Poor"],
             layer="below",
             line_width=0,
             row=1,
@@ -198,8 +198,8 @@ def _get_sway_figure(
         samples_within["Poor"] = 100 - sum(samples_within.values())
 
         # plot the cumulative time spent at each level of norm
-        ranks = list(RANK_COLORS.keys())[::-1]
-        colors = list(RANK_COLORS.values())[::-1]
+        ranks = list(RANK_4COLORS.keys())[::-1]
+        colors = list(RANK_4COLORS.values())[::-1]
         for rank, color in zip(ranks, colors):
             value = samples_within[rank]
             fig.add_trace(
@@ -246,8 +246,8 @@ def _get_sway_figure(
 
         # plot the muscle balance
         cscales = [
-            [i / (len(RANK_COLORS) - 1), col]
-            for i, col in enumerate(RANK_COLORS.values())
+            [i / (len(RANK_4COLORS) - 1), col]
+            for i, col in enumerate(RANK_4COLORS.values())
         ]
         vals = []
         for i, (muscle, dct) in enumerate(emg_signals.items()):
@@ -553,7 +553,7 @@ class UprightBalanceTest(TestProtocol):
     def processing_pipeline(self):
         return get_default_processing_pipeline()
 
-    def results(self, include_emg: bool = True):
+    def get_results(self, include_emg: bool = True):
         return UprightBalanceTestResults(
             self.processed_data,
             include_emg,
@@ -874,7 +874,7 @@ class PlankBalanceTest(TestProtocol):
     def processing_pipeline(self):
         return get_default_processing_pipeline()
 
-    def results(self, include_emg: bool = True):
+    def get_results(self, include_emg: bool = True):
         return PlankBalanceTestResults(
             self.processed_data,
             include_emg,

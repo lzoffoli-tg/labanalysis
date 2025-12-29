@@ -120,6 +120,11 @@ class SingleJump(WholeBody):
         """
         return self._bodymass_kg
 
+    def set_bodymass_kg(self, bodymass_kg: float):
+        if not isinstance(bodymass_kg, (float, int)) or bodymass_kg <= 0:
+            raise ValueError("bodymass_kg must be a float or int > 0.")
+        self._bodymass_kg = bodymass_kg
+
     @property
     def contact_phase(self):
         """
@@ -274,18 +279,7 @@ class SingleJump(WholeBody):
 
         # build
         super().__init__(**signals, **forces)
-
-        # check the inputs
-        try:
-            self._bodymass_kg = float(bodymass_kg)
-        except Exception as exc:
-            raise ValueError("bodymass_kg must be a float or int")
-
-        # strip NANs at the ends ignoring EMG
-        indices = [obj for obj in self.values() if not isinstance(obj, EMGSignal)]
-        indices = [obj.strip().index for obj in indices]  # type: ignore
-        indices = np.unique(np.concatenate(indices).flatten())
-        self.loc(start=indices[0], stop=indices[-1], inplace=True)
+        self.set_bodymass_kg(bodymass_kg)
 
     @classmethod
     def from_tdf(
@@ -643,28 +637,6 @@ class DropJump(SingleJump):
 
 class JumpExercise(WholeBody):
 
-    _bodymass_kg: float
-
-    @property
-    def side(self):
-        """
-        Returns which side(s) have force data.
-
-        Returns
-        -------
-        str
-            "bilateral", "left", or "right".
-        """
-        left_foot = self.get("ground_reaction_force_left_foot")
-        right_foot = self.get("ground_reaction_force_left_foot")
-        if left_foot is not None and right_foot is not None:
-            return "bilateral"
-        if left_foot is not None:
-            return "left"
-        if right_foot is not None:
-            return "right"
-        raise ValueError("both left_foot and right_foot are None")
-
     @property
     def bodymass_kg(self):
         """
@@ -677,50 +649,10 @@ class JumpExercise(WholeBody):
         """
         return self._bodymass_kg
 
-    @property
-    def jumps(self):
-        jumps: list[SingleJump] = []
-        vgrf = self.resultant_force
-        if vgrf is None:
-            raise ValueError("No resultant force was found")
-        time = np.array(self.index)
-        vgrf = vgrf.force.copy()[self.vertical_axis].to_numpy().flatten()
-
-        # get the batches with grf lower than 30N (i.e flight phases)
-        batches = continuous_batches(vgrf <= float(MINIMUM_CONTACT_FORCE_N))
-
-        # remove those batches resulting in too short flight phases
-        # a jump is assumed valid if the elevation is higher than 5 cm
-        # (i.e. ~0.2s flight time)
-        fsamp = 1 / np.mean(np.diff(time))
-        min_samples = int(round(MINIMUM_FLIGHT_TIME_S * fsamp))
-        batches = [i for i in batches if len(i) >= min_samples]
-
-        # ensure that the first jump does not start with a flight
-        if batches[0][0] == 0:
-            batches = batches[1:]
-
-        # ensure that the last jump does not end in flight
-        if batches[-1][-1] == len(vgrf) - 1:
-            batches = batches[:-1]
-
-        # separate each jump
-        flights_idx = np.where(vgrf < MINIMUM_CONTACT_FORCE_N)[0]
-        for batch in batches:
-            start_idx = flights_idx[flights_idx < batch[0]]
-            start_idx = int(0 if len(start_idx) == 0 else (start_idx[-1] + 1))
-            start = float(time[start_idx])
-            stop = float(time[batch[-1] + 2])
-            sliced = self.copy()[start:stop]
-            if sliced is not None:
-                if isinstance(sliced, TimeseriesRecord):
-                    new_jump = SingleJump(
-                        bodymass_kg=self.bodymass_kg,
-                        **{i: v for i, v in sliced.items()},  # type: ignore
-                    )
-                    jumps += [new_jump]
-
-        return jumps
+    def set_bodymass_kg(self, bodymass_kg: float):
+        if not isinstance(bodymass_kg, (float, int)) or bodymass_kg <= 0:
+            raise ValueError("bodymass_kg must be a float or int > 0.")
+        self._bodymass_kg = bodymass_kg
 
     def __init__(
         self,
@@ -785,12 +717,7 @@ class JumpExercise(WholeBody):
             **signals,
             **forces,
         )
-
-        # check the inputs
-        try:
-            self._bodymass_kg = float(bodymass_kg)
-        except Exception as exc:
-            raise ValueError("bodymass_kg must be a float or int")
+        self.set_bodymass_kg(bodymass_kg)
 
     @classmethod
     def from_tdf(
@@ -848,3 +775,51 @@ class JumpExercise(WholeBody):
             **mandatory,  # type: ignore
             **signals,  # type: ignore
         )
+
+    def copy(self):
+        return JumpExercise(
+            self.bodymass_kg,
+            **{i: v.copy() for i, v in self.items()},  # type: ignore
+        )
+
+    @property
+    def jumps(self):
+        jumps: list[SingleJump] = []
+        vgrf = self.resultant_force
+        if vgrf is None:
+            raise ValueError("No resultant force was found")
+        time = np.array(self.index)
+        vgrf = vgrf.force.copy()[self.vertical_axis].to_numpy().flatten()
+
+        # get the batches with grf lower than 30N (i.e flight phases)
+        batches = continuous_batches(vgrf <= float(MINIMUM_CONTACT_FORCE_N))
+
+        # remove those batches resulting in too short flight phases
+        # (i.e. ~0.2s flight time)
+        fsamp = 1 / np.mean(np.diff(time))
+        min_samples = int(round(MINIMUM_FLIGHT_TIME_S * fsamp))
+        batches = [i for i in batches if len(i) >= min_samples]
+
+        # ensure that the first jump does not start with a flight
+        if batches[0][0] == 0:
+            batches = batches[1:]
+
+        # ensure that the last jump does not end in flight
+        if batches[-1][-1] == len(vgrf) - 1:
+            batches = batches[:-1]
+
+        # separate each jump
+        flights_idx = np.where(vgrf < MINIMUM_CONTACT_FORCE_N)[0]
+        for batch in batches:
+            start_idx = flights_idx[flights_idx < batch[0]]
+            start_idx = int(0 if len(start_idx) == 0 else (start_idx[-1] + 1))
+            start = float(time[start_idx])
+            stop = float(time[batch[-1] + 2])
+            jumps += [
+                SingleJump(
+                    bodymass_kg=self.bodymass_kg,
+                    **{i: v.copy().loc(start, stop) for i, v in self.items()},  # type: ignore
+                )
+            ]
+
+        return jumps

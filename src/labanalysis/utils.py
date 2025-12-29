@@ -294,6 +294,39 @@ def assert_file_extension(
     assert path.rsplit(".", 1)[-1] == f"{ext}", msg
 
 
+def hex_to_rgba(hex_color: str, alpha: float = 1.0):
+    """
+    Convert a HEX color (#RRGGBB or #RGB) into an RGBA color string.
+
+    Parameters
+    ----------
+    hex_color : str
+        Hexadecimal color, e.g. "#1f77b4" or "#abc".
+        The leading '#' is optional.
+    alpha : float
+        Opacity value between 0.0 and 1.0.
+
+    Returns
+    -------
+    str
+        A string formatted as "rgba(r, g, b, alpha)".
+    """
+    hex_color = hex_color.strip().lstrip("#")
+
+    # Convert #RGB to #RRGGBB
+    if len(hex_color) == 3:
+        hex_color = "".join([c * 2 for c in hex_color])
+
+    if len(hex_color) != 6:
+        raise ValueError(f"Invalid HEX color: '{hex_color}'")
+
+    r = int(hex_color[0:2], 16)
+    g = int(hex_color[2:4], 16)
+    b = int(hex_color[4:6], 16)
+
+    return f"rgba({r},{g},{b},{alpha})"
+
+
 FloatArray2D = Annotated[NDArray[np.floating], (2,)]
 FloatArray1D = NDArray[np.floating]
 IntArray1D = NDArray[np.integer]

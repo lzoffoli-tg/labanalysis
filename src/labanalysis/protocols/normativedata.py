@@ -89,10 +89,10 @@ plankbalance_normative_values = pd.DataFrame(
 
 jumps_normative_values = pd.DataFrame(
     [
-        ["repeated counter movement jumps", "bilateral", "rsi (cm/s)", 1.1, 0.47],
+        ["repeated jumps", "bilateral", "rsi (cm/s)", 1.1, 0.47],
         ["squat jump", "bilateral", "elevation (cm)", 35.0, 9.4],
+        ["free hand jump", "bilateral", "elevation (cm)", 41.5, 12.1],
         ["counter movement jump", "bilateral", "elevation (cm)", 36.5, 10.5],
-        ["counter movement jump free hands", "bilateral", "elevation (cm)", 41.5, 12.1],
         ["counter movement jump", "unilateral", "elevation (cm)", 19.0, 6.2],
         ["drop jump (40cm)", "bilateral", "rsi (cm/s)", 1.2, 0.3],
         ["drop jump (40cm)", "bilateral", "elevation (cm)", 28.0, 6.0],

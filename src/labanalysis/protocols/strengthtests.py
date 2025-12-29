@@ -10,7 +10,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from ..constants import RANK_COLORS, G, SIDE_COLORS
+from ..constants import RANK_4COLORS, G, SIDE_COLORS
 from ..io.read.biostrength import PRODUCTS
 from ..records import IsokineticExercise, IsometricExercise
 from ..records.pipelines import get_default_processing_pipeline
@@ -68,8 +68,8 @@ def _get_force_figure(
         width=500 * len(titles),
     )
     if len(get_muscles()) > 0:
-        ncolors = len(RANK_COLORS) - 1
-        cscales = [[i / ncolors, col] for i, col in enumerate(RANK_COLORS.values())]
+        ncolors = len(RANK_4COLORS) - 1
+        cscales = [[i / ncolors, col] for i, col in enumerate(RANK_4COLORS.values())]
         fig.update_layout(
             coloraxis=dict(
                 colorscale=cscales,
@@ -455,7 +455,7 @@ class Isokinetic1RMTest(TestProtocol):
             relevant_muscle_map=relevant_muscle_map,
         )
 
-    def results(self, include_emg: bool = True):
+    def get_results(self, include_emg: bool = True):
         return Isokinetic1RMTestResults(
             self.processed_data,
             include_emg,
@@ -683,7 +683,7 @@ class IsometricTest(TestProtocol):
             relevant_muscle_map=self.relevant_muscle_map,
         )
 
-    def results(self, include_emg: bool = True):
+    def get_results(self, include_emg: bool = True):
         return IsometricTestResults(
             self.processed_data,
             include_emg,

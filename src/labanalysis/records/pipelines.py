@@ -201,8 +201,8 @@ def get_default_signal1d_processing_func(signal: Signal1D):
 
 def get_default_forceplatform_processing_func(fp: ForcePlatform):
 
-    def default_3d_processing_func(
-        signal: Signal3D | Point3D,
+    def default_signal3d_processing_func(
+        signal: Signal3D,
     ):
         signal.fillna(inplace=True, value=0)
         fsamp = 1 / np.mean(np.diff(signal.index))
@@ -216,9 +216,24 @@ def get_default_forceplatform_processing_func(fp: ForcePlatform):
             inplace=True,
         )
 
+    def default_point3d_processing_func(
+        signal: Point3D,
+    ):
+        signal.fillna(inplace=True)
+        fsamp = 1 / np.mean(np.diff(signal.index))
+        signal.apply(
+            butterworth_filt,
+            fcut=30,
+            fsamp=fsamp,
+            order=4,
+            ftype="lowpass",
+            phase_corrected=True,
+            inplace=True,
+        )
+
     fp_pipeline = ProcessingPipeline(
-        Point3D=[default_3d_processing_func],
-        Signal3D=[default_3d_processing_func],
+        Point3D=[default_point3d_processing_func],
+        Signal3D=[default_signal3d_processing_func],
     )
     fp_pipeline(fp, inplace=True)
 
