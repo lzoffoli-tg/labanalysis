@@ -87,19 +87,35 @@ plankbalance_normative_values = pd.DataFrame(
     }
 )
 
-jumps_normative_values = pd.DataFrame(
+# jumps normative values
+_male_jumps_normative_values = pd.DataFrame(
     [
-        ["repeated jumps", "bilateral", "rsi (cm/s)", 1.1, 0.47],
-        ["squat jump", "bilateral", "elevation (cm)", 35.0, 9.4],
-        ["free hand jump", "bilateral", "elevation (cm)", 41.5, 12.1],
-        ["counter movement jump", "bilateral", "elevation (cm)", 36.5, 10.5],
-        ["counter movement jump", "unilateral", "elevation (cm)", 19.0, 6.2],
-        ["drop jump (40cm)", "bilateral", "rsi (cm/s)", 1.2, 0.3],
-        ["drop jump (40cm)", "bilateral", "elevation (cm)", 28.0, 6.0],
-        ["drop jump (40cm)", "bilateral", "contact time (ms)", 235, 34],
-        ["drop jump (40cm)", "unilateral", "rsi (cm/s)", 0.43, 0.12],
-        ["drop jump (40cm)", "unilateral", "elevation (cm)", 14.4, 3.1],
-        ["drop jump (40cm)", "unilateral", "contact time (ms)", 350, 60],
+        ["repeated jumps", "Male", "bilateral", "rsi (cm/s)", 1.1, 0.47],
+        ["squat jump", "Male", "bilateral", "elevation (cm)", 35.0, 9.4],
+        ["free hand jump", "Male", "bilateral", "elevation (cm)", 41.5, 12.1],
+        ["counter movement jump", "Male", "bilateral", "elevation (cm)", 36.5, 10.5],
+        ["counter movement jump", "Male", "unilateral", "elevation (cm)", 19.0, 6.2],
+        ["drop jump (40cm)", "Male", "bilateral", "rsi (cm/s)", 1.2, 0.3],
+        ["drop jump (40cm)", "Male", "bilateral", "elevation (cm)", 28.0, 6.0],
+        ["drop jump (40cm)", "Male", "bilateral", "contact time (ms)", 235, 34],
+        ["drop jump (40cm)", "Male", "unilateral", "rsi (cm/s)", 0.43, 0.12],
+        ["drop jump (40cm)", "Male", "unilateral", "elevation (cm)", 14.4, 3.1],
+        ["drop jump (40cm)", "Male", "unilateral", "contact time (ms)", 350, 60],
     ],
-    columns=["type", "side", "parameter", "mean", "std"],
+    columns=["type", "gender", "side", "parameter", "mean", "std"],
+)
+
+# create female normative values with 33% less performances (remember to add references)
+_female_jumps_normative_values = _male_jumps_normative_values.copy()
+_female_jumps_normative_values.gender = _female_jumps_normative_values.gender.map(
+    lambda x: "Female"
+)
+_idx = _female_jumps_normative_values.index
+_female_jumps_normative_values.loc[_idx, ["mean", "std"]] = (
+    _female_jumps_normative_values.loc[_idx, ["mean", "std"]] * 0.67
+)
+_female_jumps_normative_values = pd.DataFrame(_female_jumps_normative_values)
+jumps_normative_values = pd.concat(
+    [_male_jumps_normative_values, _female_jumps_normative_values],
+    ignore_index=True,
 )

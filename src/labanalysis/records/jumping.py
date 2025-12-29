@@ -146,27 +146,21 @@ class SingleJump(WholeBody):
             concentric_phase documentation to have a detailed view about how
             it is detected.
         """
-        out = WholeBody()
-
         # get the longest batch with grf lower than 30N
-        vgrf = self.resultant_force
-        if vgrf is None:
-            return out
-        grfy = vgrf.copy().force[self.vertical_axis].to_numpy().flatten()
-        grft = self.index
+        vgrf = self.resultant_force.copy()
+        grfy = vgrf.force[self.vertical_axis].to_numpy().flatten()
+        grft = vgrf.index
         batches = continuous_batches(
             (grfy > MINIMUM_CONTACT_FORCE_N) & (grft < self.flight_phase.index[0])
         )
         if len(batches) == 0:
-            return out
+            raise RuntimeError("No contact phase was found.")
         batch = batches[-1]
+        start = grft[batch[0]]
+        stop = grft[batch[-1]]
 
-        sliced = self.copy()[grft[batch[0]] : grft[batch[-1]]]
-        if sliced is not None:
-            if isinstance(sliced, WholeBody):
-                for key, value in sliced.items():
-                    out[key] = value
-        return out
+        signals = {k: v.copy().loc(start, stop) for k, v in self.items()}
+        return WholeBody(**signals)  # type: ignore
 
     @property
     def flight_phase(self):
@@ -188,16 +182,14 @@ class SingleJump(WholeBody):
         """
 
         # get the longest batch with grf lower than 30N
-        vgrf = self.resultant_force
-        if vgrf is None:
-            return TimeseriesRecord()
+        vgrf = self.resultant_force.copy()
         grfy = vgrf.force.copy()[self.vertical_axis].to_numpy().flatten()
         grfy = fillna(arr=grfy, value=0).flatten()  # type: ignore
         grft = self.index
         batches = continuous_batches(grfy <= MINIMUM_CONTACT_FORCE_N)
         msg = "No flight phase found."
         if len(batches) == 0:
-            raise RuntimeError(msg)
+            raise RuntimeError("No flight phase was found.")
         batch = batches[np.argmax([len(i) for i in batches])]
 
         # check the length of the batch is at minimum 2 samples
@@ -206,18 +198,12 @@ class SingleJump(WholeBody):
 
         # # get the time samples corresponding to the start and end of each
         # batch
-        time_start = float(np.round(grft[batch[0]], 3))
-        time_stop = float(np.round(grft[batch[-1]], 3))
+        start = float(np.round(grft[batch[0]], 3))
+        stop = float(np.round(grft[batch[-1]], 3))
 
         # return a slice of the available data
-        sliced = self.copy()[time_start:time_stop]
-        if sliced is None:
-            raise RuntimeError(msg)
-        out = WholeBody()
-        if isinstance(sliced, WholeBody):
-            for key, value in sliced.items():
-                out[key] = value
-        return out
+        signals = {k: v.copy().loc(start, stop) for k, v in self.items()}
+        return WholeBody(**signals)  # type: ignore
 
     def __init__(
         self,
@@ -431,22 +417,15 @@ class DropJump(SingleJump):
 
         # # get the time samples corresponding to the start and end of each
         # batch
-        time_start = float(round(self.index[0], 3))
+        start = float(round(self.index[0], 3))
         contact_time_start = float(round(self.contact_phase.index[0], 3))
-        time_stop = float(
+        stop = float(
             np.round(self.index[np.where(self.index < contact_time_start)[0][-1]], 3)
         )
 
-        # return a slice of the available data
-        sliced = self.copy()[time_start:time_stop]
-        if sliced is None:
-            msg = "No landing phase found."
-            raise RuntimeError(msg)
-        out = WholeBody()
-        if isinstance(sliced, WholeBody):
-            for key, value in sliced.items():
-                out[key] = value
-        return out
+        # return the landing phase
+        signals = {k: v.copy().loc(start, stop) for k, v in self.items()}
+        return WholeBody(**signals)  # type: ignore
 
     @property
     def flight_phase(self):
@@ -468,35 +447,39 @@ class DropJump(SingleJump):
         """
 
         # get vertical force
-        vgrf = self.resultant_force
-        if vgrf is None:
-            return TimeseriesRecord()
+        vgrf = self.resultant_force.copy()
         grfy = vgrf.force.copy()[self.vertical_axis].to_numpy().flatten()
         grft = self.index
 
-        # get batches with grf lower than the minimum contact force
-        batches = continuous_batches(grfy <= MINIMUM_CONTACT_FORCE_N)
-        msg = "No flight phase found."
-        if len(batches) < 2:
-            raise RuntimeError(msg)
+        # get contact phases
+        contact_batches = continuous_batches(grfy > MINIMUM_CONTACT_FORCE_N)
+        if len(contact_batches) < 2:
+            raise RuntimeError("No flight phase found.")
 
-        # get the batch corresponding to the jump phase
-        batch = batches[1]
+        # get the contact phases with the two highest peak forces
+        contact_idx = np.argsort([grfy[b].max() for b in contact_batches])[:2]
+        contact_batches = [contact_batches[i] for i in sorted(contact_idx)]
+
+        # get the longest flight phase in between
+        flight_batches = continuous_batches(grfy <= MINIMUM_CONTACT_FORCE_N)
+        flight_batches = [
+            i
+            for i in flight_batches
+            if i[0] > contact_batches[0][-1] and i[-1] < contact_batches[1][0]
+        ]
+        if len(flight_batches) < 1:
+            raise RuntimeError("No flight phase found.")
+        flight_idx = np.argsort([len(i) for i in flight_batches])[-1]
+        batch = flight_batches[flight_idx]
 
         # # get the time samples corresponding to the start and end of each
         # batch
-        time_start = float(np.round(grft[batch[0]], 3))
-        time_stop = float(np.round(grft[batch[-1]], 3))
+        start = float(np.round(grft[batch[0]], 3))
+        stop = float(np.round(grft[batch[-1]], 3))
 
-        # return a slice of the available data
-        sliced = self.copy()[time_start:time_stop]
-        if sliced is None:
-            raise RuntimeError(msg)
-        out = WholeBody()
-        if isinstance(sliced, WholeBody):
-            for key, value in sliced.items():
-                out[key] = value
-        return out
+        # return the landing phase
+        signals = {k: v.copy().loc(start, stop) for k, v in self.items()}
+        return WholeBody(**signals)  # type: ignore
 
     def __init__(
         self,
@@ -785,11 +768,9 @@ class JumpExercise(WholeBody):
     @property
     def jumps(self):
         jumps: list[SingleJump] = []
-        vgrf = self.resultant_force
-        if vgrf is None:
-            raise ValueError("No resultant force was found")
-        time = np.array(self.index)
-        vgrf = vgrf.force.copy()[self.vertical_axis].to_numpy().flatten()
+        vgrf = self.resultant_force.copy()
+        time = vgrf.index
+        vgrf = vgrf.force[self.vertical_axis].to_numpy().flatten()
 
         # get the batches with grf lower than 30N (i.e flight phases)
         batches = continuous_batches(vgrf <= float(MINIMUM_CONTACT_FORCE_N))

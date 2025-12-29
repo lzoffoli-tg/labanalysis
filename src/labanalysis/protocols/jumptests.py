@@ -667,7 +667,9 @@ class JumpTestResults(TestResults):
             (elevation_df.side != "bilateral") | (elevation_df.s == "left")
         ]
         elevation_df.reset_index(drop=True, inplace=True)
-        elevation_df.side = elevation_df[["side", "s"]].apply(
+        elevation_df.loc[elevation_df.index, "side"] = elevation_df[
+            ["side", "s"]
+        ].apply(
             lambda x: x.side if x.side == "bilateral" else x.s,
             axis=1,
         )
@@ -684,14 +686,20 @@ class JumpTestResults(TestResults):
         elevation_norms = {}
         combs = elevation_df[["type", "set"]].drop_duplicates().values.tolist()
         if not test.normative_data.empty:
+            gender = test.participant.gender
+            if gender is None:
+                raise ValueError("Normative Data require gender being specified.")
+            gender = gender.lower()
             norm = test.normative_data.copy()
             norm = norm.loc[norm.parameter == "elevation (cm)"]
             types = norm["type"].str.lower().tolist()
             sides = norm["side"].str.lower().tolist()
+            genders = norm["gender"].str.lower().tolist()
             for t, s in combs:
                 types_idx = np.array([t.lower() in v for v in types])
                 sides_idx = np.array([s in v for v in sides])
-                mask = types_idx & sides_idx
+                gender_idx = np.array([gender in v for v in genders])
+                mask = types_idx & sides_idx & gender_idx
                 tnorm = norm.loc[mask]
                 if tnorm.shape[0] > 1:
                     msg = "Multiple normative values found for jump elevation."
@@ -741,7 +749,10 @@ class JumpTestResults(TestResults):
         balance_norms = {(t, s): (lows, tops, lbls, clrs) for (t, s) in balance_data}
 
         # generate the figure
-        subplot_titles = [f"{t}<br>{s}" for t, s in elevation_data]
+        subplot_titles = [
+            f"{str(t).rsplit("(")[0].strip()}<br>{str(s).capitalize()}"
+            for t, s in elevation_data
+        ]
         subplot_titles += ["" for t, s in elevation_data]
         specs = [
             [{"rowspan": 2} for _ in combs],
