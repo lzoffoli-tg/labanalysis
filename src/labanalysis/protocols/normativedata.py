@@ -101,6 +101,10 @@ _male_jumps_normative_values = pd.DataFrame(
         ["drop jump (40cm)", "Male", "unilateral", "rsi (cm/s)", 0.43, 0.12],
         ["drop jump (40cm)", "Male", "unilateral", "elevation (cm)", 14.4, 3.1],
         ["drop jump (40cm)", "Male", "unilateral", "contact time (ms)", 350, 60],
+        ["drop jump (40cm)", "Male", "bilateral", "activation ratio", 0.28, 0.09],
+        ["drop jump (40cm)", "Male", "unilateral", "activation ratio", 0.28, 0.09],
+        ["drop jump (40cm)", "Male", "bilateral", "activation time (ms)", -80, 60],
+        ["drop jump (40cm)", "Male", "unilateral", "activation time (ms)", -80, 60],
     ],
     columns=["type", "gender", "side", "parameter", "mean", "std"],
 )
@@ -110,7 +114,9 @@ _female_jumps_normative_values = _male_jumps_normative_values.copy()
 _female_jumps_normative_values.gender = _female_jumps_normative_values.gender.map(
     lambda x: "Female"
 )
-_idx = _female_jumps_normative_values.index
+_idx = _female_jumps_normative_values.parameter.map(
+    lambda x: x in ["elevation (cm)", "rsi (cm/s)"]
+)
 _female_jumps_normative_values.loc[_idx, ["mean", "std"]] = (
     _female_jumps_normative_values.loc[_idx, ["mean", "std"]] * 0.67
 )

@@ -843,8 +843,13 @@ class TestProtocol(Protocol):
         self, ref: TimeseriesRecord | str | Literal["self"]
     ):
         if isinstance(ref, str):
-            if ref == "self" and isinstance(self, TimeseriesRecord):
-                self._emg_normalization_references = self.emgsignals.copy()
+            if ref == "self":
+                if isinstance(self, TimeseriesRecord):
+                    self._emg_normalization_references = self.emgsignals.copy()
+                else:
+                    msg = "'self' cannot be used as emg_normalization_reference "
+                    msg += "as it is not a TimeseriesRecord subclass."
+                    raise ValueError(msg)
         elif isinstance(ref, TimeseriesRecord):
             self._emg_normalization_references = ref
         else:
@@ -860,8 +865,13 @@ class TestProtocol(Protocol):
         self, ref: TimeseriesRecord | str | Literal["self"]
     ):
         if isinstance(ref, str):
-            if ref == "self" and isinstance(self, TimeseriesRecord):
-                self._emg_activation_references = self.emgsignals.copy()
+            if ref == "self":
+                if isinstance(self, TimeseriesRecord):
+                    self._emg_activation_references = self.emgsignals.copy()
+                else:
+                    msg = "'self' cannot be used as emg_activation_reference "
+                    msg += "as it is not a TimeseriesRecord subclass."
+                    raise ValueError(msg)
         elif isinstance(ref, TimeseriesRecord):
             self._emg_activation_references = ref
         else:
@@ -956,15 +966,9 @@ class TestProtocol(Protocol):
             for i in thresh.emgsignals.values()
         }
 
-        # normalize activation data and get thresholds
+        # get thresholds
         thresholds: dict[tuple[str, str], float] = {}
-        norms = self.emg_activation_references
-        for (tname, tside), tsig in thresh_vals.items():
-            for (name, side), norm in norms.items():
-                if tname == name and tside == side:  # type: ignore
-                    thresh[(tname, tside)] = tsig / norm
-                    break
-            val = np.asarray(thresh[(tname, tside)])
+        for (tname, tside), val in thresh_vals.items():
             avg = val.mean()
             std = val.std()
             thr = float(avg + self.emg_activation_threshold * std)
