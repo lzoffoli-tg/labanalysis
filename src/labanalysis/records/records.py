@@ -484,6 +484,16 @@ class ForcePlatform(Record):
         k = np.cross(self.origin.to_numpy(), self.force.to_numpy())
         return self.torque + k
 
+    def update_moments(self, inplace: bool = True):
+        if not isinstance(inplace, bool):
+            raise ValueError("inplace must be True or False")
+        if inplace:
+            self.torque[:, :] = self.free_moment.to_numpy()
+        else:
+            out = self.copy()
+            out.torque[:, :] = out.free_moment.to_numpy()
+            return out
+
     def change_reference_frame(
         self,
         new_x: (

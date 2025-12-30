@@ -10,6 +10,8 @@ from typing import Callable, List
 
 import numpy as np
 
+from ..constants import MINIMUM_CONTACT_FORCE_N
+
 from ..signalprocessing import *
 from .records import ForcePlatform, Record
 from .timeseries import EMGSignal, Point3D, Signal1D, Signal3D, Timeseries
@@ -201,41 +203,44 @@ def get_default_signal1d_processing_func(signal: Signal1D):
 
 def get_default_forceplatform_processing_func(fp: ForcePlatform):
 
-    def default_signal3d_processing_func(
-        signal: Signal3D,
-    ):
-        signal.fillna(inplace=True, value=0)
-        fsamp = 1 / np.mean(np.diff(signal.index))
-        signal.apply(
-            butterworth_filt,
-            fcut=30,
-            fsamp=fsamp,
-            order=4,
-            ftype="lowpass",
-            phase_corrected=True,
-            inplace=True,
-        )
+    # ensure force below minimum contact are set to NaN
+    vals = fp.force.copy().to_numpy()
+    module = fp.force.copy().module.to_numpy().flatten()  # type: ignore
+    idxs = module < MINIMUM_CONTACT_FORCE_N
+    vals[idxs, :] = np.nan
+    fp.force[:, :] = vals
 
-    def default_point3d_processing_func(
-        signal: Point3D,
-    ):
-        signal.fillna(inplace=True)
-        fsamp = 1 / np.mean(np.diff(signal.index))
-        signal.apply(
-            butterworth_filt,
-            fcut=30,
-            fsamp=fsamp,
-            order=4,
-            ftype="lowpass",
-            phase_corrected=True,
-            inplace=True,
-        )
+    # strip nans from the ends
+    fp.strip(inplace=True)
 
-    fp_pipeline = ProcessingPipeline(
-        Point3D=[default_point3d_processing_func],
-        Signal3D=[default_signal3d_processing_func],
+    # fill remaining force nans with zeros
+    fp.force.apply(fillna, value=0, axis=0, inplace=True)
+
+    # fill remaining position nans via cubic spline
+    fp.origin.apply(fillna, axis=0, inplace=True)
+
+    # lowpass filter both origin and force
+    fsamp = float(1 / np.mean(np.diff(fp.index)))
+    filt_fun = lambda x: butterworth_filt(
+        x,
+        fcut=30,
+        fsamp=fsamp,  # type: ignore
+        order=4,
+        ftype="lowpass",
+        phase_corrected=True,
     )
-    fp_pipeline(fp, inplace=True)
+    fp.origin.apply(filt_fun, axis=0, inplace=True)
+    fp.force.apply(filt_fun, axis=0, inplace=True)
+
+    # update moments
+    fp.update_moments(inplace=True)
+
+    # set moments corresponding to the very low vertical force to zero
+    module = fp.force.copy().module.to_numpy().flatten()  # type: ignore
+    idxs = module < MINIMUM_CONTACT_FORCE_N
+    vals = fp.torque.copy().to_numpy()
+    vals[idxs, :] = 0
+    fp.torque[:, :] = vals
 
 
 def get_default_processing_pipeline():

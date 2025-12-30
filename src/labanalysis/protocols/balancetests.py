@@ -1013,7 +1013,7 @@ class PlankBalanceTestResults(TestResults):
 
         # get the normative data
         norms = test.normative_data
-        norms_idx = norms.eyes == test.eyes
+        norms_idx = (norms.side == "bilateral") & (norms.eyes == test.eyes)
         norms = norms.loc[norms_idx]
 
         # generate the sway figure

@@ -750,9 +750,9 @@ class Timeseries:
 
     def copy(self):
         return Timeseries(
-            self._data,
-            self.index,
-            self.columns,
+            self._data.copy(),
+            self.index.copy(),
+            self.columns.copy(),
             self.unit,
         )
 
@@ -801,8 +801,8 @@ class Signal1D(Timeseries):
 
     def copy(self):
         return Signal1D(
-            self._data,
-            self.index,
+            self._data.copy(),
+            self.index.copy(),
             self.unit,
         )
 
@@ -827,6 +827,14 @@ class Signal3D(Timeseries):
         if len(col) == 0:
             raise ValueError("no lateral axis could be found.")
         return str(col[0])
+
+    @property
+    def module(self):
+        return Signal1D(
+            data=(self._data.copy() ** 2).sum(axis=1) ** 0.5,
+            index=self.index.copy(),
+            unit=self.unit,
+        )
 
     def __init__(
         self,
@@ -937,10 +945,10 @@ class Signal3D(Timeseries):
 
     def copy(self):
         return Signal3D(
-            self._data,
-            self.index,
+            self._data.copy(),
+            self.index.copy(),
             self.unit,
-            self.columns,
+            self.columns.copy(),
             self.vertical_axis,
             self.anteroposterior_axis,
         )
@@ -1055,8 +1063,8 @@ class EMGSignal(Signal1D):
 
     def copy(self):
         return EMGSignal(
-            self._data,
-            self.index,
+            self._data.copy(),
+            self.index.copy(),
             self.muscle_name,
             self.side,  # type: ignore
             self.unit,
@@ -1116,10 +1124,10 @@ class Point3D(Signal3D):
 
     def copy(self):
         return Point3D(
-            self._data,
-            self.index,
+            self._data.copy(),
+            self.index.copy(),
             self.unit,
-            self.columns,
+            self.columns.copy(),
             self.vertical_axis,
             self.anteroposterior_axis,
         )
