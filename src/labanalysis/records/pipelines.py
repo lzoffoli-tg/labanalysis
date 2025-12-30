@@ -214,10 +214,10 @@ def get_default_forceplatform_processing_func(fp: ForcePlatform):
     fp.strip(inplace=True)
 
     # fill remaining force nans with zeros
-    fp.force.apply(fillna, value=0, axis=0, inplace=True)
+    fp.force[:, :] = fillna(fp.force.to_numpy(), value=0, inplace=False)
 
     # fill remaining position nans via cubic spline
-    fp.origin.apply(fillna, axis=0, inplace=True)
+    fp.origin[:, :] = fillna(fp.origin.to_numpy(), inplace=False)
 
     # lowpass filter both origin and force
     fsamp = float(1 / np.mean(np.diff(fp.index)))

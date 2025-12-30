@@ -560,19 +560,29 @@ class Timeseries:
 
     def __getattr__(self, name: str):
         # we return the "column" named "name"
-        if name in self.columns:
-            if len(self.columns) == 1:
-                return self._data.flatten()
-            loc = np.where(self.columns == name)[0]
-            return Timeseries(
-                self._data[:, loc],
-                self.index,
-                [name],
-                self.unit,
-            )
+        # Use object.__getattribute__ to safely access attributes during unpickling
+        try:
+            columns = object.__getattribute__(self, "columns")
+            if name in columns:
+                data = object.__getattribute__(self, "_data")
+                if len(columns) == 1:
+                    return data.flatten()
+                loc = np.where(columns == name)[0]
+                index = object.__getattribute__(self, "index")
+                unit = object.__getattribute__(self, "_unit")
+                return Timeseries(
+                    data[:, loc],
+                    index,
+                    [name],
+                    unit,
+                )
+        except AttributeError:
+            # columns or other attributes don't exist yet (during unpickling)
+            pass
 
         # if None, raise an error
-        attr = getattr(self._data, name, None)
+        data = object.__getattribute__(self, "_data")
+        attr = getattr(data, name, None)
         if attr is None:
             raise AttributeError(f"'{type(self)}' object has no attribute '{name}'")
 

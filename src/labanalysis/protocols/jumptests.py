@@ -8,7 +8,7 @@ __all__ = ["JumpTest"]
 
 #! CLASSES
 
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 import numpy as np
 import pandas as pd
@@ -18,12 +18,12 @@ from plotly.subplots import make_subplots
 
 from ..records.jumping import JumpExercise
 
-from ..constants import RANK_5COLORS, G, SIDE_COLORS
+from ..constants import MINIMUM_CONTACT_FORCE_N, RANK_5COLORS, G, SIDE_COLORS
 from ..records import DropJump, SingleJump
 from ..records.pipelines import get_default_processing_pipeline
 from ..records.records import ForcePlatform, TimeseriesRecord
 from ..records.timeseries import EMGSignal, Point3D
-from ..signalprocessing import continuous_batches, fillna
+from ..signalprocessing import butterworth_filt, continuous_batches, fillna
 from ..utils import hex_to_rgba
 from .normativedata import jumps_normative_values
 from .protocols import Participant, TestProtocol, TestResults
@@ -116,9 +116,13 @@ class JumpTest(TestProtocol):
         self,
         participant: Participant,
         normative_data: pd.DataFrame = jumps_normative_values,
-        emg_normalization_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_normalization_references: (
+            TimeseriesRecord | str | Literal["self"]
+        ) = TimeseriesRecord(),
         emg_normalization_function: Callable = np.mean,
-        emg_activation_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_activation_references: (
+            TimeseriesRecord | str | Literal["self"]
+        ) = TimeseriesRecord(),
         emg_activation_threshold: float = 3,
         relevant_muscle_map: list[str] | None = None,
         squat_jumps: list[SingleJump] = [],
@@ -156,9 +160,13 @@ class JumpTest(TestProtocol):
         left_foot_ground_reaction_force: str = "left_foot",
         right_foot_ground_reaction_force: str = "right_foot",
         drop_jump_height_cm: int = 40,
-        emg_normalization_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_normalization_references: (
+            TimeseriesRecord | str | Literal["self"]
+        ) = TimeseriesRecord(),
         emg_normalization_function: Callable = np.mean,
-        emg_activation_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_activation_references: (
+            TimeseriesRecord | str | Literal["self"]
+        ) = TimeseriesRecord(),
         emg_activation_threshold: float = 3,
         relevant_muscle_map: list[str] | None = None,
         squat_jump_files: list[str] = [],
@@ -333,7 +341,43 @@ class JumpTest(TestProtocol):
 
     @property
     def processing_pipeline(self):
-        return get_default_processing_pipeline()
+
+        # we need a custom force platform processing pipeline due to the
+        # drop jump starting condition which might be outside the plates
+        def forceplatform_processing_func(fp: ForcePlatform):
+
+            # fill force nans with zeros
+            fp.force[:, :] = fillna(fp.force.to_numpy(), value=0, inplace=False)
+
+            # fill position nans via cubic spline
+            fp.origin[:, :] = fillna(fp.origin.to_numpy(), inplace=False)
+
+            # lowpass filter both origin and force
+            fsamp = float(1 / np.mean(np.diff(fp.index)))
+            filt_fun = lambda x: butterworth_filt(
+                x,
+                fcut=30,
+                fsamp=fsamp,  # type: ignore
+                order=4,
+                ftype="lowpass",
+                phase_corrected=True,
+            )
+            fp.origin.apply(filt_fun, axis=0, inplace=True)
+            fp.force.apply(filt_fun, axis=0, inplace=True)
+
+            # update moments
+            fp.update_moments(inplace=True)
+
+            # set moments corresponding to the very low vertical force to zero
+            module = fp.force.copy().module.to_numpy().flatten()  # type: ignore
+            idxs = module < MINIMUM_CONTACT_FORCE_N
+            vals = fp.torque.copy().to_numpy()
+            vals[idxs, :] = 0
+            fp.torque[:, :] = vals
+
+        pipeline = get_default_processing_pipeline()
+        pipeline.add(ForcePlatform=[forceplatform_processing_func])
+        return pipeline
 
 
 class JumpTestResults(TestResults):
@@ -696,7 +740,12 @@ class JumpTestResults(TestResults):
             sides = norm["side"].str.lower().tolist()
             genders = norm["gender"].str.lower().tolist()
             for t, s in combs:
-                types_idx = np.array([t.lower() in v for v in types])
+                types_idx = np.array(
+                    [
+                        t.lower().rsplit(" (", 1)[0] in v.rsplit(" (", 1)[0]
+                        for v in types
+                    ]
+                )
                 sides_idx = np.array([s in v for v in sides])
                 gender_idx = np.array([gender in v for v in genders])
                 mask = types_idx & sides_idx & gender_idx
@@ -741,7 +790,7 @@ class JumpTestResults(TestResults):
                 balance_data[(t, s)] = float(balance.to_numpy())
 
         # prepare the balance norms
-        vals = np.array([0, 10, 20, 30, 40, 50])
+        vals = np.array([0, 5, 10, 15, 20, 25])
         lows = vals[:-1].copy()
         tops = vals[1:].copy()
         clrs = list(RANK_5COLORS.values())
@@ -843,7 +892,7 @@ class JumpTestResults(TestResults):
                 range=[0, len(dct) + 1],
                 tickvals=np.arange(len(dct)) + 1,
                 tickmode="array",
-                ticktext=list(dct.keys()),
+                ticktext=[str(i).capitalize() for i in list(dct.keys())],
             )
 
             # plot the norms as colored boxes behind the bars
@@ -872,13 +921,13 @@ class JumpTestResults(TestResults):
                     fig.add_annotation(
                         x=len(dct) + 1,
                         y=rtop,
-                        text=f"{rtop}cm",
+                        text=f"{rtop:0.1f}cm",
                         showarrow=False,
                         xanchor="right",
                         yanchor="top",
                         font=dict(color=rclr),
                         valign="top",
-                        yshift=-10,
+                        yshift=0,
                         name=rlbl,
                         row=1,  # type: ignore
                         col=n + 1,  # type: ignore

@@ -7,7 +7,7 @@ base test module containing classes and functions used to perform lab tests.
 import pickle
 from datetime import date, datetime
 from os.path import exists
-from typing import Any, Callable, Protocol, Self, runtime_checkable
+from typing import Any, Callable, Literal, Protocol, Self, runtime_checkable
 
 import numpy as np
 import pandas as pd
@@ -781,9 +781,13 @@ class TestProtocol(Protocol):
         self,
         participant: Participant,
         normative_data: pd.DataFrame,
-        emg_normalization_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_normalization_references: (
+            TimeseriesRecord | str | Literal["self"]
+        ) = TimeseriesRecord(),
         emg_normalization_function: Callable = np.mean,
-        emg_activation_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_activation_references: (
+            TimeseriesRecord | str | Literal["self"]
+        ) = TimeseriesRecord(),
         emg_activation_threshold: float = 3,
         relevant_muscle_map: list[str] | None = None,
     ):
@@ -794,6 +798,24 @@ class TestProtocol(Protocol):
         self.set_emg_activation_references(emg_activation_references)
         self.set_emg_activation_threshold(emg_activation_threshold)
         self.set_relevant_muscle_map(relevant_muscle_map)
+
+    def __setstate__(self, state):
+        """
+        Restore object state from pickle and ensure all required attributes are initialized.
+        This handles cases where older pickled objects might be missing some attributes.
+        """
+        self.__dict__.update(state)
+        # Ensure all required attributes exist with default values if missing
+        if not hasattr(self, "_emg_activation_references"):
+            self._emg_activation_references = TimeseriesRecord()
+        if not hasattr(self, "_emg_normalization_references"):
+            self._emg_normalization_references = TimeseriesRecord()
+        if not hasattr(self, "_emg_activation_threshold"):
+            self._emg_activation_threshold = 3
+        if not hasattr(self, "_emg_normalization_function"):
+            self._emg_normalization_function = np.mean
+        if not hasattr(self, "_relevant_muscle_map"):
+            self._relevant_muscle_map = None
 
     def set_relevant_muscle_map(self, muscle_map: list[str] | None):
         if muscle_map is None or (
@@ -817,23 +839,35 @@ class TestProtocol(Protocol):
     def emg_normalization_function(self):
         return self._emg_normalization_function
 
-    def set_emg_normalization_references(self, ref: TimeseriesRecord):
-        if not isinstance(ref, TimeseriesRecord):
-            msg = "emg_normalization_references must be a TimeseriesRecord"
-            msg += " instance with EMGSignal objects contained inside."
+    def set_emg_normalization_references(
+        self, ref: TimeseriesRecord | str | Literal["self"]
+    ):
+        if isinstance(ref, str):
+            if ref == "self" and isinstance(self, TimeseriesRecord):
+                self._emg_normalization_references = self.emgsignals.copy()
+        elif isinstance(ref, TimeseriesRecord):
+            self._emg_normalization_references = ref
+        else:
+            msg = "emg_normalization_references must be: 1) a TimeseriesRecord "
+            msg += " instance with EMGSignal objects contained inside. 2) 'self'."
             raise ValueError(msg)
-        self._emg_normalization_references = ref
 
     @property
     def emg_normalization_references(self):
         return self._emg_normalization_references
 
-    def set_emg_activation_references(self, ref: TimeseriesRecord):
-        if not isinstance(ref, TimeseriesRecord):
-            msg = "emg_activation_references must be a TimeseriesRecord"
-            msg += " instance with EMGSignal objects contained inside."
+    def set_emg_activation_references(
+        self, ref: TimeseriesRecord | str | Literal["self"]
+    ):
+        if isinstance(ref, str):
+            if ref == "self" and isinstance(self, TimeseriesRecord):
+                self._emg_activation_references = self.emgsignals.copy()
+        elif isinstance(ref, TimeseriesRecord):
+            self._emg_activation_references = ref
+        else:
+            msg = "emg_activation_references must be: 1) a TimeseriesRecord "
+            msg += " instance with EMGSignal objects contained inside. 2) 'self'."
             raise ValueError(msg)
-        self._emg_activation_references = ref
 
     @property
     def emg_activation_references(self):

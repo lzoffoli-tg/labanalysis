@@ -262,9 +262,13 @@ class Isokinetic1RMTest(TestProtocol):
         bilateral: IsokineticExercise | None,
         participant: Participant,
         normative_data: pd.DataFrame = isok_1rm_normative_values,
-        emg_normalization_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_normalization_references: (
+            TimeseriesRecord | str | Literal["self"]
+        ) = TimeseriesRecord(),
         emg_normalization_function: Callable = np.mean,
-        emg_activation_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_activation_references: (
+            TimeseriesRecord | str | Literal["self"]
+        ) = TimeseriesRecord(),
         emg_activation_threshold: float = 3,
         relevant_muscle_map: list[str] | None = None,
     ):
@@ -367,9 +371,13 @@ class Isokinetic1RMTest(TestProtocol):
         right_emg_filename: str | None = None,
         bilateral_emg_filename: str | None = None,
         normative_data: pd.DataFrame = isok_1rm_normative_values,
-        emg_normalization_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_normalization_references: (
+            TimeseriesRecord | str | Literal["self"]
+        ) = TimeseriesRecord(),
         emg_normalization_function: Callable = np.mean,
-        emg_activation_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_activation_references: (
+            TimeseriesRecord | str | Literal["self"]
+        ) = TimeseriesRecord(),
         emg_activation_threshold: float = 3,
         relevant_muscle_map: list[str] | None = None,
     ):

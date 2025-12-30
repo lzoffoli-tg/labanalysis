@@ -409,9 +409,13 @@ class UprightBalanceTest(TestProtocol):
         exercise: UprightPosture,
         eyes: Literal["open", "closed"],
         normative_data: pd.DataFrame = uprightbalance_normative_values,
-        emg_normalization_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_normalization_references: (
+            TimeseriesRecord | str | Literal["self"]
+        ) = TimeseriesRecord(),
         emg_normalization_function: Callable = np.mean,
-        emg_activation_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_activation_references: (
+            TimeseriesRecord | str | Literal["self"]
+        ) = TimeseriesRecord(),
         emg_activation_threshold: float | int = 3,
         relevant_muscle_map: list[str] | None = None,
     ):
@@ -436,9 +440,13 @@ class UprightBalanceTest(TestProtocol):
         left_foot_ground_reaction_force: str | None = None,
         right_foot_ground_reaction_force: str | None = None,
         normative_data: pd.DataFrame = uprightbalance_normative_values,
-        emg_normalization_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_normalization_references: (
+            TimeseriesRecord | str | Literal["self"]
+        ) = TimeseriesRecord(),
         emg_normalization_function: Callable = np.mean,
-        emg_activation_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_activation_references: (
+            TimeseriesRecord | str | Literal["self"]
+        ) = TimeseriesRecord(),
         emg_activation_threshold: float | int = 3,
         relevant_muscle_map: list[str] | None = None,
     ):
@@ -728,9 +736,13 @@ class PlankBalanceTest(TestProtocol):
         exercise: PronePosture,
         eyes: Literal["open", "closed"],
         normative_data: pd.DataFrame = plankbalance_normative_values,
-        emg_normalization_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_normalization_references: (
+            TimeseriesRecord | str | Literal["self"]
+        ) = TimeseriesRecord(),
         emg_normalization_function: Callable = np.mean,
-        emg_activation_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_activation_references: (
+            TimeseriesRecord | str | Literal["self"]
+        ) = TimeseriesRecord(),
         emg_activation_threshold: float | int = 3,
         relevant_muscle_map: list[str] | None = None,
     ):
@@ -779,9 +791,13 @@ class PlankBalanceTest(TestProtocol):
         left_hand_ground_reaction_force: str = "left_hand",
         right_hand_ground_reaction_force: str = "right_hand",
         normative_data: pd.DataFrame = uprightbalance_normative_values,
-        emg_normalization_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_normalization_references: (
+            TimeseriesRecord | str | Literal["self"]
+        ) = TimeseriesRecord(),
         emg_normalization_function: Callable = np.mean,
-        emg_activation_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_activation_references: (
+            TimeseriesRecord | str | Literal["self"]
+        ) = TimeseriesRecord(),
         emg_activation_threshold: float | int = 3,
         relevant_muscle_map: list[str] | None = None,
     ):

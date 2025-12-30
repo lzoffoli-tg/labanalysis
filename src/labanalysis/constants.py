@@ -17,14 +17,14 @@ MINIMUM_ISOMETRIC_DISPLACEMENT_M = 0.05
 RANK_4COLORS = {
     "Good": "#54A3E7",
     "Normal": "#8EE09D",
-    "Fair": "#EEF862",
+    "Fair": "#F8E262",
     "Poor": "#EE9547",
 }
 RANK_5COLORS = {
     "Excellent": "#54A3E7",
     "Good": "#27BD6B",
     "Normal": "#8EE09D",
-    "Fair": "#EEF862",
+    "Fair": "#F8E262",
     "Poor": "#EE9547",
 }
 SIDE_COLORS = {

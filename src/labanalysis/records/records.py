@@ -120,9 +120,15 @@ class Record:
         self._data[key] = value
 
     def __getattr__(self, name):
-        if name in self._data.keys():
-            return self._data[name]
-        raise ValueError(f"{name} is not a valid attribute of this Record")
+        # Use object.__getattribute__ to avoid infinite recursion during unpickling
+        try:
+            data = object.__getattribute__(self, "_data")
+        except AttributeError:
+            raise AttributeError(f"{name} is not a valid attribute of this Record")
+        
+        if name in data.keys():
+            return data[name]
+        raise AttributeError(f"{name} is not a valid attribute of this Record")
 
     def __setattr__(self, key: str, value: object):
         if key.startswith("_"):
