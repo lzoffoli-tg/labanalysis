@@ -125,7 +125,7 @@ class Record:
             data = object.__getattribute__(self, "_data")
         except AttributeError:
             raise AttributeError(f"{name} is not a valid attribute of this Record")
-        
+
         if name in data.keys():
             return data[name]
         raise AttributeError(f"{name} is not a valid attribute of this Record")
@@ -726,6 +726,8 @@ class TimeseriesRecord(Record):
         i_total = np.asarray(forces.index, float)
         f_total = np.zeros((rows, 3))
         m_total = np.zeros_like(f_total)
+        r_cop_weighted = np.zeros_like(f_total)
+        force_weight_total = np.zeros((rows, 1))
         axes = []
         units = {}
         for obj in forces.values():
@@ -734,18 +736,43 @@ class TimeseriesRecord(Record):
             m_arr = obj["torque"].to_numpy()
             i_arr = np.asarray(obj.index, float)
             mask = np.where(np.isin(i_total, i_arr))[0]
-            f_total[mask] = f_total[mask] + f_arr
-            m_total[mask] = m_total[mask] + m_arr + np.cross(r_arr, f_arr)
-            if len(axes) == 0:
-                axes = obj["origin"].columns
-                units = {i: obj[i].unit for i in ["origin", "force", "torque"]}
 
-        num = np.cross(f_total, m_total)
-        den = np.sum(f_total**2, axis=1)[:, np.newaxis]
+            # Sum forces
+            f_total[mask] = f_total[mask] + f_arr
+
+            # Sum moments around origin (adding translational moment)
+            m_total[mask] = m_total[mask] + m_arr + np.cross(r_arr, f_arr)
+
+            # Use vertical force component magnitude as scalar weight
+            v_idx = [
+                i for i, v in enumerate(obj.origin.columns) if v == obj.vertical_axis
+            ]
+            if len(v_idx) == 0:
+                weights = np.linalg.norm(f_arr, axis=1, keepdims=True)
+            else:
+                weights = np.abs(f_arr[:, v_idx[0]]).reshape(-1, 1)
+
+            # Accumulate weighted COP: r_cop_weighted = sum(r_cop * weight)
+            r_cop_weighted[mask] = r_cop_weighted[mask] + r_arr * weights
+            force_weight_total[mask] = force_weight_total[mask] + weights
+
+            # update units and axes
+            if len(units) == 0:
+                for lbl in ["origin", "force", "torque"]:
+                    units[lbl] = obj[lbl].unit
+                axes = obj["origin"].columns
+
+        # Calculate combined COP as weighted average using vertical force weights
+        with np.errstate(divide="ignore", invalid="ignore"):
+            cop_data = np.zeros_like(r_cop_weighted)
+            nz = force_weight_total[:, 0] != 0
+            if np.any(nz):
+                cop_data[nz] = r_cop_weighted[nz] / force_weight_total[nz]
+            cop_data = np.nan_to_num(cop_data, nan=0.0, posinf=0.0, neginf=0.0)
 
         # generate the force platform
         cop = Point3D(
-            num / den,
+            cop_data,
             forces.index.tolist(),
             units["origin"],
             axes,

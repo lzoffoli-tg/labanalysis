@@ -625,7 +625,7 @@ class UprightBalanceTestResults(TestResults):
         for region, pair in pairs.items():
             left, right = list(pair.values())
             fit = self._get_symmetry(left, right)
-            line = {f"force_{i}": float(v) for i, v in fit.items()}  # type: ignore
+            line = {f"force_{i}": float(v.iloc[0]) for i, v in fit.items()}  # type: ignore
             line = pd.DataFrame(pd.Series(line)).T
             line.insert(0, "region", region)
             out += [line]
