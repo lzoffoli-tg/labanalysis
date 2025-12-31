@@ -387,7 +387,34 @@ class Timeseries:
             stop = self.index[-1] if rows.stop is None else rows.stop
             row_mask = (self.index >= start) & (self.index <= stop)
         else:
-            row_mask = np.isin(self.index, rows)
+            # rows can be a list/ndarray of labels or boolean/positional indices
+            # If numeric floats are provided, match using isclose to tolerate
+            # floating point rounding differences in time indices.
+            try:
+                arr = np.asarray(rows)
+            except Exception:
+                arr = rows
+
+            # boolean mask
+            if isinstance(arr, (np.ndarray, list)) and all(
+                [isinstance(i, (bool, np.bool_)) for i in arr]
+            ):
+                row_mask = np.asarray(arr, dtype=bool)
+            # numeric array: use isclose for floats, isin for ints
+            elif isinstance(arr, np.ndarray) and arr.dtype.kind == "f":
+                idx = np.asarray(self.index, float)
+                mask = np.zeros(len(idx), dtype=bool)
+                for v in arr.astype(float):
+                    mask |= np.isclose(idx, v, rtol=1e-6, atol=1e-8)
+                row_mask = mask
+            elif isinstance(arr, (list, np.ndarray)) and all(
+                [isinstance(i, (int, np.integer)) for i in arr]
+            ):
+                # treat as positional/label integers
+                row_mask = np.isin(self.index, arr)
+            else:
+                # fallback to isin for other label types (strings, etc.)
+                row_mask = np.isin(self.index, rows)
         if cols is None:
             col_mask = slice(None)
         elif isinstance(cols, slice):
@@ -403,25 +430,46 @@ class Timeseries:
         else:
             col_mask = np.isin(self.columns, np.asarray(cols))
 
+        # If the selection includes all columns, treat as no-column-selection
+        # to preserve the original object type when returning the view.
+        if not isinstance(col_mask, slice):
+            try:
+                if col_mask.size == len(self.columns) and np.all(col_mask):
+                    cols = None
+                    col_mask = slice(None)
+            except Exception:
+                pass
+
+        # Extract data and prepare for view creation
+        view_data = self._data[row_mask, :][:, col_mask]
+        view_index = self.index[row_mask]
+        view_columns = self.columns[col_mask]
+
         # Create a new object that shares the same data buffer and
-        # handle the appropriate object type
+        # handle the appropriate object type. When `cols` is provided
+        # we always return a generic Timeseries to keep the object's
+        # class stable regardless of the number of selected columns.
         if cols is None:
             view_obj = self.__new__(type(self))
+            # preserve original subclass attributes
+            for key in dir(self):
+                try:
+                    setattr(view_obj, key, getattr(self, key))
+                except Exception:
+                    pass
         else:
             view_obj = Timeseries.__new__(Timeseries)
-
-        # populate the object
-        for key in dir(self):
+            # for generic Timeseries, only copy essential attributes
             try:
-                setattr(view_obj, key, getattr(self, key))
-            except Exception as exc:
-                pass
-        view_obj._data = self._data[row_mask, :][:, col_mask]
-        view_obj.index = self.index[row_mask]
-        if hasattr(view_obj, "columns"):
-            view_obj.columns = self.columns[col_mask]
+                view_obj._unit = getattr(self, "_unit")
+            except Exception:
+                view_obj._unit = "dimensionless"
 
-        # return
+        view_obj._data = view_data
+        view_obj.index = view_index
+        view_obj.columns = view_columns
+
+        # return the prepared view
         return view_obj
 
     def _binary_op(self, other, op):
@@ -565,8 +613,6 @@ class Timeseries:
             columns = object.__getattribute__(self, "columns")
             if name in columns:
                 data = object.__getattribute__(self, "_data")
-                if len(columns) == 1:
-                    return data.flatten()
                 loc = np.where(columns == name)[0]
                 index = object.__getattribute__(self, "index")
                 unit = object.__getattribute__(self, "_unit")
@@ -608,17 +654,41 @@ class Timeseries:
         return attr
 
     def __getitem__(self, key):
-        if isinstance(key, (tuple, list)) and len(key) == 2:
+        # Handle tuple (row, col) explicitly
+        if isinstance(key, tuple) and len(key) == 2:
             row_key, col_key = key
             return self._view(row_key, col_key)
-        elif isinstance(key, (slice, np.ndarray)):
+
+        # Handle list of column names (e.g., ts[["X","Y"]])
+        if isinstance(key, list):
+            # all strings -> column selection
+            if all(isinstance(k, str) for k in key):
+                return self._view(None, key)
+            # all numeric or boolean -> row selection
+            if all(isinstance(k, (int, float, bool)) for k in key):
+                return self._view(key, None)
+            # mixed or unsupported lists fall through to error
+
+        # numpy array: decide based on dtype
+        if isinstance(key, np.ndarray):
+            if key.dtype.kind in {"U", "S", "O"}:
+                return self._view(None, key.tolist())
+            else:
+                return self._view(key, None)
+
+        # slices select rows
+        if isinstance(key, slice):
             return self._view(key, None)
-        elif isinstance(key, str) and key in self.columns:
+
+        # single column name
+        if isinstance(key, str) and key in self.columns:
             return self._view(None, [key])
-        elif isinstance(key, int):
+
+        # single row index
+        if isinstance(key, (int, float)):
             return self._view([key], None)
-        else:
-            raise ValueError(f"{key} type not supported as item.")
+
+        raise ValueError(f"{key} type not supported as item.")
 
     def __setitem__(self, key, value):
 
@@ -696,41 +766,101 @@ class Timeseries:
         elif isinstance(key, tuple) and len(key) == 2:
             row_key, col_key = key
 
-            # Gestione colonne
+            # -- Columns: normalize to list of column names
+            col_names = None
             if isinstance(col_key, str):
-                col_key = [col_key]
-            elif isinstance(col_key, np.ndarray):
-                col_key = col_key.tolist()
+                col_names = [col_key]
             elif isinstance(col_key, slice):
                 start = 0 if col_key.start is None else col_key.start
                 stop = len(self.columns) if col_key.stop is None else col_key.stop
-                step = col_key.step if col_key.step is None else col_key.step
-                col_key = np.arange(start, stop, step)
-                col_key = self.columns[col_key].tolist()
-            if not isinstance(col_key, list):
+                step = 1 if col_key.step is None else col_key.step
+                col_names = self.columns[np.arange(start, stop, step)].tolist()
+            elif isinstance(col_key, (list, tuple, np.ndarray)):
+                arr = np.asarray(col_key)
+                if arr.dtype.kind in ("U", "S", "O"):
+                    col_names = arr.tolist()
+                elif arr.dtype == bool:
+                    col_names = self.columns[arr].tolist()
+                else:
+                    # numeric positions
+                    col_names = self.columns[arr.astype(int)].tolist()
+            else:
                 raise ValueError("Unsupported column key")
-            else:
-                col_mask = add_cols(col_key)  # type: ignore
 
-            # Gestione righe
-            if isinstance(row_key, (int, float)):
-                row_key = [row_key]
-            elif isinstance(row_key, slice):
-                start = self.index[0 if row_key.start is None else row_key.start]
-                stop = self.index[-1 if row_key.stop is None else row_key.stop]
-                row_key = (self.index >= start) & (self.index <= stop)
-                row_key = self.index[row_key].tolist()
-            elif isinstance(row_key, np.ndarray):
-                row_key = row_key.tolist()
-            if not isinstance(row_key, list):
+            # Ensure columns exist; append missing columns as NaN
+            col_positions = []
+            for name in col_names:
+                if name not in self.columns:
+                    # append new column
+                    new_col = np.full((self._data.shape[0], 1), np.nan)
+                    self._data = np.hstack([self._data, new_col])
+                    self.columns = np.append(self.columns, name)
+                col_positions.append(int(np.where(self.columns == name)[0][0]))
+
+            # -- Rows: determine integer positions for requested rows
+            # Support: single int/float, slice, list/array of floats/ints, boolean mask
+            if isinstance(row_key, slice):
+                start = self.index[0] if row_key.start is None else row_key.start
+                stop = self.index[-1] if row_key.stop is None else row_key.stop
+                row_positions = list(
+                    np.where((self.index >= start) & (self.index <= stop))[0]
+                )
+            elif isinstance(row_key, (int, float)):
+                row_vals = [float(row_key)]
+                row_positions = []
+                for v in row_vals:
+                    # try to find existing index with isclose
+                    idx = np.where(
+                        np.isclose(
+                            self.index.astype(float), float(v), rtol=1e-6, atol=1e-8
+                        )
+                    )[0]
+                    if idx.size == 0:
+                        # append new row
+                        self._data = np.vstack(
+                            [self._data, np.full((1, self._data.shape[1]), np.nan)]
+                        )
+                        self.index = np.append(self.index, float(v))
+                        idx = np.array([len(self.index) - 1])
+                    row_positions.append(int(idx[0]))
+            elif isinstance(row_key, (list, tuple, np.ndarray)):
+                arr = np.asarray(row_key)
+                if arr.dtype == bool:
+                    # boolean mask over rows
+                    if arr.size != self.index.size:
+                        raise ValueError("Boolean row mask must match index length")
+                    row_positions = list(np.where(arr)[0])
+                else:
+                    # numeric values: use isclose to match indices; append missing
+                    vals_to_find = arr.astype(float)
+                    row_positions = []
+                    for v in vals_to_find:
+                        idx = np.where(
+                            np.isclose(
+                                self.index.astype(float), float(v), rtol=1e-6, atol=1e-8
+                            )
+                        )[0]
+                        if idx.size == 0:
+                            # append new row
+                            self._data = np.vstack(
+                                [self._data, np.full((1, self._data.shape[1]), np.nan)]
+                            )
+                            self.index = np.append(self.index, float(v))
+                            idx = np.array([len(self.index) - 1])
+                        row_positions.append(int(idx[0]))
+            else:
                 raise ValueError("Unsupported row key")
-            else:
-                row_mask = add_rows(row_key)
 
-            # Assegna i valori
-            self._data[np.ix_(row_mask, col_mask)] = vals
+            # Assign values with broadcasting as needed
+            row_idx = np.asarray(row_positions, dtype=int)
+            col_idx = np.asarray(col_positions, dtype=int)
+            try:
+                self._data[np.ix_(row_idx, col_idx)] = np.asarray(value, dtype=float)
+            except ValueError:
+                # try to broadcast scalar
+                self._data[np.ix_(row_idx, col_idx)] = float(value)
 
-            # ordina righe
+            # sort rows by index
             sorting_index = np.argsort(self.index)
             self.index = self.index[sorting_index]
             self._data = self._data[sorting_index, :]
