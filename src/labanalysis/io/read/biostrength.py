@@ -121,8 +121,8 @@ class BiostrengthProduct:
             self.load_motor_nm
             / G
             / self._pulley_radius_m
-            * self.camme_ratio
-            / self.spring_correction
+            / self.camme_ratio
+            * self.spring_correction
             + self.lever_weight_kgf
         )
 
@@ -233,7 +233,7 @@ class BiostrengthProduct:
         self,
         time_s: NDArray[np.floating],
         motor_position_rad: NDArray[np.floating],
-        load_kgf: NDArray[np.floating],
+        motor_load_nm: NDArray[np.floating],
     ):
         # check the entries
         try:
@@ -251,13 +251,7 @@ class BiostrengthProduct:
                 "motor_position_rad must be castable to a numpy array of floats"
             ) from exc
         try:
-            self._load_motor_nm = (
-                (load_kgf - self._lever_weight_kgf)
-                * G
-                * self._pulley_radius_m
-                * self._spring_correction
-                / self._camme_ratio
-            )
+            self._load_motor_nm = motor_load_nm
 
         except Exception as exc:
             raise ValueError(
@@ -295,12 +289,11 @@ class BiostrengthProduct:
         obj = pd.read_csv(file, sep="|")
         col = obj.columns[[0, 2, 5]]
         obj = obj[col].astype(str).map(lambda x: x.replace(",", "."))
-        time, load, pos = obj.astype(float).values.T
-        load = cls._torque_load_coefs[0] * load + cls._torque_load_coefs[1]
-        load += cls._lever_weight_kgf
+        time, load_nm, pos = obj.astype(float).values.T
+        # load = cls._torque_load_coefs[0] * load + cls._torque_load_coefs[1]
 
         # return
-        return cls(time, pos, load)  # type: ignore
+        return cls(time, pos, load_nm)  # type: ignore
 
 
 class ChestPress(BiostrengthProduct):
@@ -389,8 +382,8 @@ class LegPress(BiostrengthProduct):
     _lever_weight_kgf: float = 9.0 + 0.17 * 85
     _camme_ratio: float = 1
     _lever_number: int = 1
-    _lever_radius_m: float = 0.08175
-    _lever_length_m: float = 1
+    _camme_radius_m: float = 0.08175
+    _lever_length_m: float = 0.08175
     _rom_correction_coefs: list[float] = [
         -0.0000594298355666,
         0.0155680740573513,

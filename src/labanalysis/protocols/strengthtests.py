@@ -10,7 +10,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from ..constants import RANK_4COLORS, G, SIDE_COLORS
+from ..constants import G, RANK_4COLORS, SIDE_COLORS
 from ..io.read.biostrength import PRODUCTS
 from ..records import IsokineticExercise, IsometricExercise
 from ..records.pipelines import get_default_processing_pipeline
@@ -68,20 +68,22 @@ def _get_force_figure(
         width=500 * len(titles),
     )
     if len(get_muscles()) > 0:
-        ncolors = len(RANK_4COLORS) - 1
-        cscales = [[i / ncolors, col] for i, col in enumerate(RANK_4COLORS.values())]
+        labels = list(RANK_4COLORS.keys())
+        colors = list(RANK_4COLORS.values())
+        values = [10, 20, 30, 40]
+        cscale = [[i / (len(colors) - 1), c] for i, c in enumerate(colors)]
         fig.update_layout(
             coloraxis=dict(
-                colorscale=cscales,
+                colorscale=cscale,
                 cmin=0,
                 cmax=50,
                 colorbar=dict(
                     title=dict(text="Muscle<br>Imbalance<br>Levels"),
-                    len=0.75,
+                    len=0.95,
                     y=0.5,
                     tickmode="array",
-                    tickvals=[10, 20, 30, 40],
-                    ticktext=["Minimal", "Low", "Moderate", "High"],
+                    tickvals=values,
+                    ticktext=labels,
                 ),
             ),
         )
@@ -150,7 +152,10 @@ def _get_force_figure(
 
     # update force profiles figure layout
     force_data = tracks.y.to_numpy().flatten()
-    yrange = [np.min(force_data) * 0.9, np.max(force_data) * 1.5]
+    rom_data = tracks["Concentric ROM (mm)"].to_numpy().flatten()
+    yrange = [np.min(force_data) * 0.9, np.max(force_data) * 1.3]
+    xticks = np.linspace(0, np.ceil(np.max(rom_data)), 5)
+    xticks = [int(round(i / 5) * 5) for i in xticks]
     for i in range(len(sides)):
         fig.update_xaxes(
             title=x_lbl,
@@ -162,6 +167,9 @@ def _get_force_figure(
             showgrid=False,
             zeroline=False,
             showticklabels=True,
+            tickvals=xticks,
+            tickmode="array",
+            range=[min(xticks), max(xticks)],
         )
         fig.update_yaxes(
             title="Force (N)",
@@ -208,7 +216,6 @@ def _get_force_figure(
                     marker=dict(
                         color=[abs(symm)],
                         coloraxis="coloraxis",
-                        # showscale=bool(i == 0),
                     ),
                 ),
                 row=1,

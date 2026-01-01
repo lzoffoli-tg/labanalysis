@@ -251,7 +251,7 @@ def _get_sway_figure(
         ]
         vals = []
         for i, (muscle, dct) in enumerate(emg_signals.items()):
-            lt, rt = [float(m.mean()) for m in dct.values()]
+            lt, rt = [float(m.mean().iloc[0]) for m in dct.values()]
             symm = (lt - rt) / (rt + lt) * 100
             val = max(-50, min(50, symm))
             vals.append(val)
