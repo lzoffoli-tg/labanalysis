@@ -20,7 +20,7 @@ from ..records.records import ForcePlatform, TimeseriesRecord
 from ..records.timeseries import EMGSignal, Point3D, Signal1D, Signal3D
 from ..signalprocessing import butterworth_filt, rms_filt
 
-__all__ = ["TestProtocol", "Participant"]
+__all__ = ["TestProtocol", "Participant", "TestResults"]
 
 
 #! CLASSES
@@ -1038,7 +1038,7 @@ class TestProtocol(Protocol):
 
     #! MANDATORY METHODS TO BE IMPLEMENTED
 
-    def get_results(self, include_emg: bool) -> TestResults: ...
+    def get_results(self, include_emg: bool = True) -> TestResults: ...
 
     @property
     def processing_pipeline(self) -> ProcessingPipeline:

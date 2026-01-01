@@ -79,7 +79,7 @@ class BiostrengthProduct:
         return np.tile(self._spring_correction, len(self.time_s))
 
     @property
-    def load_motor_nm(self):
+    def torque_nm(self):
         """return the motor load in Nm"""
         return self._load_motor_nm[1:-1].astype(float)
 
@@ -115,10 +115,10 @@ class BiostrengthProduct:
         ).astype(float)
 
     @property
-    def load_lever_kgf(self):
+    def load_kgf(self):
         """return the calculated lever weight"""
         return (
-            self.load_motor_nm
+            self.torque_nm
             / G
             / self._pulley_radius_m
             / self.camme_ratio
@@ -156,7 +156,7 @@ class BiostrengthProduct:
     @property
     def power_w(self):
         """return the calculated power"""
-        return self.load_motor_nm * self.speed_motor_rads
+        return self.torque_nm * self.speed_motor_rads
 
     @property
     def rm1_coefs(self):
@@ -186,7 +186,7 @@ class BiostrengthProduct:
         """return a summary table containing the resulting data"""
         out = {
             ("Time", "s"): self.time_s,
-            ("Load", "kgf"): self.load_lever_kgf,
+            ("Load", "kgf"): self.load_kgf,
             # ("Motor Load", "Nm"): self.load_motor_nm,
             ("Position", "m"): self.position_lever_m,
             ("Position", "deg"): self.position_lever_deg,
@@ -259,11 +259,7 @@ class BiostrengthProduct:
             ) from exc
 
         # check the length of each element
-        if (
-            not len(self.time_s)
-            == len(self.position_motor_rad)
-            == len(self.load_motor_nm)
-        ):
+        if not len(self.time_s) == len(self.position_motor_rad) == len(self.torque_nm):
             msg = "time_s, motor_position_rad and motor_load_nm must all have "
             msg += "the same number of samples."
             raise ValueError(msg)
@@ -305,6 +301,7 @@ class ChestPress(BiostrengthProduct):
     _camme_ratio: float = 0.74
     _lever_number: int = 1
     _lever_radius_m: float = 0.054
+    _lever_length_m: float = 0.054  # TODO check for the chest press lever length
     _rom_correction_coefs: list[float] = [
         -0.0000970270993668,
         0.0284363503605837,
@@ -331,6 +328,7 @@ class ShoulderPress(BiostrengthProduct):
     _camme_ratio: float = 0.794
     _lever_number: int = 1
     _lever_radius_m: float = 0.054
+    _lever_length_m: float = 0.054  # TODO check for the shoulder press lever length
     _rom_correction_coefs: list[float] = [
         -0.0001308668672017,
         0.0242885910602534,
@@ -357,6 +355,7 @@ class LowRow(BiostrengthProduct):
     _camme_ratio: float = 0.64
     _lever_number: int = 1
     _lever_radius_m: float = 0.054
+    _lever_length_m: float = 0.054  # TODO check for the low row lever length
     _rom_correction_coefs: list[float] = [
         0.0009021430405893,
         -0.0236810740758083,
@@ -410,6 +409,7 @@ class LegExtension(BiostrengthProduct):
     _camme_ratio: float = 0.738
     _lever_number: int = 1
     _lever_radius_m: float = 0.21  # ? TO BE CHECKED
+    _lever_length_m: float = 0.054  # TODO check for the chest press lever length
     _rom_correction_coefs: list[float] = [
         0.1237962826137063,
         -0.0053627811034270,
@@ -434,8 +434,10 @@ class LegCurl(BiostrengthProduct):
     _pulley_radius_m: float = 0.054
     _lever_weight_kgf: float = 7  # ? TO BE CHECKED
     _camme_ratio: float = 0.598
+    _camme_radius_m = 0.054
     _lever_number: int = 1
     _lever_radius_m: float = 0.054  # ? TO BE CHECKED
+    _lever_length_m: float = 0.054  # TODO check for the chest press lever length
     _rom_correction_coefs: list[float] = [
         0.7467342612179453,
         -0.0610892700593208,
@@ -462,6 +464,7 @@ class AdjustablePulleyREV(BiostrengthProduct):
     _camme_ratio: float = 0.25
     _lever_number: int = 2
     _lever_radius_m: float = 0.054
+    _lever_length_m: float = 0.054
     _rom_correction_coefs: list[float] = [0, 0, 0]
     _rm1_coefs: list[float] = [1, 0]
 
@@ -538,12 +541,12 @@ class LegExtensionREV(LegExtension):
         obj = pd.read_csv(file, sep="|")
         col = obj.columns[[0, 2, 5]]
         obj = obj[col].astype(str).map(lambda x: x.replace(",", "."))
-        time, load, pos = obj.astype(float).values.T
-        load = cls._torque_load_coefs[0] * load + cls._torque_load_coefs[1]
-        load += cls._lever_weight_kgf
+        time, load_nm, pos = obj.astype(float).values.T
+        # load = cls._torque_load_coefs[0] * load + cls._torque_load_coefs[1]
+        # load += cls._lever_weight_kgf
 
         # return
-        return cls(time, pos, load, roll_position)  # type: ignore
+        return cls(time, pos, load_nm, roll_position)  # type: ignore
 
     @property
     def lever_weight_kgf(self):
@@ -607,6 +610,7 @@ class LegExtensionREV(LegExtension):
     @property
     def lever_length_m(self):
         """lever length in m"""
+        # TODO check for the function matching the leg extension rev lever length to the roll position
         _length = [
             0.45,
             0.45,

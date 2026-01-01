@@ -466,7 +466,7 @@ class BiostrengthExercise(TimeseriesRecord):
         side: Literal["bilateral", "left", "right"],
     ):
         prod = BIOSTRENGTH_PRODUCTS_MAP[product].from_txt_file(filename)
-        load_kgf = prod.load_lever_kgf
+        load_kgf = prod.load_kgf
         time_s = prod.time_s
         pos_m = prod.position_lever_m
         force = Signal1D(
