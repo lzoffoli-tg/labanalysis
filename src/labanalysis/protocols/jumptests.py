@@ -1105,32 +1105,11 @@ class JumpTestResults(TestResults):
                 ),
             )
 
-            # plot the zero line
-            fig.add_vline(
-                row=3,  # type: ignore
-                col=n + 1,  # type: ignore
-                x=0,
-                line_width=2,
-                line_dash="solid",
-                showlegend=False,
-            )
-
-            # update the xaxes
-            xrange = max(50, abs(val) * 1.5)
-            xrange = [-xrange, xrange]
-            fig.update_xaxes(
-                row=3,
-                col=n + 1,
-                range=xrange,
-                showticklabels=False,
-            )
-
-            # update the yaxes
-            fig.update_yaxes(row=3, col=n + 1, range=[0, 2])
-
             # plot the norms as colored boxes behind the bars
             zipped = zip(rank_lows, rank_tops, rank_lbls, rank_clrs)
+            vals = []
             for rlow, rtop, rlbl, rclr in zipped:
+                vals += [rlow, rtop]
                 fig.add_shape(
                     type="rect",
                     y0=0,
@@ -1189,6 +1168,30 @@ class JumpTestResults(TestResults):
             # ensure that the legend is plotted once
             norm_plotted = True
 
+            # plot the zero line
+            fig.add_vline(
+                row=3,  # type: ignore
+                col=n + 1,  # type: ignore
+                x=0,
+                line_width=2,
+                line_dash="solid",
+                showlegend=False,
+            )
+
+            # update the xaxes
+            xrange = [np.min(vals), np.max(vals)]
+            if val * 1.5 < xrange[0] or val * 1.5 > xrange[1]:
+                xrange = [-abs(val) * 1.5, abs(val) * 1.5]
+            fig.update_xaxes(
+                row=3,
+                col=n + 1,
+                range=xrange,
+                showticklabels=False,
+            )
+
+            # update the yaxes
+            fig.update_yaxes(row=3, col=n + 1, range=[0, 2])
+
         # check
         return fig
 
@@ -1225,6 +1228,7 @@ class JumpTestResults(TestResults):
             var_name="limb",
         )
 
+        """
         # keep the best jumps
         for (side, limb), dfr in activation_df.groupby(["side", "limb"]):
             mask = (best_jumps.side == side) & (best_jumps.limb == limb)
@@ -1232,6 +1236,9 @@ class JumpTestResults(TestResults):
             idx = dfr.loc[dfr.n != best_jump].index
             activation_df.loc[idx, "value"] = None
         activation_df.dropna(inplace=True)
+        """
+        activation_df = activation_df.groupby(["side", "limb"], as_index=False)
+        activation_df = activation_df.mean(numeric_only=True)
 
         # prepare the dataframe to be used for generating the figure
         activation_df.side = activation_df.side.str.capitalize()
@@ -1327,15 +1334,6 @@ class JumpTestResults(TestResults):
                 row=1,
                 col=n + 1,
             )
-            fig.add_vline(
-                row=1,  # type: ignore
-                col=n + 1,  # type:ignore
-                x=0,
-                line_width=2,
-                line_color="black",
-                line_dash="solid",
-                showlegend=False,
-            )
 
             # render the activation bars
             muscles = []
@@ -1392,6 +1390,17 @@ class JumpTestResults(TestResults):
                     col=n + 1,
                 )
 
+            # add the zero line
+            fig.add_vline(
+                row=1,  # type: ignore
+                col=n + 1,  # type:ignore
+                x=0,
+                line_width=2,
+                line_color="black",
+                line_dash="solid",
+                showlegend=False,
+            )
+
         return fig
 
     def _get_drop_jumps_muscle_activation_time_figure(self, test: JumpTest):
@@ -1428,6 +1437,7 @@ class JumpTestResults(TestResults):
             var_name="limb",
         )
 
+        """
         # keep the best jumps
         for (side, limb), dfr in activation_df.groupby(["side", "limb"]):
             mask = (best_jumps.side == side) & (best_jumps.limb == limb)
@@ -1435,6 +1445,9 @@ class JumpTestResults(TestResults):
             idx = dfr.loc[dfr.n != best_jump].index
             activation_df.loc[idx, "value"] = None
         activation_df.dropna(inplace=True)
+        """
+        activation_df = activation_df.groupby(["side", "limb"], as_index=False)
+        activation_df = activation_df.mean(numeric_only=True)
 
         # prepare the dataframe to be used for generating the figure
         activation_df.side = activation_df.side.str.capitalize()
@@ -1469,9 +1482,9 @@ class JumpTestResults(TestResults):
         # adjust the extremeties if required
         vals = activation_df["value"].to_numpy().flatten().tolist()
         if np.max(vals) * 1.4 > np.max(rank_vals):
-            rank_ints[-1, 1] = np.max(vals) * 1.4
+            rank_ints[-1, 1] = 600
         if np.min(vals) * 1.4 < np.min(rank_vals):
-            rank_ints[0, 0] = np.min(vals) * 1.4
+            rank_ints[0, 0] = -600
 
         # prepare the figure
         sides = np.unique(activation_df.side.to_numpy()).tolist()
@@ -1504,6 +1517,12 @@ class JumpTestResults(TestResults):
             for m, (muscle, dfm) in enumerate(dfr.groupby("muscle")):
                 for limb, dfs in dfm.groupby("limb"):
                     x = float(dfs["value"].to_numpy()[0])
+                    if x > 300:
+                        t = f">+300ms"
+                        x = 300
+                    elif x < -300:
+                        t = f"<-300ms"
+                        x = -300
                     fig.add_trace(
                         row=1,
                         col=n + 1,
@@ -1512,7 +1531,7 @@ class JumpTestResults(TestResults):
                             x=[x],
                             marker_color=SIDE_COLORS[str(limb).lower()],
                             marker_line_color="black",
-                            text=[f"{x:+0.0f}ms"],
+                            text=[t],
                             textposition="outside",
                             textangle=0,
                             name=limb,
