@@ -1105,6 +1105,10 @@ class JumpTestResults(TestResults):
                 ),
             )
 
+            # update rank extremes
+            if np.max(rank_tops) < val * 1.5:
+                rank_tops[-1] = val * 1.5
+
             # plot the norms as colored boxes behind the bars
             zipped = zip(rank_lows, rank_tops, rank_lbls, rank_clrs)
             vals = []
@@ -1182,8 +1186,6 @@ class JumpTestResults(TestResults):
 
             # update the xaxes
             xrange = [-np.max(vals), np.max(vals)]
-            if val * 1.5 < xrange[0] or val * 1.5 > xrange[1]:
-                xrange = [-abs(val) * 1.5, abs(val) * 1.5]
             fig.update_xaxes(
                 row=3,
                 col=n + 1,
