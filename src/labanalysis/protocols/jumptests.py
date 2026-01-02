@@ -673,15 +673,14 @@ class JumpTestResults(TestResults):
                 else:
                     n = df.loc[df.parameter == "elevation (cm)", ["n", side]]
                     n = n.copy().sort_values(side)["n"].to_numpy()[-1]
-                line = df.iloc[0]
-                line.parameter = "best jump"
-                line.drop("n", inplace=True)
+                line = df.iloc[[0]].copy()
+                line.loc[line.index, "parameter"] = "best jump"
+                line.drop(["n"], inplace=True, axis=1)
                 if side == "bilateral":
-                    line["left"] = n
-                    line["right"] = n
+                    line.loc[line.index, "left"] = n
+                    line.loc[line.index, "right"] = n
                 else:
-                    line[side] = n
-                line = pd.DataFrame(pd.Series(line)).T
+                    line.loc[line.index, side] = n
                 df = pd.concat([df, line], ignore_index=True)
                 sides_df[side] = df
 
@@ -883,8 +882,8 @@ class JumpTestResults(TestResults):
                     msg = "Multiple normative values found for jump elevation."
                     raise ValueError(msg)
                 if not tnorm.empty:
-                    avg = float(tnorm["mean"].to_numpy())
-                    std = float(tnorm["std"].to_numpy())
+                    avg = float(tnorm["mean"].to_numpy()[0])
+                    std = float(tnorm["std"].to_numpy()[0])
                     rank_vals = np.array([+3, +2, +1, -1, -2, -3]) * std
                     rank_vals += avg
                     rank_lows = rank_vals[1:].copy()
@@ -916,7 +915,7 @@ class JumpTestResults(TestResults):
                 balance = balance_df.loc[balance_df["type"] == t].copy()
                 balance = balance.loc[balance["side"] == s]
                 balance = balance.loc[balance["n"] == best, "symmetry (%)"]
-                balance_data[(t, s)] = float(balance.to_numpy())
+                balance_data[(t, s)] = float(balance.to_numpy()[0])
 
         # prepare the balance norms
         vals = np.array([0, 5, 10, 15, 20, 25])
@@ -1414,12 +1413,13 @@ class JumpTestResults(TestResults):
         best_jumps = contact_df.loc[best_idx]
 
         # get the activation ratio
-        activation_df = summ.loc[
-            summ.parameter.map(lambda x: x.endswith("activation time (ms)"))
-        ]
+        activation_mask = summ.parameter.map(
+            lambda x: x.endswith("activation time (ms)")
+        )
+        activation_df = summ.loc[activation_mask].copy()
         muscles = activation_df.parameter.map(
             lambda x: x.split(" activation")[0].capitalize()
-        )
+        ).copy()
         activation_df.loc[activation_df.index, "muscle"] = muscles
         activation_df = activation_df.drop("parameter", axis=1)
         activation_df = activation_df.melt(
