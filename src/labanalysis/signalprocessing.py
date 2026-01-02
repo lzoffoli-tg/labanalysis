@@ -649,9 +649,13 @@ def butterworth_filt(
     """
 
     # get the filter coefficients
+    fcut = np.atleast_1d(fcut).flatten().astype(float)
+    fcut /= fsamp / 2
+    if len(fcut) == 1:
+        fcut = float(fcut[0])
     sos = signal.butter(
         order,
-        (np.array([fcut]).flatten() / (0.5 * fsamp)),
+        fcut,
         ftype,
         analog=False,
         output="sos",

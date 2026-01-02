@@ -119,10 +119,10 @@ class BiostrengthProduct:
         """return the calculated lever weight"""
         return (
             self.torque_nm
-            / G
-            / self._pulley_radius_m
-            / self.camme_ratio
             * self.spring_correction
+            / self._pulley_radius_m
+            / G
+            / self.camme_ratio
             + self.lever_weight_kgf
         )
 
@@ -300,7 +300,7 @@ class ChestPress(BiostrengthProduct):
     _lever_weight_kgf: float = -4.0
     _camme_ratio: float = 0.74
     _lever_number: int = 1
-    _lever_radius_m: float = 0.054
+    _camme_radius_m: float = 0.054
     _lever_length_m: float = 0.054  # TODO check for the chest press lever length
     _rom_correction_coefs: list[float] = [
         -0.0000970270993668,
