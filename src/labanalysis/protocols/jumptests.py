@@ -1190,7 +1190,12 @@ class JumpTestResults(TestResults):
                 row=3,
                 col=n + 1,
                 range=xrange,
-                showticklabels=False,
+                # showticklabels=False,
+                tickmode="array",
+                tickvals=[xrange[0] * 0.9, xrange[1] * 0.9],
+                ticktext=["Left", "Right"],
+                ticklen=0,
+                title="Force Imbalance (%)",
             )
 
             # update the yaxes
