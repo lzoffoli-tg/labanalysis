@@ -1080,7 +1080,7 @@ class JumpTestResults(TestResults):
             # jump height. Otherwise, use the color of the side with which the
             # jump has been performed.
             idx = np.where(rank_tops <= symm)[0]
-            idx = min(len(rank_clrs) - 1, idx[-1] if len(idx) > 0 else 0)
+            idx = (idx[-1] + 1) if len(idx) > 0 else (len(rank_clrs) - 1)
             color = rank_clrs[idx]
 
             # get the value and label
@@ -1140,6 +1140,7 @@ class JumpTestResults(TestResults):
                     row=3,
                     col=n + 1,
                 )
+                """
                 fig.add_annotation(
                     x=rtop,
                     y=0,
@@ -1164,6 +1165,7 @@ class JumpTestResults(TestResults):
                     row=3,  # type: ignore
                     col=n + 1,  # type: ignore
                 )
+                """
 
             # ensure that the legend is plotted once
             norm_plotted = True
@@ -1179,7 +1181,7 @@ class JumpTestResults(TestResults):
             )
 
             # update the xaxes
-            xrange = [np.min(vals), np.max(vals)]
+            xrange = [-np.max(vals), np.max(vals)]
             if val * 1.5 < xrange[0] or val * 1.5 > xrange[1]:
                 xrange = [-abs(val) * 1.5, abs(val) * 1.5]
             fig.update_xaxes(
@@ -1237,8 +1239,12 @@ class JumpTestResults(TestResults):
             activation_df.loc[idx, "value"] = None
         activation_df.dropna(inplace=True)
         """
-        activation_df = activation_df.groupby(["side", "limb"], as_index=False)
-        activation_df = activation_df.mean(numeric_only=True)
+        activation_df = activation_df.drop("n", axis=1)
+        activation_df = activation_df.groupby(
+            by=["muscle", "side", "limb"],
+            as_index=False,
+        )
+        activation_df = activation_df.mean()
 
         # prepare the dataframe to be used for generating the figure
         activation_df.side = activation_df.side.str.capitalize()
@@ -1277,6 +1283,7 @@ class JumpTestResults(TestResults):
         rank_vals = np.array([3, 2, 1, -1, -2, -3]) * std
 
         # prepare the figure
+        """
         titles = []
         for side, bst in best_jumps.groupby("side"):
             vals = {}
@@ -1294,6 +1301,8 @@ class JumpTestResults(TestResults):
                 ]
                 title = f"{side}<br>(" + ", ".join(title) + ")"
                 titles.append(title)
+        """
+        titles = np.unique(activation_df.side.to_numpy()).tolist()
         fig = make_subplots(
             rows=1,
             cols=len(titles),
@@ -1446,8 +1455,12 @@ class JumpTestResults(TestResults):
             activation_df.loc[idx, "value"] = None
         activation_df.dropna(inplace=True)
         """
-        activation_df = activation_df.groupby(["side", "limb"], as_index=False)
-        activation_df = activation_df.mean(numeric_only=True)
+        activation_df = activation_df.drop("n", axis=1)
+        activation_df = activation_df.groupby(
+            by=["muscle", "side", "limb"],
+            as_index=False,
+        )
+        activation_df = activation_df.mean()
 
         # prepare the dataframe to be used for generating the figure
         activation_df.side = activation_df.side.str.capitalize()
