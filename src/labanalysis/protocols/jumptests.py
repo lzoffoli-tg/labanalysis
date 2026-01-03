@@ -1121,8 +1121,8 @@ class JumpTestResults(TestResults):
                 )
 
             # update rank extremes
-            if np.max(rank_tops) < np.max(symm) * 1.5:
-                rank_tops[-1] = np.max(symm) * 1.5
+            if np.max(rank_tops) < np.max(symm) * 1.7:
+                rank_tops[-1] = np.max(symm) * 1.7
 
             # plot the norms as colored boxes behind the bars
             zipped = zip(rank_lows, rank_tops, rank_lbls, rank_clrs)
