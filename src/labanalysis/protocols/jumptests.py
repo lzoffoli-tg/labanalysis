@@ -16,26 +16,18 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from ..records.jumping import JumpExercise
-
 from ..constants import (
     MINIMUM_CONTACT_FORCE_N,
     RANK_3COLORS,
     RANK_5COLORS,
-    G,
     SIDE_COLORS,
+    G,
 )
-from ..records import DropJump, SingleJump
+from ..records.jumping import DropJump, SingleJump, JumpExercise
 from ..records.pipelines import get_default_processing_pipeline
 from ..records.records import ForcePlatform, TimeseriesRecord
 from ..records.timeseries import EMGSignal, Point3D
-from ..signalprocessing import (
-    butterworth_filt,
-    continuous_batches,
-    fillna,
-    mean_filt,
-    rms_filt,
-)
+from ..signalprocessing import butterworth_filt, continuous_batches, fillna, rms_filt
 from ..utils import hex_to_rgba
 from .normativedata import jumps_normative_values
 from .protocols import Participant, TestProtocol, TestResults
@@ -767,7 +759,7 @@ class JumpTestResults(TestResults):
 
         return pd.concat(syms, ignore_index=True)
 
-    def _get_grf_profiles_figure(self, test: JumpTest):
+    def _get_grf_figure(self, test: JumpTest):
 
         def get_data(jump: SingleJump | DropJump, n: int, typed: str):
             grf = jump.copy().resultant_force.copy()
@@ -808,6 +800,7 @@ class JumpTestResults(TestResults):
             matches=None,
             showticklabels=True,
             title="Time (s)",
+            range=[-1, None],
         )
         fig.add_hline(
             y=test.participant.weight * G,
@@ -820,60 +813,71 @@ class JumpTestResults(TestResults):
         fig.for_each_annotation(lambda x: x.update(text=x.text.split("=")[-1]))
         return fig
 
-    def _get_single_jumps_figure(self, test: JumpTest):
+    def _get_data_and_norms(
+        self,
+        metric: str,
+        test: JumpTest,
+        bilateral_is_unique: bool = True,
+        ranks: dict[str, str] = RANK_5COLORS,
+        symmetric_ranks: bool = False,
+    ):
 
-        # retrieve the jump height data
-        elevation_df = self.summary.copy()
-        elevation_df = elevation_df.loc[elevation_df.parameter == "elevation (cm)"]
-        elevation_df.drop(
-            ["parameter", "symmetry (%)"],
-            axis=1,
-            inplace=True,
-        )
-        elevation_df = elevation_df.melt(
-            id_vars=["type", "side", "n"],
-            var_name="s",
+        # retrieve the data of the required metric from summary
+        metric_df = self.summary.copy()
+        params: list[str] = metric_df.parameter.to_list()
+        idx = [i for i, v in enumerate(params) if v.endswith(metric)]
+        metric_df = metric_df.iloc[idx]
+        metric_df.drop(["symmetry (%)"], axis=1, inplace=True)
+        metric_df = metric_df.melt(
+            id_vars=["type", "side", "parameter", "n"],
+            var_name="limb",
             value_name="value",
         )
-        elevation_df = elevation_df.loc[
-            (elevation_df.side != "bilateral") | (elevation_df.s == "left")
-        ]
-        elevation_df.reset_index(drop=True, inplace=True)
-        elevation_df.loc[elevation_df.index, "side"] = elevation_df[
-            ["side", "s"]
-        ].apply(
-            lambda x: x.side if x.side == "bilateral" else x.s,
-            axis=1,
-        )
-        elevation_df = elevation_df.drop("s", axis=1)
-        elevation_df.insert(
-            0,
-            "set",
-            elevation_df.side.map(
-                lambda x: "bilateral" if x == "bilateral" else "unilateral"
-            ),
-        )
+        if bilateral_is_unique:
+            idx = (metric_df.side != "bilateral") | (metric_df.limb == "left")
+            metric_df = metric_df.loc[idx]
+            new_limbs = metric_df[["side", "limb"]].apply(
+                lambda x: x.side if x.side == "bilateral" else x.limb,
+                axis=1,
+            )
+            metric_df.loc[metric_df.index, "limb"] = new_limbs
+        metric_df.reset_index(drop=True, inplace=True)
+
+        # get the data sorted according to the subplots to be rendered
+        data: dict[tuple[str, str], dict[str, dict[str, list[float]]]] = {}
+        for (t, s), dfr in metric_df.groupby(["type", "side"]):
+            key = (str(t), str(s))
+            val: dict[str, dict[str, list[float]]] = {}
+            for param, dfp in dfr.groupby("parameter"):
+                dct: dict[str, list[float]] = {}
+                for side, dfs in dfp.groupby("limb"):
+                    k = str(side)
+                    v = dfs.sort_values("n").value.to_numpy().flatten().tolist()
+                    dct[k] = v
+                val[str(param)] = dct
+            data[key] = val
 
         # get the normative data sorted according to the subplots to be rendered
-        elevation_norms = {}
-        combs = elevation_df[["type", "set"]].drop_duplicates().values.tolist()
+        norms: dict[
+            tuple[str, str], tuple[list[float], list[float], list[str], list[str]]
+        ] = {}
+        combs = metric_df[["type", "side"]].drop_duplicates().values.tolist()
         if not test.normative_data.empty:
             gender = test.participant.gender
             if gender is None:
                 raise ValueError("Normative Data require gender being specified.")
             gender = gender.lower()
             norm = test.normative_data.copy()
-            norm = norm.loc[norm.parameter == "elevation (cm)"]
+            params: list[str] = norm.parameter.to_list()
+            idx = [i for i, v in enumerate(params) if v.endswith(metric)]
+            norm = norm.iloc[idx]
             types = norm["type"].str.lower().tolist()
+            types = [t.lower().rsplit(" (", 1)[0] for t in types]
             sides = norm["side"].str.lower().tolist()
             genders = norm["gender"].str.lower().tolist()
             for t, s in combs:
-                types_idx = np.array(
-                    [
-                        t.lower().rsplit(" (", 1)[0] in v.rsplit(" (", 1)[0]
-                        for v in types
-                    ]
-                )
+                types_idx = [t.lower().rsplit(" (", 1)[0] in v for v in types]
+                types_idx = np.array(types_idx)
                 sides_idx = np.array([s in v for v in sides])
                 gender_idx = np.array([gender in v for v in genders])
                 mask = types_idx & sides_idx & gender_idx
@@ -884,69 +888,72 @@ class JumpTestResults(TestResults):
                 if not tnorm.empty:
                     avg = float(tnorm["mean"].to_numpy()[0])
                     std = float(tnorm["std"].to_numpy()[0])
-                    rank_vals = np.array([+3, +2, +1, -1, -2, -3]) * std
-                    rank_vals += avg
-                    rank_lows = rank_vals[1:].copy()
-                    rank_tops = rank_vals[:-1].copy()
-                    rank_clrs = list(RANK_5COLORS.values())
-                    rank_lbls = list(RANK_5COLORS.keys())
-                    elevation_norms[(t, s)] = (
-                        rank_lows,
-                        rank_tops,
-                        rank_lbls,
-                        rank_clrs,
-                    )
+                    rank_clrs = list(ranks.values())
+                    rank_lbls = list(ranks.keys())
+                    n_vals = len(ranks)
+                    if symmetric_ranks:
+                        rank_clrs = rank_clrs[::-1] + rank_clrs
+                        rank_lbls = rank_lbls[::-1] + rank_lbls
+                        rank_vals = np.arange(n_vals + 1)
+                    else:
+                        if n_vals % 2 == 1:
+                            rank_vals = np.arange((n_vals + 1) // 2) + 1
+                        else:
+                            rank_vals = np.arange((n_vals + 2) // 2)
+                    rank_vals = np.concatenate([rank_vals, -rank_vals]) * std + avg
+                    rank_vals = np.unique(rank_vals)[::-1]
+                    rank_lows = rank_vals[1:].copy().tolist()
+                    rank_tops = rank_vals[:-1].copy().tolist()
+                    norms[(t, s)] = (rank_lows, rank_tops, rank_lbls, rank_clrs)
 
-        # get elevation data sorted according to the subplots to be rendered
-        elevation_data = {
-            (t, s): {side: float(dfs.value.max()) for side, dfs in dfr.groupby("side")}
-            for (t, s), dfr in elevation_df.groupby(["type", "set"])
-        }
+        return data, norms
 
-        # retrieve the force balance data
-        balance_df = self.summary.copy()
-        balance_df = balance_df.loc[balance_df.parameter == "vertical force (N)"]
-        balance_data = {}
-        for (t, s), dfr in elevation_df.groupby(["type", "set"]):
-            if s != "bilateral":
-                balance_data[(t, s)] = np.nan
-            else:
-                best = int(dfr.n.to_numpy()[np.argsort(dfr.value.to_numpy())[-1]])
-                balance = balance_df.loc[balance_df["type"] == t].copy()
-                balance = balance.loc[balance["side"] == s]
-                balance = balance.loc[balance["n"] == best, "symmetry (%)"]
-                balance_data[(t, s)] = float(balance.to_numpy()[0])
-
-        # prepare the balance norms
-        vals = np.array([0, 5, 10, 15, 20, 25])
-        lows = vals[:-1].copy()
-        tops = vals[1:].copy()
-        clrs = list(RANK_5COLORS.values())
-        lbls = list(RANK_5COLORS.keys())
-        balance_norms = {(t, s): (lows, tops, lbls, clrs) for (t, s) in balance_data}
+    def _get_performance_figure(
+        self,
+        performance_data: dict[
+            tuple[str, str],
+            dict[str, list[float]],
+        ],
+        performance_norms: dict[
+            tuple[str, str],
+            tuple[list[float], list[float], list[str], list[str]],
+        ],
+        performance_unit: str,
+        balance_data: dict[tuple[str, str], list[float]] = {},
+        balance_norms: dict[
+            tuple[str, str],
+            tuple[list[float], list[float], list[str], list[str]],
+        ] = {},
+    ):
 
         # generate the figure
         subplot_titles = [
             f"{str(t).rsplit("(")[0].strip()}<br>{str(s).capitalize()}"
-            for t, s in elevation_data
+            for t, s in performance_data
         ]
-        subplot_titles += ["" for t, s in elevation_data]
-        specs = [
-            [{"rowspan": 2} for _ in combs],
-            [None for _ in combs],
-            [{} for _ in combs],
-        ]
-        fig = make_subplots(
-            rows=3,
-            cols=len(combs),
-            subplot_titles=subplot_titles,
-            specs=specs,
-        )
+        if len(balance_data) == 0:
+            fig = make_subplots(
+                rows=1,
+                cols=len(performance_data),
+                subplot_titles=subplot_titles,
+            )
+        else:
+            specs = [
+                [{"rowspan": 2} for _ in range(len(performance_data))],
+                [None for _ in range(len(performance_data))],
+                [{} for _ in range(len(performance_data))],
+            ]
+            fig = make_subplots(
+                rows=3,
+                cols=len(performance_data),
+                subplot_titles=subplot_titles,
+                specs=specs,
+            )
         fig.update_layout(
             template="plotly_white",
             legend=dict(title_text="Legend"),
-            height=600,
-            width=max(1800, 400 * len(combs)),
+            height=400 if len(balance_data) == 0 else 600,
+            width=max(1800, 400 * len(performance_data)),
         )
         fig.update_xaxes(
             showgrid=False,
@@ -959,55 +966,57 @@ class JumpTestResults(TestResults):
             zeroline=False,
             showticklabels=False,
         )
-        fig.update_yaxes(col=1, row=1, title="Elevation<br>(cm)")
-        fig.update_yaxes(col=1, row=3, title="Force imbalance<br>(%)")
 
-        # plot the elevation data
+        # plot the performance data
         norm_plotted = False
-        for n, ((t, s), dct) in enumerate(elevation_data.items()):
+        for n, ((t, s), dct) in enumerate(performance_data.items()):
 
             # get the normative data if available
-            snorm = elevation_norms.get((t, s))
+            snorm = performance_norms.get((t, s))
             if snorm is not None:
                 rank_lows, rank_tops, rank_lbls, rank_clrs = snorm
+                rank_lows = np.array(rank_lows)
+                rank_tops = np.array(rank_tops)
             else:
                 rank_lows = rank_tops = rank_lbls = rank_clrs = np.array([])
 
-            # plot the bars representing the jump height
+            # plot the bars representing the performance value
             yvals = []
-            for k, (side, y) in enumerate(dct.items()):
-                value = round(y, 1)
+            for k, (side, performances) in enumerate(dct.items()):
+                for j, y in enumerate(performances):
+                    value = round(y, 1)
 
-                # if normative data are available get the main bar color as
-                # the color of the rank achieved by the jump height.
-                # Otherwise, use the color of the side with which the jump
-                # has been performed.
-                if len(rank_tops) > 0:
-                    idx = np.where(rank_tops >= value)[0]
-                    idx = min(len(rank_clrs) - 1, idx[-1] if len(idx) > 0 else 0)
-                    color = rank_clrs[idx]
-                else:
-                    color = SIDE_COLORS[side]  # type: ignore
+                    # if normative data are available get the main bar color as
+                    # the color of the rank achieved by the actual value.
+                    # Otherwise, use the color of the side with which the jump
+                    # has been performed.
+                    if len(rank_tops) > 0:
+                        idx = np.where(rank_tops >= value)[0]
+                        idx = idx[-1] if len(idx) > 0 else (len(rank_clrs) - 1)
+                        color = rank_clrs[idx]
+                    else:
+                        color = SIDE_COLORS[side]  # type: ignore
 
-                # update the y-axis range values
-                yvals += rank_lows.tolist() + rank_tops.tolist() + [value]
+                    # update the y-axis range values
+                    yvals += rank_lows.tolist() + rank_tops.tolist() + [value]
 
-                # plot the bar
-                fig.add_trace(
-                    row=1,
-                    col=n + 1,
-                    trace=go.Bar(
-                        x=[k + 1],
-                        y=[value],
-                        text=[f"{value}cm"],
-                        textposition="outside",
-                        textangle=0,
-                        showlegend=False,
-                        marker_color=[color],
-                        marker_line_color=["black"],
-                        name=f"{t} {side}",
-                    ),
-                )
+                    # plot the bar
+                    fig.add_trace(
+                        row=1,
+                        col=n + 1,
+                        trace=go.Bar(
+                            x=[k + 1],
+                            y=[value],
+                            text=[f"Jump {j+1}<br>{value} {performance_unit}"],
+                            textposition="outside",
+                            textangle=0,
+                            showlegend=False,
+                            marker_color=[color],
+                            marker_line_color=["black"],
+                            name=f"{t} {side}",
+                            offsetgroup=str(j + 1),
+                        ),
+                    )
 
             # update the yaxes
             yrange = [np.min(yvals) * 0.9, np.max(yvals) * 1.1]
@@ -1049,7 +1058,7 @@ class JumpTestResults(TestResults):
                     fig.add_annotation(
                         x=len(dct) + 1,
                         y=rtop,
-                        text=f"{rtop:0.1f}cm",
+                        text=f"{rtop:0.1f} {performance_unit}",
                         showarrow=False,
                         xanchor="right",
                         yanchor="top",
@@ -1064,7 +1073,7 @@ class JumpTestResults(TestResults):
             # ensure that the legend is plotted once
             norm_plotted = True
 
-        # plot force balance
+        # plot balance
         for n, ((t, s), symm) in enumerate(balance_data.items()):
             if np.all(np.isnan(symm)):
                 continue
@@ -1073,41 +1082,47 @@ class JumpTestResults(TestResults):
             snorm = balance_norms.get((t, s))
             if snorm is not None:
                 rank_lows, rank_tops, rank_lbls, rank_clrs = snorm
+                rank_lows = np.asarray(rank_lows)
+                rank_tops = np.asarray(rank_tops)
             else:
                 rank_lows = rank_tops = rank_lbls = rank_clrs = np.array([])
 
-            # get the bar color as the color of the rank achieved by the
-            # jump height. Otherwise, use the color of the side with which the
-            # jump has been performed.
-            idx = np.where(rank_tops <= symm)[0]
-            idx = (idx[-1] + 1) if len(idx) > 0 else (len(rank_clrs) - 1)
-            color = rank_clrs[idx]
+            # plot the balance of each single jump
+            for j, val in enumerate(symm):
 
-            # get the value and label
-            val = max(-50, min(50, symm))
-            lbl = f"{abs(symm):0.1f}%" if -50 <= symm <= 50 else ">50.0%"
+                # get the bar color as the color of the rank achieved by the
+                # jump height. Otherwise, use the color of the side with which the
+                # jump has been performed.
+                idx = np.where(rank_tops >= abs(val))[0]
+                idx = idx[0] if len(idx) > 0 else (len(rank_clrs) - 1)
+                color = rank_clrs[idx]
 
-            # plot the bar
-            fig.add_trace(
-                row=3,
-                col=n + 1,
-                trace=go.Bar(
-                    y=[1],
-                    x=[val],
-                    text=[lbl],
-                    textposition="outside",
-                    textangle=0,
-                    showlegend=False,
-                    marker_color=[color],
-                    marker_line_color=["black"],
-                    name=f"{t} {s}",
-                    orientation="h",
-                ),
-            )
+                # get the value and label
+                value = max(-50, min(50, val))
+                lbl = f"{abs(val):0.1f}%" if -50 <= val <= 50 else ">50.0%"
+                lbl = f"Jump {j+1} ({lbl})"
+
+                # plot the bar
+                fig.add_trace(
+                    row=3,
+                    col=n + 1,
+                    trace=go.Bar(
+                        y=[len(symm) - 1 - j],
+                        x=[val],
+                        text=[lbl],
+                        textposition="outside",
+                        textangle=0,
+                        showlegend=False,
+                        marker_color=[color],
+                        marker_line_color=["black"],
+                        name=f"{t} {s}",
+                        orientation="h",
+                    ),
+                )
 
             # update rank extremes
-            if np.max(rank_tops) < val * 1.5:
-                rank_tops[-1] = val * 1.5
+            if np.max(rank_tops) < np.max(symm) * 1.5:
+                rank_tops[-1] = np.max(symm) * 1.5
 
             # plot the norms as colored boxes behind the bars
             zipped = zip(rank_lows, rank_tops, rank_lbls, rank_clrs)
@@ -1116,8 +1131,8 @@ class JumpTestResults(TestResults):
                 vals += [rlow, rtop]
                 fig.add_shape(
                     type="rect",
-                    y0=0,
-                    y1=2,
+                    y0=-1,
+                    y1=len(symm),
                     x0=rlow,
                     x1=rtop,
                     line_width=0,
@@ -1131,8 +1146,8 @@ class JumpTestResults(TestResults):
                 )
                 fig.add_shape(
                     type="rect",
-                    y0=0,
-                    y1=2,
+                    y0=-1,
+                    y1=len(symm),
                     x0=-rlow,
                     x1=-rtop,
                     line_width=0,
@@ -1144,32 +1159,6 @@ class JumpTestResults(TestResults):
                     row=3,
                     col=n + 1,
                 )
-                """
-                fig.add_annotation(
-                    x=rtop,
-                    y=0,
-                    text=f"{rlbl}<br>{rtop:+0.1f}%",
-                    showarrow=False,
-                    font=dict(color=rclr),
-                    valign="top",
-                    yshift=-15,
-                    name=rlbl,
-                    row=3,  # type: ignore
-                    col=n + 1,  # type: ignore
-                )
-                fig.add_annotation(
-                    x=-rtop,
-                    y=0,
-                    text=f"{rlbl}<br>{-rtop:+0.1f}%",
-                    showarrow=False,
-                    font=dict(color=rclr),
-                    valign="top",
-                    yshift=-15,
-                    name=rlbl,
-                    row=3,  # type: ignore
-                    col=n + 1,  # type: ignore
-                )
-                """
 
             # ensure that the legend is plotted once
             norm_plotted = True
@@ -1190,450 +1179,354 @@ class JumpTestResults(TestResults):
                 row=3,
                 col=n + 1,
                 range=xrange,
-                # showticklabels=False,
                 tickmode="array",
-                tickvals=[xrange[0] * 0.9, xrange[1] * 0.9],
-                ticktext=["Left", "Right"],
+                tickvals=[xrange[0] * 0.9, 0, xrange[1] * 0.9],
+                ticktext=["Left", "Perfect<br>Balance", "Right"],
                 ticklen=0,
-                title="Force Imbalance (%)",
             )
 
             # update the yaxes
-            fig.update_yaxes(row=3, col=n + 1, range=[0, 2])
+            fig.update_yaxes(
+                row=3,
+                col=n + 1,
+                range=[-1, len(symm)],
+            )
 
         # check
         return fig
 
-    def _get_drop_jumps_muscle_activation_ratio_figure(self, test: JumpTest):
+    def _get_muscle_activation_figure(
+        self,
+        data: dict[
+            tuple[str, str],
+            dict[str, dict[str, list[float]]],
+        ],
+        norms: dict[
+            tuple[str, str],
+            tuple[list[float], list[float], list[str], list[str]],
+        ],
+        unit: str,
+    ):
 
-        # get the drop jump summary
-        summ = self.summary.copy()
-        summ = summ.loc[summ["type"].map(lambda x: "drop" in x.lower())]
-        summ = summ.drop(["type", "symmetry (%)"], axis=1)
-
-        # get the best drop jump for each side looking at the one with the
-        # highest RSI
-        rsi_df = summ.copy().loc[summ.parameter == "rsi (cm/s)"]
-        rsi_df = rsi_df.drop("parameter", axis=1).melt(
-            id_vars=["side", "n"],
-            value_name="value",
-            var_name="limb",
-        )
-        best_idx = rsi_df.groupby(["side", "limb"])["value"].idxmax()
-        best_jumps = rsi_df.loc[best_idx]
-
-        # get the activation ratio
-        activation_df = summ.loc[
-            summ.parameter.map(lambda x: x.endswith("activation ratio"))
+        # prepare the figure
+        subplot_titles = [
+            f"{str(t).rsplit("(")[0].strip()}<br>{str(s).capitalize()}" for t, s in data
         ]
-        muscles = activation_df.parameter.map(
-            lambda x: x.split(" activation")[0].capitalize()
-        )
-        activation_df.loc[activation_df.index, ["muscle"]] = muscles.to_numpy()
-        activation_df = activation_df.drop("parameter", axis=1)
-        activation_df = activation_df.melt(
-            id_vars=["muscle", "side", "n"],
-            value_name="value",
-            var_name="limb",
-        )
-
-        """
-        # keep the best jumps
-        for (side, limb), dfr in activation_df.groupby(["side", "limb"]):
-            mask = (best_jumps.side == side) & (best_jumps.limb == limb)
-            best_jump = int(best_jumps.loc[mask, "n"].to_numpy()[0])  # type: ignore
-            idx = dfr.loc[dfr.n != best_jump].index
-            activation_df.loc[idx, "value"] = None
-        activation_df.dropna(inplace=True)
-        """
-        activation_df = activation_df.drop("n", axis=1)
-        activation_df = activation_df.groupby(
-            by=["muscle", "side", "limb"],
-            as_index=False,
-        )
-        activation_df = activation_df.mean()
-
-        # prepare the dataframe to be used for generating the figure
-        activation_df.side = activation_df.side.str.capitalize()
-        activation_df.limb = activation_df.limb.str.capitalize()
-        activation_df.insert(
-            activation_df.shape[1],
-            "label",
-            activation_df.value.map(lambda x: f"{x:0.2f}"),
-        )
-        activation_df.insert(
-            activation_df.shape[1],
-            "color",
-            activation_df.limb.map(lambda x: SIDE_COLORS[x.lower()]),
-        )
-        activation_df.value = activation_df.value - 50
-
-        # get the normative data
-        norms = test.normative_data.copy()
-        norms = norms.loc[norms.parameter == "activation ratio"]
-        norms = norms.loc[
-            norms.side == "bilateral"
-        ]  # norms are not sensitive to the side
-        gender = test.participant.gender
-        if gender is None:
-            raise ValueError("participant's gender must be provided.")
-        gender = gender.lower().capitalize()
-        norms = norms.loc[norms.gender == gender]
-        avg, std = norms[["mean", "std"]].to_numpy().flatten()
-
-        # get ranks
-        ranks = RANK_3COLORS
-        rank_lbls = list(ranks.keys())
-        rank_lbls = rank_lbls[::-1][:-1] + rank_lbls
-        rank_clrs = list(ranks.values())
-        rank_clrs = rank_clrs[::-1][:-1] + rank_clrs
-        rank_vals = np.array([3, 2, 1, -1, -2, -3]) * std
-
-        # prepare the figure
-        """
-        titles = []
-        for side, bst in best_jumps.groupby("side"):
-            vals = {}
-            for limb, lst in bst.groupby("limb"):
-                line = rsi_df.loc[rsi_df.side == side]
-                line = line.loc[line.limb == limb]
-                line = line.loc[line.n == lst.n.to_numpy()[0]]
-                value = float(line.value.to_numpy()[0])
-                vals[limb] = value
-            if side == "bilateral":
-                titles.append(f"{side}<br>(RSI={vals['left']:0.1f}cm/s)")
-            else:
-                title = [
-                    f"RSI<sub>{i.upper()}</sub>={v:0.1f}cm/s" for i, v in vals.items()
-                ]
-                title = f"{side}<br>(" + ", ".join(title) + ")"
-                titles.append(title)
-        """
-        titles = np.unique(activation_df.side.to_numpy()).tolist()
+        muscles = [list(m.keys()) for m in list(data.values())]
+        muscles = np.unique(np.concatenate(muscles)).tolist()
         fig = make_subplots(
-            rows=1,
-            cols=len(titles),
-            subplot_titles=titles,
+            rows=len(muscles),
+            cols=len(subplot_titles),
+            subplot_titles=subplot_titles,
+            row_titles=muscles,
         )
         fig.update_layout(
             template="plotly_white",
-            height=500,
-            width=500 * len(titles),
+            height=250 * len(muscles),
+            width=500 * len(subplot_titles),
             legend=dict(title=dict(text="Legend")),
         )
-        fig.update_yaxes(showgrid=False, zeroline=False, showline=False)
-
-        # plot the data
-        for n, (side, dfr) in enumerate(activation_df.groupby("side")):
-
-            # adjust the extremeties if required
-            vals = dfr["value"].to_numpy().flatten().tolist()
-            rank_ints = [[i, v] for i, v in zip(rank_vals[:-1], rank_vals[1:])]
-            rank_ints = np.asarray(np.sort(np.array(rank_ints), axis=1))
-
-            extra = abs(np.array(vals)).max() * 1.4
-            if extra > rank_ints.max():
-                rank_ints[0, 1] = extra
-                rank_ints[-1, 0] = -extra
-
-            # update the xaxis
-            fig.update_xaxes(
-                showgrid=False,
-                zeroline=False,
-                showline=False,
-                range=[rank_ints.min(), rank_ints.max()],
-                tickmode="array",
-                tickvals=[rank_ints.max(), 0, rank_ints.min()],
-                ticktext=["Too Stiff", "Balanced", "Too Soft"],
-                ticklen=0,
-                title="Pre-Activation (%)",
-                row=1,
-                col=n + 1,
-            )
-
-            # render the activation bars
-            muscles = []
-            for m, (muscle, dfm) in enumerate(dfr.groupby("muscle")):
-                for limb, dfs in dfm.groupby("limb"):
-                    y = float(dfs["value"].to_numpy()[0])
-                    fig.add_trace(
-                        row=1,
-                        col=n + 1,
-                        trace=go.Bar(
-                            y=[m + 1],
-                            x=[y],
-                            marker_color=SIDE_COLORS[str(limb).lower()],
-                            marker_line_color="black",
-                            text=[f"{y:0.2f}"],
-                            textposition="outside",
-                            textangle=0,
-                            name=limb,
-                            legendgroup=limb,
-                            offsetgroup=limb,
-                            showlegend=bool(n == 0) and bool(m == 0),
-                            orientation="h",
-                        ),
-                    )
-                muscles.append(str(muscle).replace(" ", "<br>"))
-
-            # handle the yaxis
-            fig.update_yaxes(
-                row=1,
-                col=n + 1,
-                range=[0, len(muscles) + 1],
-                tickvals=np.arange(len(muscles)) + 1,
-                tickmode="array",
-                ticktext=muscles,
-                tickangle=0,
-            )
-
-            # render the ranks
-            zipped = zip(rank_lbls, rank_clrs, rank_ints)
-            for k, (lbl, clr, (low, top)) in enumerate(zipped):
-                fig.add_shape(
-                    type="rect",
-                    y0=0,
-                    y1=len(muscles) + 1,
-                    x0=low,
-                    x1=top,
-                    line_width=0,
-                    fillcolor=hex_to_rgba(clr, 0.25),
-                    layer="below",
-                    name=lbl,
-                    legendgroup=lbl,
-                    showlegend=bool(n == 0) & bool(k <= 2),
-                    row=1,
-                    col=n + 1,
-                )
-
-            # add the zero line
-            fig.add_vline(
-                row=1,  # type: ignore
-                col=n + 1,  # type:ignore
-                x=0,
-                line_width=2,
-                line_color="black",
-                line_dash="solid",
-                showlegend=False,
-            )
-
-        return fig
-
-    def _get_drop_jumps_muscle_activation_time_figure(self, test: JumpTest):
-
-        # get the drop jump summary
-        summ = self.summary.copy()
-        summ = summ.loc[summ["type"].map(lambda x: "drop" in x.lower())]
-        summ = summ.drop(["type", "symmetry (%)"], axis=1)
-
-        # get the best drop jump for each side looking at the one with the
-        # highest RSI
-        contact_df = summ.copy().loc[summ.parameter == "rsi (cm/s)"]
-        contact_df = contact_df.drop("parameter", axis=1).melt(
-            id_vars=["side", "n"],
-            value_name="value",
-            var_name="limb",
-        )
-        best_idx = contact_df.groupby(["side", "limb"])["value"].idxmax()
-        best_jumps = contact_df.loc[best_idx]
-
-        # get the activation ratio
-        activation_mask = summ.parameter.map(
-            lambda x: x.endswith("activation time (ms)")
-        )
-        activation_df = summ.loc[activation_mask].copy()
-        muscles = activation_df.parameter.map(
-            lambda x: x.split(" activation")[0].capitalize()
-        ).copy()
-        activation_df.loc[activation_df.index, "muscle"] = muscles
-        activation_df = activation_df.drop("parameter", axis=1)
-        activation_df = activation_df.melt(
-            id_vars=["muscle", "side", "n"],
-            value_name="value",
-            var_name="limb",
-        )
-
-        """
-        # keep the best jumps
-        for (side, limb), dfr in activation_df.groupby(["side", "limb"]):
-            mask = (best_jumps.side == side) & (best_jumps.limb == limb)
-            best_jump = int(best_jumps.loc[mask, "n"].to_numpy()[0])  # type: ignore
-            idx = dfr.loc[dfr.n != best_jump].index
-            activation_df.loc[idx, "value"] = None
-        activation_df.dropna(inplace=True)
-        """
-        activation_df = activation_df.drop("n", axis=1)
-        activation_df = activation_df.groupby(
-            by=["muscle", "side", "limb"],
-            as_index=False,
-        )
-        activation_df = activation_df.mean()
-
-        # prepare the dataframe to be used for generating the figure
-        activation_df.side = activation_df.side.str.capitalize()
-        activation_df.limb = activation_df.limb.str.capitalize()
-        activation_df.insert(
-            activation_df.shape[1],
-            "label",
-            activation_df.value.map(lambda x: f"{x:0.2f}"),
-        )
-        activation_df.insert(
-            activation_df.shape[1],
-            "color",
-            activation_df.limb.map(lambda x: SIDE_COLORS[x.lower()]),
-        )
-
-        # get the normative data
-        # norms are not sensitive to the side nor to gender
-        norms = test.normative_data.copy()
-        norms = norms.loc[norms.parameter == "activation time (ms)"]
-        norms = norms.loc[norms.side == "bilateral"]
-        norms = norms.loc[norms.gender.str.lower() == "male"]
-        avg, std = norms[["mean", "std"]].to_numpy().flatten()
-
-        # get ranks
-        ranks = RANK_3COLORS
-        rank_lbls = list(ranks.keys())
-        rank_clrs = list(ranks.values())
-        rank_vals = np.array([-1, 0, 1, 2]) * std + avg
-        rank_ints = [[i, v] for i, v in zip(rank_vals[:-1], rank_vals[1:])]
-        rank_ints = np.asarray(np.sort(np.array(rank_ints), axis=1))
-
-        # adjust the extremeties if required
-        vals = activation_df["value"].to_numpy().flatten().tolist()
-        if np.max(vals) * 1.4 > np.max(rank_vals):
-            rank_ints[-1, 1] = 600
-        if np.min(vals) * 1.4 < np.min(rank_vals):
-            rank_ints[0, 0] = -600
-
-        # prepare the figure
-        sides = np.unique(activation_df.side.to_numpy()).tolist()
-        fig = make_subplots(
-            rows=1,
-            cols=len(sides),
-            subplot_titles=sides,
-        )
-        fig.update_layout(
-            template="plotly_white",
-            height=500,
-            width=500 * len(sides),
-            legend=dict(title=dict(text="Legend")),
-        )
-        fig.update_yaxes(showgrid=False, zeroline=False, showline=False)
-        fig.update_xaxes(
+        fig.update_yaxes(
             showgrid=False,
             zeroline=False,
             showline=False,
-            range=[min(0, rank_ints.min()), max(0, rank_ints.max())],
             showticklabels=False,
-            title="Activation Time (ms)",
+            range=[-1, 2],
         )
 
         # plot the data
-        for n, (side, dfr) in enumerate(activation_df.groupby("side")):
+        legend_plotted = []
+        for col, ((t, s), muscle_dct) in enumerate(data.items()):
+            xvals = []
+            for row, muscle in enumerate(muscles):
+                side_dct = muscle_dct[muscle]
+                for y, (side, jump_values) in enumerate(side_dct.items()):
+                    for n, x in enumerate(jump_values):
 
-            # render the activation bars
-            muscles = []
-            for m, (muscle, dfm) in enumerate(dfr.groupby("muscle")):
-                for limb, dfs in dfm.groupby("limb"):
-                    x = float(dfs["value"].to_numpy()[0])
-                    if x > 300:
-                        t = f">+300ms"
-                        x = 300
-                    elif x < -300:
-                        t = f"<-300ms"
-                        x = -300
-                    fig.add_trace(
-                        row=1,
-                        col=n + 1,
-                        trace=go.Bar(
-                            y=[m + 1],
-                            x=[x],
-                            marker_color=SIDE_COLORS[str(limb).lower()],
-                            marker_line_color="black",
-                            text=[t],
-                            textposition="outside",
-                            textangle=0,
-                            name=limb,
-                            legendgroup=limb,
-                            offsetgroup=limb,
-                            showlegend=bool(n == 0) and bool(m == 0),
-                            orientation="h",
-                        ),
+                        # update the xrange values
+                        xvals.append(x)
+
+                        # get the bar color as the color of the side with which
+                        # the jump has been performed.
+                        color = SIDE_COLORS[side]
+
+                        # get the label
+                        lbl = f"{x:0.1f}{unit}"
+                        lbl = f"Jump {n+1} ({lbl})"
+
+                        # plot the bar
+                        fig.add_trace(
+                            row=row + 1,
+                            col=col + 1,
+                            trace=go.Bar(
+                                y=[y],
+                                x=[x],
+                                text=[lbl],
+                                textposition="outside",
+                                textangle=0,
+                                showlegend=side not in legend_plotted,
+                                marker_color=[color],
+                                marker_line_color=["black"],
+                                orientation="h",
+                                offsetgroup=str(n),
+                                name=side,
+                                legendgroup="Side",
+                                legendgrouptitle_text="Side",
+                            ),
+                        )
+
+                        # prevent the same side to be plotted again
+                        legend_plotted.append(side)
+
+            # get the normative data if available
+            snorm = norms.get((t, s))
+            if snorm is not None:
+                rank_lows, rank_tops, rank_lbls, rank_clrs = snorm
+                rank_lows = np.array(rank_lows)
+                rank_tops = np.array(rank_tops)
+            else:
+                rank_lows = rank_tops = rank_lbls = rank_clrs = np.array([])
+
+            # update xrange
+            xmax = max(0, np.max(xvals))
+            xmin = min(0, np.min(xvals))
+            xdelta = (xmax - xmin) * 0.5
+            if snorm is None:
+                xrange = [np.min(xvals) - xdelta, np.max(xvals) + xdelta]
+            else:
+                rmax = np.max(rank_tops)
+                rmin = np.min(rank_lows)
+                pmax = max(xmax + xdelta, rmax)
+                pmin = min(xmin - xdelta, rmin)
+                xrange = [pmin, pmax]
+
+                # update norms range if required
+                if pmax > rmax:
+                    rank_tops[rank_tops == rmax] = pmax
+                if pmin < rmin:
+                    rank_lows[rank_lows == rmin] = pmin
+
+            # if any x value is lower than zero, keep the limit to zero in the
+            # x-axis range
+            if np.min(xvals) > 0:
+                xrange[0] = max(0, xrange[0])
+
+            # update x-axis
+            fig.update_xaxes(col=col + 1, range=xrange)
+
+            # plot normative data
+            for row, (muscle, side_dct) in enumerate(muscle_dct.items()):
+                zipped = zip(rank_lows, rank_tops, rank_lbls, rank_clrs)
+                for rlow, rtop, rlbl, rclr in zipped:
+                    fig.add_shape(
+                        type="rect",
+                        y0=-1,
+                        y1=len(muscle_dct),
+                        x0=rlow,
+                        x1=rtop,
+                        line_width=0,
+                        fillcolor=hex_to_rgba(rclr, 0.25),
+                        layer="below",
+                        name=rlbl,
+                        legendgroup="Performance<br>Levels",
+                        legendgrouptitle_text="Performance<br>Levels",
+                        showlegend=rlbl not in legend_plotted,
+                        row=row + 1,
+                        col=col + 1,
                     )
-                muscles.append(str(muscle).replace(" ", "<br>"))
 
-            # add the zero line
-            for limb, dfs in dfr.groupby("limb"):
-                fig.add_vline(
-                    x=0,
-                    line_width=2,
-                    line_dash="solid",
-                    showlegend=False,
-                    row=1,  # type: ignore
-                    col=n + 1,  # type: ignore
-                )
+                    # ensure that each rank level is plotted once
+                    legend_plotted.append(rlbl)
 
-            # handle the yaxis
-            fig.update_yaxes(
-                row=1,
-                col=n + 1,
-                range=[0, len(muscles) + 1],
-                tickvals=np.arange(len(muscles)) + 1,
-                tickmode="array",
-                ticktext=muscles,
-                tickangle=0,
-            )
-
-            # render the ranks
-            zipped = zip(rank_lbls, rank_clrs, rank_ints)
-            for k, (lbl, clr, (low, top)) in enumerate(zipped):
-                fig.add_shape(
-                    type="rect",
-                    y0=0,
-                    y1=len(muscles) + 1,
-                    x0=low,
-                    x1=top,
-                    line_width=0,
-                    fillcolor=hex_to_rgba(clr, 0.25),
-                    layer="below",
-                    name=lbl,
-                    legendgroup=lbl,
-                    showlegend=bool(n == 0) & bool(k <= 2),
-                    row=1,
-                    col=n + 1,
-                )
-                if k < len(rank_ints) - 1:
-                    fig.add_annotation(
-                        y=len(muscles) + 1,
-                        x=top,
-                        text=f"{top:+0.0f}ms",
-                        showarrow=False,
-                        xanchor="right",
-                        yanchor="top",
-                        font=dict(color=clr),
-                        align="right",
-                        valign="top",
-                        yshift=0,
-                        name=lbl,
-                        row=1,  # type: ignore
-                        col=n + 1,  # type: ignore
-                    )
+        # plot the zero lines
+        fig.add_vline(
+            x=0,
+            line_width=2,
+            line_dash="solid",
+            showlegend=False,
+        )
 
         return fig
 
-    def _get_repeated_jumps_figure(self, test: JumpTest):
-        # TODO create la figura per le repeated jumps
-        return go.Figure()
+    def _get_elevation_figure(self, test: JumpTest):
+
+        # retrieve the jump height data
+        performance_data, performance_norms = self._get_data_and_norms(
+            "elevation (cm)",
+            test,
+        )
+
+        # since we have just one parameter (elevation), we remove the layer
+        # defining the parameters for each key
+        performance_data = {i: list(v.values())[0] for i, v in performance_data.items()}
+
+        # retrieve the force balance data
+        balance_df = self.summary.copy()
+        balance_df = balance_df.loc[balance_df.parameter == "vertical force (N)"]
+        balance_data: dict[tuple[str, str], list[float]] = {}
+        for t, s in performance_data.keys():
+            if s == "bilateral":
+                balance = balance_df.loc[balance_df["type"] == t].copy()
+                balance = balance.loc[balance["side"] == s]
+                balance.sort_values("n", inplace=True)
+                balance = balance["symmetry (%)"].to_numpy().flatten()
+                balance_data[(t, s)] = balance.tolist()
+
+        # prepare the balance norms
+        vals = np.array([0, 5, 10, 15, 20, 25])
+        lows = vals[:-1].copy().tolist()
+        tops = vals[1:].copy().tolist()
+        clrs = list(RANK_5COLORS.values())
+        lbls = list(RANK_5COLORS.keys())
+        balance_norms = {(t, s): (lows, tops, lbls, clrs) for (t, s) in balance_data}
+
+        # generate the figure
+        fig = self._get_performance_figure(
+            performance_data,
+            performance_norms,
+            "cm",
+            balance_data,
+            balance_norms,
+        )
+        fig.update_yaxes(row=1, col=1, title="Elevation<br>(cm)")
+        fig.update_yaxes(row=3, col=1, title="Force Imbalance<br>(%)")
+
+        return fig
+
+    def _get_contact_time_figure(self, test: JumpTest):
+
+        # retrieve the contact time data
+        performance_data, performance_norms = self._get_data_and_norms(
+            "contact time (ms)",
+            test,
+        )
+
+        # since we have just one parameter (contact time), we remove the layer
+        # defining the parameters for each key
+        performance_data = {i: list(v.values())[0] for i, v in performance_data.items()}
+
+        # generate the figure
+        fig = self._get_performance_figure(
+            performance_data,
+            performance_norms,
+            "ms",
+        )
+        fig.update_yaxes(row=1, col=1, title="Contact Time<br>(ms)")
+
+        return fig
+
+    def _get_rsi_figure(self, test: JumpTest):
+
+        # retrieve the rsi data
+        performance_data, performance_norms = self._get_data_and_norms(
+            "rsi (cm/s)",
+            test,
+        )
+
+        # since we have just one parameter (rsi), we remove the layer
+        # defining the parameters for each key
+        performance_data = {i: list(v.values())[0] for i, v in performance_data.items()}
+
+        # generate the figure
+        fig = self._get_performance_figure(
+            performance_data,
+            performance_norms,
+            "cm/s",
+        )
+        fig.update_yaxes(row=1, col=1, title="Reactive Strength Index<br>(cm/s)")
+
+        return fig
+
+    def _get_muscle_activation_ratio_figure(self, test: JumpTest):
+
+        # retrieve the activation ratio data
+        data_raw, norms = self._get_data_and_norms(
+            "activation ratio",
+            test,
+            False,
+            RANK_3COLORS,
+            True,
+        )
+
+        # we turn the name of the parameters layer into the muscle names
+        data: dict[tuple[str, str], dict[str, dict[str, list[float]]]] = {}
+        for i, v in data_raw.items():
+            vals = {}
+            for j, k in v.items():
+                muscle = j.replace(" activation ratio", "").split(" ")
+                muscle = " ".join([l.capitalize() for l in muscle])
+                vals[muscle] = k
+            data[i] = vals
+
+        # generate the figure
+        fig = self._get_muscle_activation_figure(
+            data,
+            norms,
+            unit="%",
+        )
+
+        # update the x-axis
+        fig.update_xaxes(
+            title="Pre-Activation (%)",
+            row=len(fig._grid_ref),  # type: ignore
+        )
+
+        return fig
+
+    def _get_muscle_activation_time_figure(self, test: JumpTest):
+
+        # retrieve the activation ratio data
+        data_raw, norms = self._get_data_and_norms(
+            "activation time (ms)",
+            test,
+            False,
+            RANK_3COLORS,
+            True,
+        )
+
+        # we turn the name of the parameters layer into the muscle names
+        data: dict[tuple[str, str], dict[str, dict[str, list[float]]]] = {}
+        for i, v in data_raw.items():
+            vals = {}
+            for j, k in v.items():
+                muscle = j.replace(" activation time (ms)", "").split(" ")
+                muscle = " ".join([l.capitalize() for l in muscle])
+                vals[muscle] = k
+            data[i] = vals
+
+        # generate the figure
+        fig = self._get_muscle_activation_figure(
+            data,
+            norms,
+            unit="ms",
+        )
+
+        # update the x-axis
+        fig.update_xaxes(
+            title="Activation time (ms)",
+            row=len(fig._grid_ref),  # type: ignore
+        )
+        fig.update_xaxes(
+            tickvals=[-200, 200],
+            tickangle=0,
+            tickmode="array",
+            ticktext=["Before<br>contact", "After<br>contact"],
+            showticklabels=True,
+        )
+
+        return fig
 
     def _get_figures(self, test: JumpTest):
         out: dict[str, go.Figure] = {}
-        out["ground_reaction_forces"] = self._get_grf_profiles_figure(test)
-        out["elevation"] = self._get_single_jumps_figure(test)
+        out["ground_reaction_forces"] = self._get_grf_figure(test)
+        out["elevation"] = self._get_elevation_figure(test)
+        if len(test.drop_jumps) > 0 or len(test.repeated_jumps) > 0:
+            out["contact_time"] = self._get_contact_time_figure(test)
+            out["rsi"] = self._get_rsi_figure(test)
         if len(test.drop_jumps) > 0 and self.include_emg:
-            macr = self._get_drop_jumps_muscle_activation_ratio_figure(test)
-            out["drop_jumps_muscle_activation_ratio"] = macr
-            mact = self._get_drop_jumps_muscle_activation_time_figure(test)
-            out["drop_jumps_muscle_activation_time"] = mact
-        out["repeated_jumps"] = self._get_repeated_jumps_figure(test)
+            macr = self._get_muscle_activation_ratio_figure(test)
+            out["muscle_activation_ratio"] = macr
+            mact = self._get_muscle_activation_time_figure(test)
+            out["muscle_activation_time"] = mact
+
         return out

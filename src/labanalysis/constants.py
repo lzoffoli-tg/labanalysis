@@ -15,27 +15,27 @@ MINIMUM_FLIGHT_TIME_S = 0.1
 MINIMUM_ISOMETRIC_DISPLACEMENT_M = 0.05
 
 RANK_3COLORS = {
-    "Normal": "#8EE09D",
+    "Normal": "#3DAE4F",
     "Fair": "#F8E262",
-    "Poor": "#EE9547",
+    "Poor": "#F28A2E",
 }
 RANK_4COLORS = {
-    "Good": "#54A3E7",
-    "Normal": "#8EE09D",
+    "Good": "#3FA7F5",
+    "Normal": "#3DAE4F",
     "Fair": "#F8E262",
-    "Poor": "#EE9547",
+    "Poor": "#F28A2E",
 }
 RANK_5COLORS = {
-    "Excellent": "#54A3E7",
-    "Good": "#27BD6B",
-    "Normal": "#8EE09D",
+    "Excellent": "#6A42F4",
+    "Good": "#3FA7F5",
+    "Normal": "#3DAE4F",
     "Fair": "#F8E262",
-    "Poor": "#EE9547",
+    "Poor": "#F28A2E",
 }
 SIDE_COLORS = {
-    "bilateral": "#8E0DB6",
-    "left": "#1773C4",
-    "right": "#C74C1C",
+    "bilateral": "#B2126F",
+    "left": "#1664A8",
+    "right": "#B9372A",
 }
 SIDE_PATTERNS = {
     "bilateral": "/",
