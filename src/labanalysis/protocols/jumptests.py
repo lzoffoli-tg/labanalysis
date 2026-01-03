@@ -769,9 +769,7 @@ class JumpTestResults(TestResults):
             grf.insert(0, "time", grf.index - start)
             grf.insert(0, "jump", n)
             grf.insert(0, "type", typed)
-            side = "unilateral" if jump.side != "bilateral" else jump.side
-            grf.insert(0, "side", side)
-            grf.insert(0, "trial", "-".join([typed, side]))
+            grf.insert(0, "side", jump.side)
             grf = grf.loc[(grf.time > -1) & (grf.time < 2)]
             return grf
 
@@ -791,7 +789,10 @@ class JumpTestResults(TestResults):
             x="time",
             y="grf",
             color="jump",
-            facet_row="trial",
+            facet_row="type",
+            facet_col="side",
+            facet_col_spacing=0.05,
+            facet_row_spacing=0.05,
             template="plotly_white",
         )
         fig.update_traces(opacity=0.5)
@@ -823,6 +824,7 @@ class JumpTestResults(TestResults):
         bilateral_is_unique: bool = True,
         ranks: dict[str, str] = RANK_5COLORS,
         symmetric_ranks: bool = False,
+        reversed_ranks: bool = False,
     ):
 
         # retrieve the data of the required metric from summary
@@ -893,6 +895,9 @@ class JumpTestResults(TestResults):
                     std = float(tnorm["std"].to_numpy()[0])
                     rank_clrs = list(ranks.values())
                     rank_lbls = list(ranks.keys())
+                    if reversed_ranks:
+                        rank_clrs = rank_clrs[::-1]
+                        rank_lbls = rank_lbls[::-1]
                     n_vals = len(ranks)
                     if symmetric_ranks:
                         rank_clrs = rank_clrs[::-1] + rank_clrs
@@ -1409,6 +1414,7 @@ class JumpTestResults(TestResults):
         performance_data, performance_norms = self._get_data_and_norms(
             "contact time (ms)",
             test,
+            reversed_ranks=True,
         )
 
         # since we have just one parameter (contact time), we remove the layer
