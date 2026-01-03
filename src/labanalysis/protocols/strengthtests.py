@@ -132,17 +132,25 @@ def _get_force_figure(
             est = float(np.squeeze(est.to_numpy()))
             note += [f"{ext}: {est:0.1f}"]
         note = "<br>".join(note)
-        midline = 0.5 * (np.max(x) - np.min(x))
+        if x_peak < 40:
+            dx = 20
+            textposition = "top right"
+        elif x_peak > 60:
+            dx = -20
+            textposition = "top left"
+        else:
+            dx = 0
+            textposition = "top center"
         fig.add_trace(
             row=1,
             col=i + 1,
             trace=go.Scatter(
                 x=[x_peak],
                 y=[np.max(y)],
-                dx=20 if x_peak <= 50 else -20,
+                dx=dx,
                 text=note,
                 mode="markers+text",
-                textposition="top right" if x_peak <= midline else "top left",
+                textposition=textposition,
                 marker=dict(size=12, color="black"),
                 textfont=dict(size=12, color="black"),
                 showlegend=False,
