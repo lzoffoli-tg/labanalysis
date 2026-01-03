@@ -771,6 +771,7 @@ class JumpTestResults(TestResults):
             grf.insert(0, "type", typed)
             side = "unilateral" if jump.side != "bilateral" else jump.side
             grf.insert(0, "side", side)
+            grf.insert(0, "trial", "-".join([typed, side]))
             grf = grf.loc[(grf.time > -1) & (grf.time < 2)]
             return grf
 
@@ -790,7 +791,7 @@ class JumpTestResults(TestResults):
             x="time",
             y="grf",
             color="jump",
-            facet_row="type",
+            facet_row="trial",
             template="plotly_white",
         )
         fig.update_traces(opacity=0.5)
