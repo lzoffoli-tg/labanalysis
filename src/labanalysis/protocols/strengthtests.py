@@ -132,10 +132,10 @@ def _get_force_figure(
             est = float(np.squeeze(est.to_numpy()))
             note += [f"{ext}: {est:0.1f}"]
         note = "<br>".join(note)
-        if x_peak < 40:
+        if x_peak / np.max(x) < 0.40:
             dx = 20
             textposition = "top right"
-        elif x_peak > 60:
+        elif x_peak / np.max(x) > 0.60:
             dx = -20
             textposition = "top left"
         else:
