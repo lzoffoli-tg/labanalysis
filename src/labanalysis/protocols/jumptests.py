@@ -769,6 +769,9 @@ class JumpTestResults(TestResults):
             grf.insert(0, "time", grf.index - start)
             grf.insert(0, "jump", n)
             grf.insert(0, "type", typed)
+            side = "unilateral" if jump.side != "bilateral" else jump.side
+            grf.insert(0, "side", side)
+            grf = grf.loc[(grf.time > -1) & (grf.time < 2)]
             return grf
 
         data = []
@@ -800,7 +803,6 @@ class JumpTestResults(TestResults):
             matches=None,
             showticklabels=True,
             title="Time (s)",
-            range=[-1, None],
         )
         fig.add_hline(
             y=test.participant.weight * G,
