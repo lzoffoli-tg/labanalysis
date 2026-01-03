@@ -1312,7 +1312,14 @@ class JumpTestResults(TestResults):
                 xrange[0] = max(0, xrange[0])
 
             # update x-axis
-            fig.update_xaxes(col=col + 1, range=xrange)
+            fig.update_xaxes(
+                col=col + 1,
+                range=xrange,
+                showgrid=False,
+                zeroline=False,
+                showline=False,
+                showticklabels=False,
+            )
 
             # plot normative data
             for row, (muscle, side_dct) in enumerate(muscle_dct.items()):
