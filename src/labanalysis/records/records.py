@@ -731,9 +731,9 @@ class TimeseriesRecord(Record):
         axes = []
         units = {}
         for obj in forces.values():
-            f_arr = obj["force"].to_numpy()
-            r_arr = obj["origin"].to_numpy()
-            m_arr = obj["torque"].to_numpy()
+            f_arr = obj["force"].apply(sp_fillna, value=0,axis=0).to_numpy()
+            r_arr = obj["origin"].apply(sp_fillna, axis=0).to_numpy()
+            m_arr = obj["torque"].apply(sp_fillna, value=0,axis=0).to_numpy()
             i_arr = np.asarray(obj.index, float)
             mask = np.where(np.isin(i_total, i_arr))[0]
 

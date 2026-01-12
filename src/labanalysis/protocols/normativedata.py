@@ -90,7 +90,12 @@ plankbalance_normative_values = pd.DataFrame(
 # jumps normative values
 _male_jumps_normative_values = pd.DataFrame(
     [
-        ["repeated jumps", "Male", "bilateral", "rsi (cm/s)", 1.1, 0.47],
+        ["repeated jumps", "Male", "bilateral", "rsi (cm/s)", 110, 47],
+        ["repeated jumps", "Male", "bilateral", "elevation (cm)", 36.5, 10.5],
+        ["repeated jumps", "Male", "bilateral", "contact time (ms)", 235, 34],
+        ["repeated jumps", "Male", "unilateral", "elevation (cm)", 19.0, 6.2],
+        ["repeated jumps", "Male", "unilateral", "rsi (cm/s)", 43, 12],
+        ["repeated jumps", "Male", "unilateral", "contact time (ms)", 350, 60],
         ["squat jump", "Male", "bilateral", "elevation (cm)", 35.0, 9.4],
         ["free hand jump", "Male", "bilateral", "elevation (cm)", 41.5, 12.1],
         ["counter movement jump", "Male", "bilateral", "elevation (cm)", 36.5, 10.5],
@@ -101,8 +106,8 @@ _male_jumps_normative_values = pd.DataFrame(
         ["drop jump (40cm)", "Male", "unilateral", "rsi (cm/s)", 43, 12],
         ["drop jump (40cm)", "Male", "unilateral", "elevation (cm)", 14.4, 3.1],
         ["drop jump (40cm)", "Male", "unilateral", "contact time (ms)", 350, 60],
-        ["drop jump (40cm)", "Male", "bilateral", "activation ratio", 50, 17],
-        ["drop jump (40cm)", "Male", "unilateral", "activation ratio", 50, 17],
+        ["drop jump (40cm)", "Male", "bilateral", "activation ratio", 100, 25],
+        ["drop jump (40cm)", "Male", "unilateral", "activation ratio", 100, 25],
         ["drop jump (40cm)", "Male", "bilateral", "activation time (ms)", -80, 60],
         ["drop jump (40cm)", "Male", "unilateral", "activation time (ms)", -80, 60],
     ],

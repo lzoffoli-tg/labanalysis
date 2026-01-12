@@ -5,12 +5,12 @@
 import numpy as np
 
 from ..constants import MINIMUM_CONTACT_FORCE_N, MINIMUM_FLIGHT_TIME_S
-from ..signalprocessing import continuous_batches, fillna
+from ..signalprocessing import continuous_batches, fillna, butterworth_filt
 from .bodies import WholeBody
 from .records import *
 from .timeseries import *
 
-__all__ = ["JumpExercise", "SingleJump", "DropJump"]
+__all__ = ["RepeatedJumps", "SingleJump", "DropJump"]
 
 
 #! CLASSES
@@ -126,6 +126,24 @@ class SingleJump(WholeBody):
         self._bodymass_kg = bodymass_kg
 
     @property
+    def straight_legs(self):
+        return self._straight_legs
+
+    def set_straight_legs(self, straight: bool):
+        if not isinstance(straight, bool):
+            raise ValueError("straight must be True or False.")
+        self._straight_legs = straight
+
+    @property
+    def free_hands(self):
+        return self._free_hands
+
+    def set_free_hands(self, free: bool):
+        if not isinstance(free, bool):
+            raise ValueError("free must be True or False.")
+        self._free_hands = free
+
+    @property
     def contact_phase(self):
         """
         Returns the concentric phase of the jump.
@@ -210,6 +228,8 @@ class SingleJump(WholeBody):
         bodymass_kg: float,
         left_foot_ground_reaction_force: ForcePlatform | None = None,
         right_foot_ground_reaction_force: ForcePlatform | None = None,
+        straight_legs: bool = False,
+        free_hands: bool = False,
         **signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
     ):
         """
@@ -266,6 +286,8 @@ class SingleJump(WholeBody):
         # build
         super().__init__(**signals, **forces)
         self.set_bodymass_kg(bodymass_kg)
+        self.set_straight_legs(straight_legs)
+        self.set_free_hands(free_hands)
 
     @classmethod
     def from_tdf(
@@ -274,6 +296,8 @@ class SingleJump(WholeBody):
         bodymass_kg: float | int,
         left_foot_ground_reaction_force: str | None = "left_foot",
         right_foot_ground_reaction_force: str | None = "right_foot",
+        straight_legs: bool = False,
+        free_hands: bool = False,
     ):
         """
         Create a Jump object from a TDF file.
@@ -322,6 +346,8 @@ class SingleJump(WholeBody):
         }
         return cls(
             bodymass_kg=bodymass_kg,
+            straight_legs=straight_legs,
+            free_hands=free_hands,
             **signals,  # type: ignore
             **mandatory,  # type: ignore
         )
@@ -329,6 +355,8 @@ class SingleJump(WholeBody):
     def copy(self):
         return SingleJump(
             self.bodymass_kg,
+            straight_legs=self.straight_legs,
+            free_hands=self.free_hands,
             **{i: v.copy() for i, v in self.items()},  # type: ignore
         )
 
@@ -485,6 +513,7 @@ class DropJump(SingleJump):
         self,
         box_height_cm: float,
         bodymass_kg: float,
+        free_hands: bool = False,
         left_foot_ground_reaction_force: ForcePlatform | None = None,
         right_foot_ground_reaction_force: ForcePlatform | None = None,
         **signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
@@ -522,9 +551,11 @@ class DropJump(SingleJump):
 
         super().__init__(
             bodymass_kg=bodymass_kg,
+            free_hands=free_hands,
+            straight_legs=False,
             left_foot_ground_reaction_force=left_foot_ground_reaction_force,
             right_foot_ground_reaction_force=right_foot_ground_reaction_force,
-            **signals,
+            **signals,  # type: ignore
         )
         self.set_box_height_cm(box_height_cm)
 
@@ -550,6 +581,7 @@ class DropJump(SingleJump):
         file: str,
         box_height_cm: float,
         bodymass_kg: float | int,
+        free_hands: bool = False,
         left_foot_ground_reaction_force: str | None = "left_foot",
         right_foot_ground_reaction_force: str | None = "right_foot",
     ):
@@ -606,19 +638,21 @@ class DropJump(SingleJump):
         return cls(
             box_height_cm=box_height_cm,
             bodymass_kg=bodymass_kg,
+            free_hands=free_hands,
             **signals,  # type: ignore
             **mandatory,  # type: ignore
         )
 
     def copy(self):
         return DropJump(
-            self.box_height_cm,
-            self.bodymass_kg,
+            box_height_cm=self.box_height_cm,
+            bodymass_kg=self.bodymass_kg,
+            free_hands=self.free_hands,
             **{i: v.copy() for i, v in self.items()},  # type: ignore
         )
 
 
-class JumpExercise(WholeBody):
+class RepeatedJumps(WholeBody):
 
     @property
     def bodymass_kg(self):
@@ -637,11 +671,41 @@ class JumpExercise(WholeBody):
             raise ValueError("bodymass_kg must be a float or int > 0.")
         self._bodymass_kg = bodymass_kg
 
+    @property
+    def excluded_jumps(self):
+        return self._excluded_jumps
+
+    def set_excluded_jumps(self, jumps: list[int]):
+        if not isinstance(jumps, list) or not all([isinstance(i, int) for i in jumps]):
+            raise ValueError("jumps must be a list of int")
+        self._excluded_jumps = jumps
+
+    @property
+    def straight_legs(self):
+        return self._straight_legs
+
+    def set_straight_legs(self, straight: bool):
+        if not isinstance(straight, bool):
+            raise ValueError("straight must be True or False.")
+        self._straight_legs = straight
+
+    @property
+    def free_hands(self):
+        return self._free_hands
+
+    def set_free_hands(self, free: bool):
+        if not isinstance(free, bool):
+            raise ValueError("free must be True or False.")
+        self._free_hands = free
+
     def __init__(
         self,
         bodymass_kg: float,
         left_foot_ground_reaction_force: ForcePlatform | None = None,
         right_foot_ground_reaction_force: ForcePlatform | None = None,
+        exclude_jumps: list[int] = [0, -1],
+        straight_legs: bool = False,
+        free_hands: bool = False,
         **signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
     ):
         """
@@ -701,6 +765,9 @@ class JumpExercise(WholeBody):
             **forces,
         )
         self.set_bodymass_kg(bodymass_kg)
+        self.set_excluded_jumps(exclude_jumps)
+        self.set_straight_legs(straight_legs)
+        self.set_free_hands(free_hands)
 
     @classmethod
     def from_tdf(
@@ -709,6 +776,9 @@ class JumpExercise(WholeBody):
         bodymass_kg: float | int,
         left_foot_ground_reaction_force: str | None = "left_foot",
         right_foot_ground_reaction_force: str | None = "right_foot",
+        exclude_jumps: list[int] = [],
+        straight_legs: bool = False,
+        free_hands: bool = False,
     ):
         """
         Create a Jump object from a TDF file.
@@ -755,52 +825,93 @@ class JumpExercise(WholeBody):
         signals = {i: v for i, v in record.items() if i not in list(mandatory.keys())}
         return cls(
             bodymass_kg=bodymass_kg,
+            exclude_jumps=exclude_jumps,
+            straight_legs=straight_legs,
+            free_hands=free_hands,
             **mandatory,  # type: ignore
             **signals,  # type: ignore
         )
 
     def copy(self):
-        return JumpExercise(
-            self.bodymass_kg,
+        return RepeatedJumps(
+            bodymass_kg=self.bodymass_kg,
+            free_hands=self.free_hands,
+            exclude_jumps=self.excluded_jumps,
+            straight_legs=self.straight_legs,
             **{i: v.copy() for i, v in self.items()},  # type: ignore
         )
 
     @property
     def jumps(self):
-        jumps: list[SingleJump] = []
         vgrf = self.resultant_force.copy()
         time = vgrf.index
         vgrf = vgrf.force[self.vertical_axis].to_numpy().flatten()
+        vgrf = fillna(arr=vgrf, value=0).flatten()  # type: ignore
+        fsamp = float(1 / np.mean(np.diff(time)))
+        vgrf = butterworth_filt(
+            arr=vgrf,
+            fsamp=fsamp,
+            fcut=50.0,
+            order=4,
+            ftype="lowpass",
+            phase_corrected=True,
+        )
 
         # get the batches with grf lower than 30N (i.e flight phases)
-        batches = continuous_batches(vgrf <= float(MINIMUM_CONTACT_FORCE_N))
+        flight_batches = continuous_batches(vgrf <= float(MINIMUM_CONTACT_FORCE_N))
 
         # remove those batches resulting in too short flight phases
         # (i.e. ~0.2s flight time)
         fsamp = 1 / np.mean(np.diff(time))
         min_samples = int(round(MINIMUM_FLIGHT_TIME_S * fsamp))
-        batches = [i for i in batches if len(i) >= min_samples]
+        flight_batches = [i for i in flight_batches if len(i) >= min_samples]
 
         # ensure that the first jump does not start with a flight
-        if batches[0][0] == 0:
-            batches = batches[1:]
+        if flight_batches[0][0] == 0:
+            flight_batches = flight_batches[1:]
 
         # ensure that the last jump does not end in flight
-        if batches[-1][-1] == len(vgrf) - 1:
-            batches = batches[:-1]
+        if flight_batches[-1][-1] == len(vgrf) - 1:
+            flight_batches = flight_batches[:-1]
+
+        # get the contact peaks
+        contact_peaks = []
+        for b0, b1 in zip(flight_batches[:-1], flight_batches[1:]):
+            contact_peaks.append(np.argmax(vgrf[b0[-1] : b1[0]]) + b0[-1])
+        contact_peaks.append(
+            np.argmax(vgrf[flight_batches[-1][-1] :]) + flight_batches[-1][-1]
+        )
+
+        # get the contact starts
+        contact_starts = []
+        contact_batches = continuous_batches(vgrf > float(MINIMUM_CONTACT_FORCE_N))
+        for i, batch in enumerate(flight_batches):
+            pre = [c for c in contact_batches if c[-1] <= batch[0]]
+            if len(pre) == 0:
+                raise RuntimeError("no contact phase found")
+            pre = pre[-1]
+            contact_starts.append(pre[0])
 
         # separate each jump
-        flights_idx = np.where(vgrf < MINIMUM_CONTACT_FORCE_N)[0]
-        for batch in batches:
-            start_idx = flights_idx[flights_idx < batch[0]]
-            start_idx = int(0 if len(start_idx) == 0 else (start_idx[-1] + 1))
-            start = float(time[start_idx])
-            stop = float(time[batch[-1] + 2])
-            jumps += [
+        jumps: list[SingleJump] = []
+        for i, (pre, post) in enumerate(zip(contact_starts, contact_peaks)):
+            start = float(time[pre])
+            stop = float(time[post])
+            jumps.append(
                 SingleJump(
                     bodymass_kg=self.bodymass_kg,
+                    straight_legs=self.straight_legs,
+                    free_hands=self.free_hands,
                     **{i: v.copy().loc(start, stop) for i, v in self.items()},  # type: ignore
                 )
-            ]
+            )
+
+        # exclude unnecessary jumps
+        sanitized_indices = [
+            i + (0 if i >= 0 else len(jumps)) for i in self.excluded_jumps
+        ]
+        sanitized_indices = sorted(set(sanitized_indices), reverse=True)
+        for i in sanitized_indices:
+            jumps.pop(i)
 
         return jumps

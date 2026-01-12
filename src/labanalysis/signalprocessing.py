@@ -1164,20 +1164,20 @@ def fillna(
     # fill with the given value
     if value is not None:
         obj.iloc[miss] = value
+        out = obj.values.astype(float).reshape(arr.shape)
         if isinstance(arr, np.ndarray):
             if inplace:
-                arr[:] = obj.values
-                return arr
-            return obj.values.astype(float)
-        elif isinstance(arr, Series):
+                arr[:] = out
+            else:
+                return out
+        if isinstance(arr, Series):
             if inplace:
-                arr[:] = obj[obj.columns[0]].values
-                return arr
-            return Series(obj[obj.columns[0]])
+                arr.loc[:] = out
+            else:
+                return obj
+        if inplace:
+            arr.loc[:, :] = out
         else:
-            if inplace:
-                arr.loc[:, :] = obj.values
-                return arr
             return obj
 
     # check if linear regression models have to be used
@@ -1218,22 +1218,21 @@ def fillna(
             obj.iloc[x_new, i] = CubicSpline(x_old, y_old)(x_new).astype(float)
 
     # return the filled array
+    out = obj.values.astype(float).reshape(arr.shape)
     if isinstance(arr, np.ndarray):
         if inplace:
-            arr[:] = obj.values
-            return arr
-        return obj.values.astype(float)
-    elif isinstance(arr, Series):
+            arr[:] = out
+        else:
+            return out
+    if isinstance(arr, Series):
         if inplace:
-            arr[:] = obj[obj.columns[0]].values
-            return arr
-        return Series(obj[obj.columns[0]])
-    else:
-        if inplace:
-            arr.loc[:, :] = obj.values
-            return arr
+            arr.loc[:] = out
         else:
             return obj
+    if inplace:
+        arr.loc[:, :] = out
+    else:
+        return obj
 
 
 def tkeo(
