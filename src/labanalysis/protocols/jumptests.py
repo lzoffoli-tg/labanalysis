@@ -593,11 +593,11 @@ class JumpTestResults(TestResults):
             return np.nan
         grf = con.copy().force[jump.vertical_axis].to_numpy().flatten()
         grfy = fillna(arr=grf, value=0).flatten()  # type: ignore
-        time = con.index
+        grft = con.index
 
         # get the output velocity
         net_grf = grfy - bodyweight * G
-        return float(np.trapezoid(net_grf, time) / bodyweight)
+        return float(np.trapezoid(net_grf / bodyweight, grft))
 
     def _get_elevation_cm(
         self,

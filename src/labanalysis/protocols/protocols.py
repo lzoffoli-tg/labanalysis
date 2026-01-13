@@ -6,16 +6,16 @@ base test module containing classes and functions used to perform lab tests.
 
 import pickle
 from datetime import date, datetime
-from os.path import exists
+from os import makedirs
+from os.path import dirname, exists, join
 from typing import Any, Callable, Literal, Protocol, Self, runtime_checkable
 
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
-from ..records.pipelines import ProcessingPipeline
-
 from ..messages import askyesnocancel
+from ..records.pipelines import ProcessingPipeline
 from ..records.records import ForcePlatform, TimeseriesRecord
 from ..records.timeseries import EMGSignal, Point3D, Signal1D, Signal3D
 from ..signalprocessing import butterworth_filt, rms_filt
@@ -568,7 +568,7 @@ class TestResults(Protocol):
 
     _summary: pd.DataFrame
     _analytics: pd.DataFrame
-    _figures: dict[str, go.Figure]
+    _figures: dict[str, go.Figure | dict[str, go.Figure]]
     _include_emg: bool
 
     @property
@@ -586,6 +586,47 @@ class TestResults(Protocol):
     @property
     def include_emg(self):
         return self._include_emg
+
+    def save_all(self, path: str, force_overwrite: bool = True):
+
+        # check the inputs
+        if not isinstance(path, str):
+            msg = "path must be a string defining the root folder where to "
+            msg += "save the results of the test."
+            raise ValueError(msg)
+
+        if not isinstance(force_overwrite, bool):
+            msg = "force_overwrite must be True or False."
+            raise ValueError(msg)
+
+        # generate a recursive function that automatically save
+        # the data in the proper folder
+        def save(filename: str, obj: pd.DataFrame | go.Figure | dict):
+            if isinstance(obj, dict):
+                for key, val in obj.items():
+                    save(join(filename, key), val)
+
+            # check overwrite
+            if exists(filename):
+                if not askyesnocancel(
+                    "Overwrite check",
+                    f"{filename} exists. Overwrite?",
+                ):
+                    filename += "(1)"
+
+            makedirs(dirname(filename), exist_ok=True)
+            if isinstance(obj, pd.DataFrame):
+                obj.to_csv(filename + ".csv")
+            elif isinstance(obj, go.Figure):
+                obj.write_image(filename + ".svg")
+            else:
+                msg = "saving procedure is not supported for objects of type "
+                msg += "{type(obj)}."
+                raise ValueError(msg)
+
+        save(join(path, "summary"), self.summary)
+        save(join(path, "analytics"), self.analytics)
+        save(join(path, "figures"), self.figures)
 
     def __init__(self, test: Any, include_emg):
         if not isinstance(include_emg, bool):
@@ -735,7 +776,9 @@ class TestResults(Protocol):
 
     def _get_analytics(self, test: Any) -> pd.DataFrame: ...
 
-    def _get_figures(self, test: Any) -> dict[str, go.Figure]: ...
+    def _get_figures(
+        self, test: Any
+    ) -> dict[str, go.Figure | dict[str, go.Figure]]: ...
 
 
 @runtime_checkable
