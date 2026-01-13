@@ -1043,6 +1043,7 @@ class TestProtocol(Protocol):
             if not overwrite:
                 file_path = file_path[: len(extension)] + "_" + extension
         if not exists(file_path) or overwrite:
+            makedirs(dirname(file_path), exist_ok=True)
             with open(file_path, "wb") as buf:
                 pickle.dump(self, buf)
 
