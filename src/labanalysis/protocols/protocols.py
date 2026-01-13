@@ -7,7 +7,7 @@ base test module containing classes and functions used to perform lab tests.
 import pickle
 from datetime import date, datetime
 from os import makedirs
-from os.path import dirname, exists, join
+from os.path import dirname, exists, join, isfile
 from typing import Any, Callable, Literal, Protocol, Self, runtime_checkable
 
 import numpy as np
@@ -587,7 +587,7 @@ class TestResults(Protocol):
     def include_emg(self):
         return self._include_emg
 
-    def save_all(self, path: str, force_overwrite: bool = True):
+    def save_all(self, path: str, force_overwrite: bool = False):
 
         # check the inputs
         if not isinstance(path, str):
@@ -602,12 +602,9 @@ class TestResults(Protocol):
         # generate a recursive function that automatically save
         # the data in the proper folder
         def save(filename: str, obj: pd.DataFrame | go.Figure | dict):
-            if isinstance(obj, dict):
-                for key, val in obj.items():
-                    save(join(filename, key), val)
 
             # check overwrite
-            if exists(filename):
+            if exists(filename) and isfile(filename) and not force_overwrite:
                 if not askyesnocancel(
                     "Overwrite check",
                     f"{filename} exists. Overwrite?",
@@ -619,9 +616,12 @@ class TestResults(Protocol):
                 obj.to_csv(filename + ".csv")
             elif isinstance(obj, go.Figure):
                 obj.write_image(filename + ".svg")
+            elif isinstance(obj, dict):
+                for key, val in obj.items():
+                    save(join(filename, key), val)
             else:
                 msg = "saving procedure is not supported for objects of type "
-                msg += "{type(obj)}."
+                msg += f"{type(obj)}."
                 raise ValueError(msg)
 
         save(join(path, "summary"), self.summary)
