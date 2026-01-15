@@ -547,10 +547,25 @@ class Isokinetic1RMTest(TestProtocol):
 
 class Isokinetic1RMTestResults(TestResults):
 
-    def __init__(self, test: Isokinetic1RMTest, include_emg: bool):
+    @property
+    def estimate_1rm(self):
+        return self._estimate_1rm
+
+    def set_estimate_1rm(self, estimate: bool):
+        if not isinstance(estimate, bool):
+            raise ValueError("estimate must be a bool instance.")
+        self._estimate_1rm = estimate
+
+    def __init__(
+        self,
+        test: Isokinetic1RMTest,
+        include_emg: bool,
+        estimate_1rm: bool = False,
+    ):
         if not isinstance(test, Isokinetic1RMTest):
             raise ValueError("'test' must be an Isokinetic1RMTest instance.")
         super().__init__(test, include_emg)
+        self.set_estimate_1rm(estimate_1rm)
 
     def _get_estimated_1rm(
         self,
@@ -583,10 +598,11 @@ class Isokinetic1RMTestResults(TestResults):
                         ename += " (%)" if any(check) else " (uV)"
                         new.loc[ename, eside] = m.to_numpy().mean()
                 metrics = pd.concat([metrics, new])
-            metrics.loc["estimated 1RM (kg)", side] = self._get_estimated_1rm(
-                trial,
-                test.rm1_coefs,
-            )
+            if self.estimate_1rm:
+                metrics.loc["estimated 1RM (kg)", side] = self._get_estimated_1rm(
+                    trial,
+                    test.rm1_coefs,
+                )
             metrics.loc["peak force (N)", side] = self._get_peak_force(trial)
         metrics.insert(0, "parameter", metrics.index)
         metrics.reset_index(inplace=True, drop=True)

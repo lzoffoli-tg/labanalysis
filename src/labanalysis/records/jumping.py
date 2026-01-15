@@ -481,29 +481,19 @@ class DropJump(SingleJump):
 
         # get contact phases
         contact_batches = continuous_batches(grfy > MINIMUM_CONTACT_FORCE_N)
+
+        # if the jump starts with a contact phase (i.e. the box is on the
+        # force platforms) ignore the first contact
+        if contact_batches[0][0] == 0:
+            contact_batches = contact_batches[1:]
+
+        # ensure that a minimum of 2 contact phases
         if len(contact_batches) < 2:
             raise RuntimeError("No flight phase found.")
 
-        # get the contact phases with the two highest peak forces
-        contact_idx = np.argsort([grfy[b].max() for b in contact_batches])[:2]
-        contact_batches = [contact_batches[i] for i in sorted(contact_idx)]
-
-        # get the longest flight phase in between
-        flight_batches = continuous_batches(grfy <= MINIMUM_CONTACT_FORCE_N)
-        flight_batches = [
-            i
-            for i in flight_batches
-            if i[0] > contact_batches[0][-1] and i[-1] < contact_batches[1][0]
-        ]
-        if len(flight_batches) < 1:
-            raise RuntimeError("No flight phase found.")
-        flight_idx = np.argsort([len(i) for i in flight_batches])[-1]
-        batch = flight_batches[flight_idx]
-
-        # # get the time samples corresponding to the start and end of each
-        # batch
-        start = float(np.round(grft[batch[0]], 3))
-        stop = float(np.round(grft[batch[-1]], 3))
+        # get the second flight phase
+        start = float(round(grft[contact_batches[0][-1] + 1], 3))
+        stop = float(round(grft[contact_batches[1][0] - 1], 3))
 
         # return the landing phase
         signals = {k: v.copy().loc(start, stop) for k, v in self.items()}
