@@ -29,17 +29,13 @@ __all__ = ["Isokinetic1RMTest", "IsometricTest"]
 def _get_force_figure(
     tracks: pd.DataFrame,
     summary: pd.DataFrame,
+    include_emg: bool = True,
 ):
-
-    sides = np.unique(tracks.side.to_numpy().flatten())
 
     # generate the figure
     def get_muscles():
-        lbls = [i for i in summary.parameter if "uV" in i or "%" in i]
+        lbls = [i for i in summary.parameter if i.endswith(" (%)")]
         return np.unique([i.rsplit(" ", 1)[0] for i in lbls]).tolist()
-
-    def plot_muscle_balance():
-        return len(get_muscles()) > 0
 
     def balance_string(left: str, right: str, sep: str = " | "):
         width = max(len(left), len(right))
@@ -48,14 +44,15 @@ def _get_force_figure(
         rjust = right.ljust(width).replace(" ", nbsp)
         return sep.join([ljust, rjust])
 
-    nrows = 1
-    ncols = len(sides)
+    plot_emg_muscle_balance = len(get_muscles()) > 0 and include_emg
+    sides = np.unique(tracks.side)
     titles = [i.capitalize() for i in sides]
-    if plot_muscle_balance():
+    ncols = len(sides)
+    if plot_emg_muscle_balance:
         ncols += 1
-        titles += ["Muscle Imbalance"]
+        titles += ["Muscle Balance"]
     fig = make_subplots(
-        rows=nrows,
+        rows=1,
         cols=ncols,
         shared_xaxes=False,
         shared_yaxes=False,
@@ -67,7 +64,7 @@ def _get_force_figure(
         height=500,
         width=500 * len(titles),
     )
-    if len(get_muscles()) > 0:
+    if plot_emg_muscle_balance:
         labels = list(RANK_4COLORS.keys())
         colors = list(RANK_4COLORS.values())
         values = [10, 20, 30, 40]
@@ -89,10 +86,13 @@ def _get_force_figure(
         )
 
     # plot force profiles
-    x_lbl = [i for i in tracks.columns if i not in ["Force (N)", "side"]][0]
+    f_data = tracks.loc[tracks.parameter == "force_amplitude"]
+    f_data = f_data.groupby(["time_%", "side", "limb"], as_index=False).max()
     for i, side in enumerate(sides):
-        y = tracks.loc[tracks.side == side, "y"].to_numpy().astype(float).flatten()  # type: ignore
-        x = tracks.loc[tracks.side == side, x_lbl].to_numpy().astype(float).flatten()  # type: ignore
+        y = f_data.loc[f_data.side == side, "value"].to_numpy()  # type: ignore
+        y = y.astype(float).flatten()
+        x = f_data.loc[f_data.side == side, "time_%"].to_numpy()  # type: ignore
+        x = x.astype(float).flatten()
         fig.add_trace(
             go.Scatter(
                 x=x,
@@ -130,7 +130,12 @@ def _get_force_figure(
                 continue
             est = est[side]
             est = float(np.squeeze(est.to_numpy()))
-            note += [f"{ext}: {est:0.1f}"]
+            key = (
+                ext.replace("estimated", "Est.")
+                .replace("rate of force development", "RFD")
+                .replace("time to peak force", "Time@F<sub>MAX</sub>")
+            )
+            note += [f"{key}: {est:0.1f}"]
         note = "<br>".join(note)
         if x_peak / np.max(x) < 0.40:
             dx = 20
@@ -159,14 +164,17 @@ def _get_force_figure(
         )
 
     # update force profiles figure layout
-    force_data = tracks.y.to_numpy().flatten()
-    rom_data = tracks["Concentric ROM (mm)"].to_numpy().flatten()
-    yrange = [np.min(force_data) * 0.9, np.max(force_data) * 1.3]
-    xticks = np.linspace(0, np.ceil(np.max(rom_data)), 5)
+    yrange = f_data["value"].to_numpy().flatten()  # type: ignore
+    yrange = np.array([np.min(yrange), np.max(yrange)])
+    yrange *= np.array([0.9, 1.3])
+    yrange = yrange.tolist()
+    xrange = f_data["time_%"].to_numpy().flatten()  # type: ignore
+    xrange = [np.min(xrange), np.max(xrange)]
+    xticks = np.linspace(xrange[0], xrange[1], 5)
     xticks = [int(round(i / 5) * 5) for i in xticks]
     for i in range(len(sides)):
         fig.update_xaxes(
-            title=x_lbl,
+            title="Concentric Phase (%)",
             row=1,
             col=i + 1,
             showline=True,
@@ -193,7 +201,7 @@ def _get_force_figure(
         )
 
     # plot muscle data
-    if plot_muscle_balance():
+    if plot_emg_muscle_balance:
         if "symmetry (%)" not in summary.columns:
             raise ValueError("'symmetry (%)' missing from summary dataframe")
         if "parameter" not in summary.columns:
@@ -478,10 +486,17 @@ class Isokinetic1RMTest(TestProtocol):
             relevant_muscle_map=relevant_muscle_map,
         )
 
-    def get_results(self, include_emg: bool = True):
+    def get_results(
+        self,
+        include_emg: bool = True,
+        estimate_1rm: bool = True,
+        include_force_balance: bool = True,
+    ):
         return Isokinetic1RMTestResults(
             self.processed_data,
             include_emg,
+            estimate_1rm,
+            include_force_balance,
         )
 
     def _process_exercise(self, exercise: IsokineticExercise):
@@ -556,16 +571,38 @@ class Isokinetic1RMTestResults(TestResults):
             raise ValueError("estimate must be a bool instance.")
         self._estimate_1rm = estimate
 
+    @property
+    def include_emg(self):
+        return self._include_emg
+
+    def set_include_emg(self, estimate: bool):
+        if not isinstance(estimate, bool):
+            raise ValueError("estimate must be a bool instance.")
+        self._include_emg = estimate
+
+    @property
+    def include_force_balance(self):
+        return self._include_force_balance
+
+    def set_include_force_balance(self, estimate: bool):
+        if not isinstance(estimate, bool):
+            raise ValueError("estimate must be a bool instance.")
+        self._include_force_balance = estimate
+
     def __init__(
         self,
         test: Isokinetic1RMTest,
-        include_emg: bool,
+        include_emg: bool = True,
         estimate_1rm: bool = False,
+        include_force_balance: bool = True,
     ):
-        if not isinstance(test, Isokinetic1RMTest):
-            raise ValueError("'test' must be an Isokinetic1RMTest instance.")
-        super().__init__(test, include_emg)
+        self._summary = pd.DataFrame()
+        self._analytics = pd.DataFrame()
+        self._figures = {}
+        self.set_include_emg(include_emg)
+        self.set_include_force_balance(include_force_balance)
         self.set_estimate_1rm(estimate_1rm)
+        self._generate_results(test)
 
     def _get_estimated_1rm(
         self,
@@ -643,41 +680,68 @@ class Isokinetic1RMTestResults(TestResults):
 
         # force data
         tracks = self.analytics
-        sides = np.unique(tracks.side).tolist()
-        force_data = [
-            "side",
-            "repetition",
-            "time_s",
-            "force_amplitude",
-            "position_amplitude",
-        ]
-        force_data = tracks[force_data].copy()
-        y_arr = {side: [] for side in sides}
-        x_arr = {side: [] for side in sides}
+        if self.include_emg:
+            cols = tracks.columns
+        else:
+            cols = [
+                "side",
+                "repetition",
+                "time_s",
+                "force_amplitude",
+                "position_amplitude",
+            ]
+        force_data = tracks[cols].copy()
+        dfs = []
         for (side, rep), dfr in force_data.groupby(by=["side", "repetition"]):
-            pos = dfr.position_amplitude.to_numpy().flatten()
-            force = dfr.force_amplitude.to_numpy().flatten()
-            pint = cubicspline_interp(pos, 201)
-            fint = cubicspline_interp(force, 201)
-            y_arr[side].append(np.atleast_2d(fint))
-            x_arr[side].append(np.atleast_2d(pint))
-        tracks = []
-        for i, side in enumerate(sides):
-            y = np.vstack(y_arr[side]).max(axis=0)
-            x = np.vstack(x_arr[side]).mean(axis=0) * 1000
-            x = x - np.min(x)
-            df = pd.DataFrame({"Concentric ROM (mm)": x, "y": y})
-            df.insert(0, "side", side)
-            tracks.append(df)
-        tracks = pd.concat(tracks, ignore_index=True)
-
-        # muscle data
-        return {
-            "force_profiles_with_muscle_balance": _get_force_figure(
-                tracks,
-                self.summary,
+            df = dfr.drop(
+                ["side", "repetition", "time_s", "position_amplitude"],
+                axis=1,
+            ).copy()
+            arr = df.to_numpy()
+            interp = np.apply_along_axis(
+                cubicspline_interp,
+                arr=arr,
+                axis=0,
+                nsamp=201,
             )
-        }
+            df = pd.DataFrame(dict(zip(df.columns, interp.T)))
+            df.insert(
+                0,
+                "time_%",
+                np.linspace(0, 100, df.shape[0]),
+            )
+            df = df.melt(
+                id_vars=["time_%"],
+                var_name="parameter",
+                value_name="value",
+            )
+            df.insert(
+                0,
+                "side",
+                side,
+            )
+            df.insert(
+                0,
+                "limb",
+                "bilateral" if side == "bilateral" else "unilateral",
+            )
+            df.insert(
+                0,
+                "repetition",
+                rep,
+            )
+            dfs.append(df)
+        dfr = pd.concat(dfs, ignore_index=True)
+
+        out: dict[str, go.Figure] = {}
+        for i, v in dfr.groupby("limb"):
+            out[i] = _get_force_figure(
+                v,
+                self.summary,
+                self.include_emg,
+            )
+
+        return out
 
 
 class IsometricTest(TestProtocol):

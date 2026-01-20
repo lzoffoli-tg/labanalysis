@@ -116,14 +116,13 @@ class BiostrengthProduct:
 
     @property
     def load_kgf(self):
-        """return the calculated lever weight"""
+        """the user load in kgf"""
         return (
             self.torque_nm
-            * self.spring_correction
-            / self._pulley_radius_m
+            / self.spring_correction
+            * self.camme_ratio
+            / self.pulley_radius_m
             / G
-            / self.camme_ratio
-            + self.lever_weight_kgf
         )
 
     @property
