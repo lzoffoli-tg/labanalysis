@@ -150,7 +150,7 @@ def _get_sway_figure(
         for area, color, label in zip(areas[::-1], rank_colors, ranks):
 
             # scale the axes according to the ratio between the ellipses area
-            ratio = area / cop_area
+            ratio = (area / cop_area) ** 0.5
 
             # add the ellipse
             x_ell, y_ell = build_ellipse(
