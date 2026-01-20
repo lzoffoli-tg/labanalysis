@@ -587,7 +587,7 @@ class TestResults(Protocol):
     def include_emg(self):
         return self._include_emg
 
-    def save_all(self, path: str, force_overwrite: bool = False):
+    def save_all(self, path: str):
 
         # check the inputs
         if not isinstance(path, str):
@@ -595,22 +595,9 @@ class TestResults(Protocol):
             msg += "save the results of the test."
             raise ValueError(msg)
 
-        if not isinstance(force_overwrite, bool):
-            msg = "force_overwrite must be True or False."
-            raise ValueError(msg)
-
         # generate a recursive function that automatically save
         # the data in the proper folder
         def save(filename: str, obj: pd.DataFrame | go.Figure | dict):
-
-            # check overwrite
-            if exists(filename) and isfile(filename) and not force_overwrite:
-                if not askyesnocancel(
-                    "Overwrite check",
-                    f"{filename} exists. Overwrite?",
-                ):
-                    filename += "(1)"
-
             makedirs(dirname(filename), exist_ok=True)
             if isinstance(obj, pd.DataFrame):
                 obj.to_csv(filename + ".csv")
@@ -763,12 +750,12 @@ class TestResults(Protocol):
         fp["torque"] = self._signal3d_processing_func(fp["torque"])  # type: ignore
         return fp
 
-    def _generate_results(self, raw_test: Any):
-        if not isinstance(raw_test, TestProtocol):
+    def _generate_results(self, test: Any):
+        if not isinstance(test, TestProtocol):
             raise ValueError("test must be a TestProtocol instance.")
-        self._summary = self._get_summary(raw_test)
-        self._analytics = self._get_analytics(raw_test)
-        self._figures = self._get_figures(raw_test)
+        self._summary = self._get_summary(test)
+        self._analytics = self._get_analytics(test)
+        self._figures = self._get_figures(test)
 
     #! MANDATORY FIELDS TO BE IMPLEMENTED
 
@@ -1019,7 +1006,7 @@ class TestProtocol(Protocol):
 
         return thresholds
 
-    def save(self, file_path: str):
+    def save(self, file_path: str, force_overwrite: bool = False):
         """
         Save the test object to a file.
 
@@ -1031,18 +1018,19 @@ class TestProtocol(Protocol):
         """
         if not isinstance(file_path, str):
             raise ValueError("'file_path' must be a str instance.")
+        if not isinstance(force_overwrite, bool):
+            raise ValueError("force_overwrite must be True or False.")
         extension = "." + self.__class__.__name__.lower()
         if not file_path.endswith(extension):
             file_path += extension
-        overwrite = False
-        while exists(file_path) and not overwrite:
+        while exists(file_path) and not force_overwrite:
             overwrite = askyesnocancel(
                 title="File already exists",
                 message="the provided file_path already exist. Overwrite?",
             )
             if not overwrite:
                 file_path = file_path[: len(extension)] + "_" + extension
-        if not exists(file_path) or overwrite:
+        if not exists(file_path) or force_overwrite:
             makedirs(dirname(file_path), exist_ok=True)
             with open(file_path, "wb") as buf:
                 pickle.dump(self, buf)

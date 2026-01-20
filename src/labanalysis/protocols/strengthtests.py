@@ -13,7 +13,11 @@ from plotly.subplots import make_subplots
 from ..constants import G, RANK_4COLORS, SIDE_COLORS
 from ..io.read.biostrength import PRODUCTS
 from ..records import IsokineticExercise, IsometricExercise
-from ..records.pipelines import ProcessingPipeline, get_default_processing_pipeline
+from ..records.pipelines import (
+    ProcessingPipeline,
+    get_default_emgsignal_processing_func,
+    get_default_processing_pipeline,
+)
 from ..records.records import TimeseriesRecord
 from ..records.timeseries import EMGSignal, Signal1D
 from ..signalprocessing import butterworth_filt, cubicspline_interp, find_peaks
@@ -565,7 +569,7 @@ class Isokinetic1RMTest(TestProtocol):
         pipeline.add(Signal1D=[custom_processing_func])
         return pipeline
         """
-        return ProcessingPipeline()
+        return ProcessingPipeline(EMGSignal=[get_default_emgsignal_processing_func])
 
 
 class Isokinetic1RMTestResults(TestResults):
@@ -623,8 +627,7 @@ class Isokinetic1RMTestResults(TestResults):
         return float(test.force.to_numpy().max())
 
     def _get_summary(self, test: Isokinetic1RMTest):
-        processed = test.processed_data
-        trials = [processed.left, processed.right, processed.bilateral]
+        trials = [test.left, test.right, test.bilateral]
         sides = ["left", "right", "bilateral"]
         metrics = pd.DataFrame()
         for side, trial in zip(sides, trials):
