@@ -13,7 +13,7 @@ from plotly.subplots import make_subplots
 from ..constants import G, RANK_4COLORS, SIDE_COLORS
 from ..io.read.biostrength import PRODUCTS
 from ..records import IsokineticExercise, IsometricExercise
-from ..records.pipelines import get_default_processing_pipeline
+from ..records.pipelines import ProcessingPipeline, get_default_processing_pipeline
 from ..records.records import TimeseriesRecord
 from ..records.timeseries import EMGSignal, Signal1D
 from ..signalprocessing import butterworth_filt, cubicspline_interp, find_peaks
@@ -23,7 +23,12 @@ from .protocols import Participant, TestProtocol, TestResults
 #! CONSTANTS
 
 
-__all__ = ["Isokinetic1RMTest", "IsometricTest"]
+__all__ = [
+    "Isokinetic1RMTest",
+    "IsometricTest",
+    "Isokinetic1RMTestResults",
+    "IsometricTestResults",
+]
 
 
 def _get_force_figure(
@@ -542,6 +547,7 @@ class Isokinetic1RMTest(TestProtocol):
 
     @property
     def processing_pipeline(self):
+        """
         def custom_processing_func(signal: Signal1D):
             signal.fillna(inplace=True)
             fsamp = 1 / np.mean(np.diff(signal.index))
@@ -558,6 +564,8 @@ class Isokinetic1RMTest(TestProtocol):
         pipeline = get_default_processing_pipeline()
         pipeline.add(Signal1D=[custom_processing_func])
         return pipeline
+        """
+        return ProcessingPipeline()
 
 
 class Isokinetic1RMTestResults(TestResults):
