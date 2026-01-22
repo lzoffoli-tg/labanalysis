@@ -7,6 +7,7 @@ __all__ = [
     "uprightbalance_normative_values",
     "plankbalance_normative_values",
     "jumps_normative_values",
+    "vo2max_normative_values",
 ]
 
 # ISOK 1RM normative values
@@ -129,4 +130,35 @@ _female_jumps_normative_values = pd.DataFrame(_female_jumps_normative_values)
 jumps_normative_values = pd.concat(
     [_male_jumps_normative_values, _female_jumps_normative_values],
     ignore_index=True,
+)
+
+# VO2max data (from ACSM)
+vo2max_normative_values = pd.DataFrame(
+    data=[
+        # RUN - Male
+        ["RUN", "Male", 20, 29, 38.10, 44.90, 49.00, 55.20],
+        ["RUN", "Male", 30, 39, 34.10, 39.60, 43.80, 49.20],
+        ["RUN", "Male", 40, 49, 30.50, 35.70, 38.90, 45.00],
+        ["RUN", "Male", 50, 59, 26.10, 30.70, 33.80, 39.70],
+        ["RUN", "Male", 60, 69, 22.40, 26.60, 29.10, 34.50],
+        # RUN - Female
+        ["RUN", "Female", 20, 29, 28.60, 34.60, 38.90, 44.70],
+        ["RUN", "Female", 30, 39, 24.10, 28.20, 31.20, 36.10],
+        ["RUN", "Female", 40, 49, 21.30, 24.90, 27.70, 32.40],
+        ["RUN", "Female", 50, 59, 19.10, 21.80, 24.40, 27.60],
+        ["RUN", "Female", 60, 69, 16.50, 18.90, 20.50, 23.80],
+        # BIKE - Male
+        ["BIKE", "Male", 20, 29, 33.20, 38.30, 43.10, 49.50],
+        ["BIKE", "Male", 30, 39, 25.40, 28.10, 30.70, 35.00],
+        ["BIKE", "Male", 40, 49, 22.20, 25.40, 28.00, 31.80],
+        ["BIKE", "Male", 50, 59, 21.50, 23.60, 25.70, 29.30],
+        ["BIKE", "Male", 60, 69, 19.00, 21.40, 22.90, 25.50],
+        # BIKE - Female
+        ["BIKE", "Female", 20, 29, 21.60, 28.10, 32.40, 37.10],
+        ["BIKE", "Female", 30, 39, 17.00, 20.10, 22.10, 25.10],
+        ["BIKE", "Female", 40, 49, 15.80, 18.40, 20.00, 22.60],
+        ["BIKE", "Female", 50, 59, 14.90, 16.60, 17.70, 20.10],
+        ["BIKE", "Female", 60, 69, 14.00, 15.40, 16.30, 18.30],
+    ],
+    columns=["movement", "gender", "age_from", "age_to", "p20", "p40", "p60", "p80"],
 )

@@ -18,9 +18,7 @@ from plotly.subplots import make_subplots
 
 from ..signalprocessing import fillna as sp_fillna
 from ..signalprocessing import gram_schmidt
-from ..utils import FloatArray1D, FloatArray2D, TextArray1D
-
-ureg = pint.UnitRegistry()
+from ..utils import FloatArray1D, FloatArray2D, TextArray1D, ureg
 
 __all__ = ["Timeseries", "Signal1D", "Signal3D", "EMGSignal", "Point3D"]
 
@@ -945,6 +943,11 @@ class Signal1D(Timeseries):
             self.index.copy(),
             self.unit,
         )
+
+    def to_dataframe(self):
+        df = super().to_dataframe()
+        df.columns = pd.Index([self.unit.replace(" ", "")])
+        return df
 
 
 class Signal3D(Timeseries):

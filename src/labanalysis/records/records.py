@@ -1,19 +1,21 @@
 """record module"""
 
+import datetime
 import inspect
+from os.path import exists
 from warnings import warn
+
 import numpy as np
 import pandas as pd
-
-from ..io.read.btsbioengineering import read_tdf
-
-from .timeseries import *
-from ..signalprocessing import fillna as sp_fillna
-from plotly.subplots import make_subplots
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
+from ..utils import ureg
+from ..io.read.btsbioengineering import read_tdf
+from ..signalprocessing import fillna as sp_fillna
+from .timeseries import *
 
-__all__ = ["Record", "ForcePlatform", "TimeseriesRecord"]
+__all__ = ["Record", "ForcePlatform", "MetabolicRecord", "TimeseriesRecord"]
 
 
 class Record:
@@ -69,7 +71,7 @@ class Record:
         1D numpy array of floats
             A sorted, unique array of all time indices.
         """
-        return np.unique(self.to_dataframe().index.to_numpy())
+        return np.unique(np.concatenate([i.index for i in self.values()]))
 
     @property
     def shape(self):
@@ -174,7 +176,7 @@ class Record:
         for key, val in self.items():
             new = val.to_dataframe()
             cols = [
-                "_".join([key, i]) if not i.startswith(key) else i for i in new.columns
+                " ".join([key, i]) if not i.startswith(key) else i for i in new.columns
             ]
             new.columns = pd.Index(cols)
             dfr_list += [new]
@@ -588,10 +590,206 @@ class ForcePlatform(Record):
         )
 
 
+class MetabolicRecord(Record):
+
+    def __setattr__(self, key, value):
+        if key in ["_data", "_breath_by_breath"]:
+            super().__setattr__(key, value)
+        else:
+            self.__setitem__(key, value)
+
+    def __setitem__(self, key, value):
+        if not key in ["vo2", "vco2", "ve", "hr", "rf"]:
+            msg = "only 'vo2', 'vco2', 've', 'rf' and 'hr' attributes can be "
+            msg += " passed to MetabolicRecord instances."
+            raise ValueError(msg)
+        if not isinstance(value, Signal1D):
+            raise ValueError("value must be a Signal1D.")
+        self._data[key] = value
+
+    def __init__(
+        self,
+        vo2: Signal1D,
+        hr: Signal1D,
+        vco2: Signal1D,
+        ve: Signal1D,
+        rf: Signal1D,
+        breath_by_breath: bool = False,
+    ):
+        super().__init__()
+        self.set_vo2(vo2)
+        self.set_hr(hr)
+        self.set_vco2(vco2)
+        self.set_ve(ve)
+        self.set_breath_by_breath(breath_by_breath)
+        self.set_rf(rf)
+
+    def set_rf(self, signal: Signal1D):
+        if not isinstance(signal, Signal1D):
+            raise ValueError("signal must be a Signal1D instance.")
+        self["rf"] = signal
+
+    def set_vo2(self, signal: Signal1D):
+        if not isinstance(signal, Signal1D):
+            raise ValueError("signal must be a Signal1D instance.")
+        self["vo2"] = signal
+
+    def set_vco2(self, signal: Signal1D):
+        if not isinstance(signal, Signal1D):
+            raise ValueError("signal must be a Signal1D instance.")
+        self["vco2"] = signal
+
+    def set_hr(self, signal: Signal1D):
+        if not isinstance(signal, Signal1D):
+            raise ValueError("signal must be a Signal1D instance.")
+        self["hr"] = signal
+
+    def set_ve(self, signal: Signal1D):
+        if not isinstance(signal, Signal1D):
+            raise ValueError("signal must be a Signal1D instance.")
+        self["ve"] = signal
+
+    def set_breath_by_breath(self, value: bool):
+        if not isinstance(value, bool):
+            raise ValueError("value must be True or False.")
+        self._breath_by_breath = value
+
+    @property
+    def breath_by_breath(self):
+        return self._breath_by_breath
+
+    @property
+    def rq(self):
+        return Signal1D(
+            self.vco2.to_numpy() / self.vo2.to_numpy(),
+            self.index,
+            1 * ureg.dimensionless,
+        )
+
+    @property
+    def fat_oxidation(self):
+        vco2 = self.vco2.to_numpy()
+        vo2 = self.vo2.to_numpy()
+        # from: Frayn KN. “Calculation of substrate oxidation rates in vivo from gaseous exchange.” Nutrition (1983).
+        fox = 1.695 * vo2 / 1000 - 1.701 * vco2 / 1000
+        fox[fox < 0] = 0
+        return Signal1D(fox, self.index, "g/kg/min")
+
+    def copy(self):
+        return MetabolicRecord(
+            vo2=self.vo2,
+            vco2=self.vco2,
+            hr=self.hr,
+            ve=self.ve,
+            rf=self.rf,
+            breath_by_breath=self.breath_by_breath,
+        )
+
+    def to_dataframe(self):
+        out = super().to_dataframe()
+        out.loc[out.index, "RQ"] = self.rq.to_numpy()
+        out.loc[out.index, "Fat Oxidation g/kg/min"] = self.fat_oxidation.to_numpy()
+        return out
+
+    @classmethod
+    def from_file(
+        cls,
+        filename: str,
+        breath_by_breath: bool = False,
+    ):
+
+        # check the filename
+        msg = "filename must be the path to a .csv or .xlsx file containing"
+        msg += " relevant test data."
+        if not isinstance(filename, str) or not exists(filename):
+            raise ValueError(msg)
+        assert filename.endswith(".xlsx") or filename.endswith(".csv"), (
+            filename + ' must be a ".xlsx" or a ".csv" file.'
+        )
+
+        # get the raw data
+        if filename.endswith(".xlsx"):
+            raw = pd.read_excel(filename)
+            datetime_format = "%d/%m/%Y-%H:%M:%S"
+        else:
+            raw = pd.read_csv(filename, sep=";")
+            datetime_format = "%m/%d/%Y-%H:%M:%S"
+
+        # get the weight
+        wgt = float(raw.iloc[6, 1])  # type: ignore
+
+        # get the data values
+        time_col = np.where(raw.columns == "Time")[0][0]
+        data = raw.iloc[2:, (time_col + 1) :]
+
+        # update the column headers
+        labels = raw.columns[(time_col + 1) :].to_numpy().astype(str)
+        units = [
+            i.replace("---", "")
+            for i in raw.iloc[0, (time_col + 1) :].values.astype(str)
+        ]
+        cols = pd.MultiIndex.from_tuples([(i, j) for i, j in zip(labels, units)])
+        data.columns = cols
+
+        # update the indices
+        date0 = raw.columns.to_numpy()[4]
+        time0 = str(raw.iloc[0, 4])
+        datetime0 = "-".join([date0, time0])
+        datetime0 = datetime.datetime.strptime(datetime0, datetime_format)
+        unit = raw.iloc[0, time_col]
+        col = []
+        max_row = 0
+        for i, time in enumerate(raw.iloc[2:, time_col].values):
+            try:
+                hour, minute, second = [int(i) for i in str(time).split(":")]
+                max_row = i
+                col.append(hour * 3600 + minute * 60 + second)
+            except Exception:
+                break
+        data = data.iloc[: max_row + 1]
+        data.index = pd.Index(col, name=f"Time [{unit}]")
+
+        # get the signals
+        time = data.index.to_numpy()
+        vo2 = Signal1D(
+            data[("VO2", "mL/min")].to_numpy().astype(float) / wgt,
+            index=time,
+            unit="mL/kg/min",
+        )
+        vco2 = Signal1D(
+            data[("VCO2", "mL/min")].to_numpy().astype(float) / wgt,
+            index=time,
+            unit="mL/kg/min",
+        )
+        ve = Signal1D(
+            data[("Ve", "L/min")].to_numpy().astype(float),
+            index=time,
+            unit="L/min",
+        )
+        hr = Signal1D(
+            data[("HR", "bpm")].to_numpy().astype(float),
+            index=time,
+            unit="1/min",
+        )
+        rf = Signal1D(
+            data[("Rf", "1/min")].to_numpy().astype(float),
+            index=time,
+            unit="1/min",
+        )
+        return cls(
+            vo2=vo2,
+            vco2=vco2,
+            hr=hr,
+            ve=ve,
+            rf=rf,
+            breath_by_breath=breath_by_breath,
+        )
+
+
 class TimeseriesRecord(Record):
     """
-    A dictionary-like container for Timeseries, TimeseriesRecord, and ForcePlatform objects,
-    supporting type filtering and DataFrame conversion.
+    A dictionary-like container for Timeseries, TimeseriesRecord,
+    and ForcePlatform objects, supporting type filtering and DataFrame conversion.
 
     Parameters
     ----------
@@ -600,11 +798,14 @@ class TimeseriesRecord(Record):
     anteroposterior_axis : str, optional
         The label for the anteroposterior axis (default "Z").
     strip : bool, optional
-        If True, remove leading/trailing rows or columns that are all NaN from all contained objects (default True).
+        If True, remove leading/trailing rows or columns that are all NaN from
+        all contained objects (default True).
     reset_time : bool, optional
-        If True, reset the time index to start at zero for all contained objects (default True).
+        If True, reset the time index to start at zero for all contained
+        objects (default True).
     **signals : dict
-        Key-value pairs of Timeseries subclasses, TimeseriesRecord, or ForcePlatform to include in the record.
+        Key-value pairs of Timeseries subclasses, TimeseriesRecord, or
+        ForcePlatform to include in the record.
 
     Attributes
     ----------
@@ -618,7 +819,8 @@ class TimeseriesRecord(Record):
     copy()
         Return a deep copy of the TimeseriesRecord.
     strip(axis=0, inplace=False)
-        Remove leading/trailing rows or columns that are all NaN from all contained objects.
+        Remove leading/trailing rows or columns that are all NaN from all
+        contained objects.
     reset_time(inplace=False)
         Reset the time index to start at zero for all contained objects.
     apply(func, axis=0, inplace=False, *args, **kwargs)
@@ -632,7 +834,14 @@ class TimeseriesRecord(Record):
     """
 
     _data: dict[
-        str, Timeseries | Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform
+        str,
+        Timeseries
+        | Signal1D
+        | Signal3D
+        | EMGSignal
+        | Point3D
+        | ForcePlatform
+        | MetabolicRecord,
     ]
 
     @property
@@ -718,6 +927,17 @@ class TimeseriesRecord(Record):
         return self._filter_by_type(ForcePlatform)
 
     @property
+    def metabolicrecords(self):
+        """
+        Get all MetabolicRecord objects.
+
+        Returns
+        -------
+        TimeseriesRecord
+        """
+        return self._filter_by_type(MetabolicRecord)
+
+    @property
     def resultant_force(self):
         forces = self.forceplatforms
         rows, cols = forces.shape
@@ -731,9 +951,9 @@ class TimeseriesRecord(Record):
         axes = []
         units = {}
         for obj in forces.values():
-            f_arr = obj["force"].apply(sp_fillna, value=0,axis=0).to_numpy()
-            r_arr = obj["origin"].apply(sp_fillna, axis=0).to_numpy()
-            m_arr = obj["torque"].apply(sp_fillna, value=0,axis=0).to_numpy()
+            f_arr = obj["force"].apply(sp_fillna, value=0, axis=0).to_numpy()  # type: ignore
+            r_arr = obj["origin"].apply(sp_fillna, axis=0).to_numpy()  # type: ignore
+            m_arr = obj["torque"].apply(sp_fillna, value=0, axis=0).to_numpy()  # type: ignore
             i_arr = np.asarray(obj.index, float)
             mask = np.where(np.isin(i_total, i_arr))[0]
 

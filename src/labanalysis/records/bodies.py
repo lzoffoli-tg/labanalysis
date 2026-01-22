@@ -4,14 +4,10 @@ from typing import Literal
 
 import numpy as np
 import pandas as pd
-from pint import UnitRegistry
 
 from ..signalprocessing import gram_schmidt
 from .timeseries import *
 from .records import *
-
-ureg = UnitRegistry()
-ureg.define("au = [] = au")
 
 __all__ = ["WholeBody"]
 

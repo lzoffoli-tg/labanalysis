@@ -13,7 +13,7 @@ import numpy as np
 from ..constants import MINIMUM_CONTACT_FORCE_N
 
 from ..signalprocessing import *
-from .records import ForcePlatform, Record
+from .records import Record, ForcePlatform, MetabolicRecord
 from .timeseries import EMGSignal, Point3D, Signal1D, Signal3D, Timeseries
 
 __all__ = [
@@ -243,6 +243,19 @@ def get_default_forceplatform_processing_func(fp: ForcePlatform):
     fp.torque[:, :] = vals
 
 
+def get_default_metabolicrecord_processing_func(mr: MetabolicRecord):
+    if mr.breath_by_breath:
+        # from:
+        #   Robergs RA., Dwyer D., Astorino T.
+        #       Recommendations for Improved Data Processing from Expired Gas
+        #       Analysis Indirect Calorimetry. Sports Medicine 2010, 40, 95–111,
+        #       doi:10.2165/11319670-000000000-00000.
+        mr.vo2.apply(mean_filt, order=15, inplace=True, axis=0)
+        mr.vco2.apply(mean_filt, order=15, inplace=True, axis=0)
+        mr.hr.apply(mean_filt, order=15, inplace=True, axis=0)
+        mr.ve.apply(mean_filt, order=15, inplace=True, axis=0)
+
+
 def get_default_processing_pipeline():
 
     return ProcessingPipeline(
@@ -251,4 +264,5 @@ def get_default_processing_pipeline():
         Signal1D=[get_default_signal1d_processing_func],
         Signal3D=[get_default_signal3d_processing_func],
         ForcePlatform=[get_default_forceplatform_processing_func],
+        MetabolicRecord=[get_default_metabolicrecord_processing_func],
     )

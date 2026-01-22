@@ -25,6 +25,7 @@ from os import walk
 from os.path import exists, join
 from tkinter import Tk
 from typing import Annotated, Any
+import pint
 
 import numpy as np
 import pandas as pd
@@ -43,6 +44,10 @@ __all__ = [
     "FloatArray1D",
     "IntArray1D",
     "TextArray1D",
+    "bpm_quantity",
+    "ureg",
+    "au_quantity",
+    "Q_",
 ]
 
 
@@ -331,3 +336,14 @@ FloatArray2D = Annotated[NDArray[np.floating], (2,)]
 FloatArray1D = NDArray[np.floating]
 IntArray1D = NDArray[np.integer]
 TextArray1D = NDArray[np.str_]
+
+# definisco lo unit registry pint
+ureg = pint.UnitRegistry()
+ureg.define(
+    "beat = [] = beat = b"
+)  # 'beat' come conteggio (dimensione senza dimensioni)
+ureg.define("bpm = beat / minute")  # bpm come beat al minuto
+bpm_quantity = 1 * ureg.bpm
+ureg.define("au = [] = au")
+au_quantity = 1 * ureg.au
+Q_ = ureg.Quantity  # type: ignore

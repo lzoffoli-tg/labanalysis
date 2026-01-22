@@ -649,10 +649,10 @@ def butterworth_filt(
     """
 
     # get the filter coefficients
-    fcut = np.atleast_1d(fcut).flatten().astype(float)
-    fcut /= fsamp / 2
-    if len(fcut) == 1:
-        fcut = float(fcut[0])
+    fcut = np.atleast_1d(fcut).flatten().astype(float)  # type: ignore
+    fcut /= fsamp / 2  # type: ignore
+    if len(fcut) == 1:  # type: ignore
+        fcut = float(fcut[0])  # type: ignore
     sos = signal.butter(
         order,
         fcut,
@@ -767,7 +767,7 @@ def residual_analysis(
     frq = np.linspace(0, fmax, fnum + 1)[1:].astype(float)
     res = np.array([np.sum((arr - ffun(arr, i)) ** 2) for i in frq])
     res = res.astype(float)
-    iopt = crossovers(res, nseg, minsamp)[0][-1]
+    iopt = crossovers(res, segments=nseg, min_samples=minsamp)[0][-1]
     fopt = float(frq[iopt])
 
     # return the parameters
@@ -813,6 +813,7 @@ def _sse(
 
 def crossovers(
     arr: np.ndarray,
+    x: np.ndarray | None = None,
     segments: int = 2,
     min_samples: int = 5,
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -846,14 +847,19 @@ def crossovers(
 
     References
     ----------
-    Lerman PM 1980, Fitting Segmented Regression Models by Grid Search. Appl Stat. 29(1):77.
+    Lerman PM 1980, Fitting Segmented Regression Models by Grid Search.
+    Appl Stat. 29(1):77.
     """
 
     # control the inputs
     assert min_samples >= 2, "'min_samples' must be >= 2."
 
     # get the X axis
-    xaxis = np.arange(len(arr))
+    if x is None:
+        xaxis = np.arange(len(arr))
+    else:
+        xaxis = x
+    xaxis = np.asarray(x)
 
     # get all the possible combinations of segments
     combs = []
@@ -884,14 +890,13 @@ def crossovers(
     crs = xaxis[combs[sortedsse[0]]]
 
     # get the fitting slopes
-    slopes = [np.arange(i0, i1) for i0, i1 in zip(crs[:-1], crs[1:])]
-    slopes = [
-        np.polyfit(i, arr[i].astype(float), 1).astype(float).tolist() for i in slopes
-    ]
+    masks = [(xaxis >= i0) & (xaxis <= i1) for i0, i1 in zip(crs[:-1], crs[1:])]
+    slopes = [np.polyfit(xaxis[i], arr[i], 1) for i in masks]
     slopes = np.array(slopes).astype(float)
 
     # return the crossovers
-    return crs[1:-1].astype(int), slopes
+    crs = [np.where(xaxis == i)[0][0] for i in crs[1:-1]]
+    return np.array(crs, int), slopes
 
 
 def psd(
@@ -1176,7 +1181,7 @@ def fillna(
             else:
                 return obj
         if inplace:
-            arr.loc[:, :] = out
+            arr.loc[:, :] = out  # type: ignore
         else:
             return obj
 
@@ -1230,7 +1235,7 @@ def fillna(
         else:
             return obj
     if inplace:
-        arr.loc[:, :] = out
+        arr.loc[:, :] = out  # type: ignore
     else:
         return obj
 

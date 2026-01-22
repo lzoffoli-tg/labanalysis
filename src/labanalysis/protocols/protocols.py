@@ -19,6 +19,7 @@ from ..records.pipelines import ProcessingPipeline
 from ..records.records import ForcePlatform, TimeseriesRecord
 from ..records.timeseries import EMGSignal, Point3D, Signal1D, Signal3D
 from ..signalprocessing import butterworth_filt, rms_filt
+from ..utils import ureg, bpm_quantity
 
 __all__ = ["TestProtocol", "Participant", "TestResults"]
 
