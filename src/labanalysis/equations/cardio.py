@@ -63,7 +63,7 @@ class Run:
             v7 = self.VO2_7kmh.subs(self.GRADE, g)
             if v <= v5:
                 eq = self.walking.subs(self.VO2, v).subs(self.GRADE, g)
-            elif v >= v7:
+            elif v < v7:
                 eq = self.transition.subs(self.VO2, v).subs(self.GRADE, g)
             else:
                 eq = self.running.subs(self.VO2, v).subs(self.GRADE, g)
@@ -113,11 +113,12 @@ class Bike:
         if not isinstance(weight, (int, float)):
             raise ValueError("weight must be int or float.")
         if gender == "Male":
-            eq = self.males_eq.subs(self.WEIGHT, weight)
+            eq = self.males_eq
         elif gender == "Female":
-            eq = self.females_eq.subs(self.WEIGHT, weight)
+            eq = self.females_eq
         else:
             raise ValueError("gender must be Male or Female")
+        eq = eq.subs(self.WEIGHT, weight)
 
         vo2 = [sympy.solve(eq.subs(self.POWER, p), self.VO2)[0] for p in power]
         return np.asarray(vo2, float)
@@ -134,11 +135,12 @@ class Bike:
         if not isinstance(weight, (int, float)):
             raise ValueError("weight must be int or float.")
         if gender == "Male":
-            eq = self.males_eq.subs(self.WEIGHT, weight)
+            eq = self.males_eq
         elif gender == "Female":
-            eq = self.females_eq.subs(self.WEIGHT, weight)
+            eq = self.females_eq
         else:
             raise ValueError("gender must be Male or Female")
+        eq = eq.subs(self.WEIGHT, weight)
 
         power = [sympy.solve(eq.subs(self.VO2, v), self.POWER)[0] for v in vo2]
         return np.asarray(power, float)
