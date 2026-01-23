@@ -113,8 +113,9 @@ class SubmaximalVO2MaxTestResults(TestResults):
         # exercise intensity and predict endurance performance.
         # J Appl Physiol 125: 672–674, 2018.
         # https://www.doi.org/10.1152/japplphysiol.00940.2017.
-        vo2_perc = (2 * rq - 1.663999) ** 0.5 + 0.301
-        from_rq = max(vo2[idx] / vo2_perc[idx])
+        idx = np.where(rq>0.832)
+        vo2_perc = (2 * rq[idx] - 1.663999) ** 0.5 + 0.301
+        from_rq = max(vo2[idx] / vo2_perc)
         return float(min(from_hr, from_rq))
 
     def _get_fatmax(self, test: SubmaximalVO2MaxTest):
