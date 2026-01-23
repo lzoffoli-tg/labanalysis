@@ -211,6 +211,8 @@ class SubmaximalVO2MaxTestResults(TestResults):
             index=["Anaerobic Threshold"],
         )
         out = pd.concat([fox, vt2])
+        out.insert(out.shape[1], ("VO2Max", "ml/kg/min"), None)
+        out.insert(out.shape[1], ("FatMax", "g/min"), None)
         out.loc["Estimated", [("VO2Max", "ml/kg/min")]] = round(
             self._get_vo2max(test),
             1,
