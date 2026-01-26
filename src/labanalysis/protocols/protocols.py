@@ -588,22 +588,32 @@ class TestResults(Protocol):
     def include_emg(self):
         return self._include_emg
 
-    def save_all(self, path: str):
+    def save_all(self, path: str, force_overwrite:bool=False):
 
         # check the inputs
         if not isinstance(path, str):
             msg = "path must be a string defining the root folder where to "
             msg += "save the results of the test."
             raise ValueError(msg)
+        if not isinstance(force_overwrite, bool):
+            msg = "force_overwrite must be True or False"
+            raise ValueError(msg)
 
         # generate a recursive function that automatically save
         # the data in the proper folder
         def save(filename: str, obj: pd.DataFrame | go.Figure | dict):
-            makedirs(dirname(filename), exist_ok=True)
+            def make_filename(file:str):
+                if exists(file) and not force_overwrite:
+                    if not askyesnocancel("File already exits.", f"Overwrite {filename}?"):
+                        name, ext = filename.rsplit(".", 1)  # type: ignore
+                        file = name + "(1)" + "." + ext
+                makedirs(dirname(file), exist_ok=True)
+                return file
+
             if isinstance(obj, pd.DataFrame):
-                obj.to_csv(filename + ".csv")
+                obj.to_csv(make_filename(filename + ".csv"))
             elif isinstance(obj, go.Figure):
-                obj.write_image(filename + ".svg")
+                obj.write_image(make_filename(filename + ".svg"))
             elif isinstance(obj, dict):
                 for key, val in obj.items():
                     save(join(filename, key), val)
@@ -672,84 +682,6 @@ class TestResults(Protocol):
             out.update(**{f"{muscle}_{i}": v[0] for i, v in params.items()})
 
         return pd.DataFrame(pd.Series(out)).T
-
-    def _emgsignals_processing_func(self, channel: EMGSignal):
-        channel[:, :] = channel - channel.mean()  # type: ignore
-        fsamp = 1 / np.mean(np.diff(channel.index))
-        channel.apply(
-            butterworth_filt,
-            fcut=[20, 450],
-            fsamp=fsamp,
-            order=4,
-            ftype="bandpass",
-            phase_corrected=True,
-            inplace=True,
-        )
-        channel.apply(
-            rms_filt,
-            order=int(0.1 * fsamp),
-            pad_style="reflect",
-            offset=1,
-            inplace=True,
-        )
-        return channel
-
-    def _signal1d_processing_func(self, signal: Signal1D):
-        signal.fillna(inplace=True)
-        fsamp = float(1 / np.mean(np.diff(signal.index)))
-        signal[:, :] = np.apply_along_axis(
-            func1d=lambda x: butterworth_filt(
-                x,
-                fcut=6,
-                fsamp=fsamp,
-                order=4,
-                ftype="lowpass",
-                phase_corrected=True,
-            ),
-            axis=0,
-            arr=signal.to_numpy(),
-        )
-        return signal
-
-    def _signal3d_processing_func(self, signal: Signal3D):
-        signal.fillna(inplace=True, value=0)
-        fsamp = float(1 / np.mean(np.diff(signal.index)))
-        signal[:, :] = np.apply_along_axis(
-            func1d=lambda x: butterworth_filt(
-                x,
-                fcut=[10, 200],
-                fsamp=fsamp,
-                order=4,
-                ftype="bandstop",
-                phase_corrected=True,
-            ),
-            axis=0,
-            arr=signal.to_numpy(),
-        )
-        return signal
-
-    def _point3d_processing_func(self, point: Point3D):
-        point.fillna(inplace=True)
-        fsamp = float(1 / np.mean(np.diff(point.index)))
-        point[:, :] = np.apply_along_axis(
-            func1d=lambda x: butterworth_filt(
-                x,
-                fcut=[10, 200],
-                fsamp=fsamp,
-                order=4,
-                ftype="bandstop",
-                phase_corrected=True,
-            ),
-            axis=0,
-            arr=point.to_numpy(),
-        )
-        return point
-
-    def _forceplatforms_processing_func(self, fp: ForcePlatform):
-        fp["origin"] = self._point3d_processing_func(fp["origin"])  # type: ignore
-        fp["force"] = self._signal3d_processing_func(fp["force"])  # type: ignore
-        fp["torque"] = self._signal3d_processing_func(fp["torque"])  # type: ignore
-        return fp
 
     def _generate_results(self, test: Any):
         if not isinstance(test, TestProtocol):

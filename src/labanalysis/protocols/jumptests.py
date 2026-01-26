@@ -395,7 +395,7 @@ class JumpTest(TestProtocol):
 
     def _process_record(self, record: TimeseriesRecord):
         # apply the pipeline to the test data
-        exe = self.processing_pipeline(record, inplace=False)
+        exe = self.processing_pipeline(record, inplace=False)  # type: ignore
         if not isinstance(exe, type(record)):
             raise ValueError("Something went wrong during data processing.")
 
@@ -701,6 +701,7 @@ class JumpTestResults(TestResults):
                 else:
                     to_remove = contact.emgsignals.keys()
                 contact.drop(to_remove, inplace=True)
+                jump.drop(to_remove, inplace=True)
 
                 # get muscle emg amplitude
                 for emg in contact.emgsignals.values():
@@ -740,11 +741,11 @@ class JumpTestResults(TestResults):
                             continue
                         if emg.side == jump.side or jump.side == "bilateral":
                             lbl = "_".join([emg.side, emg.muscle_name])
-                            if lbl in refs_keys:
-                                muscle_name = emg.muscle_name.replace("_", " ")
-                                muscle_name = muscle_name.lower()
+                            muscle_name = emg.muscle_name.replace("_", " ")
+                            muscle_name = muscle_name.lower()
 
-                                # get muscle activation time
+                            # get muscle activation time
+                            if lbl in refs_keys:
                                 key = (emg.muscle_name, emg.side)
                                 threshold = test.emg_activation_thresholds.get(key)
                                 if threshold is not None:
@@ -756,14 +757,14 @@ class JumpTestResults(TestResults):
                                     name = f"{muscle_name} activation time (ms)"
                                     out.loc[name, emg.side] = val
 
-                                # get muscle activation ratio
-                                val = self._get_muscle_activation_ratio(
-                                    emg,
-                                    t_gc,
-                                    t_bw,
-                                )
-                                name = f"{muscle_name} activation ratio"
-                                out.loc[name, emg.side] = val * 100
+                            # get muscle activation ratio
+                            val = self._get_muscle_activation_ratio(
+                                emg,
+                                t_gc,
+                                t_bw,
+                            )
+                            name = f"{muscle_name} activation ratio"
+                            out.loc[name, emg.side] = val * 100
 
                 # get force
                 sides = ["left", "right"] if jump_side == "bilateral" else [jump.side]

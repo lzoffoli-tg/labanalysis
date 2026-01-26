@@ -59,7 +59,7 @@ def _get_force_figure(
     ncols = len(sides)
     if plot_emg_muscle_balance:
         ncols += 1
-        titles += ["Muscle Balance"]
+        titles += ["Muscle Inbalance"]
     fig = make_subplots(
         rows=1,
         cols=ncols,
@@ -84,7 +84,7 @@ def _get_force_figure(
                 cmin=0,
                 cmax=50,
                 colorbar=dict(
-                    title=dict(text="Muscle<br>Imbalance<br>Levels"),
+                    title=dict(text="Imbalance<br>Levels"),
                     len=0.95,
                     y=0.5,
                     tickmode="array",

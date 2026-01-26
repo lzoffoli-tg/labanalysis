@@ -120,10 +120,10 @@ class ProcessingPipeline:
 
     def __call__(
         self,
-        object: Timeseries | Record,
+        obj: Timeseries | Record,
         inplace: bool = False,
     ):
-        return self.apply(object, inplace)
+        return self.apply(obj, inplace)
 
     def _apply_recursively(self, obj: Timeseries | Record):
         obj_type = type(obj)
