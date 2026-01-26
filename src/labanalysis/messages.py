@@ -20,6 +20,7 @@ options (all have default values):
 
 
 from tkinter.commondialog import Dialog
+import tkinter as tk
 
 #! CONSTANTS
 
@@ -50,6 +51,32 @@ class _TkMessage(Dialog):
     "A message box"
 
     command = "tk_messageBox"
+
+    def show(self, **options):
+        # Crea una finestra parent topmost se non esiste
+        master = self.master
+        if master is None:
+            master = tk.Tk()
+            master.withdraw()  # Nascondi la finestra principal
+            self.master = master
+
+        # Porta la finestra parent in primo piano e rendila topmost
+        try:
+            master.attributes("-topmost", True)
+            master.lift()
+            master.focus_force()
+        except tk.TclError:
+            pass
+
+        result = super().show(**options)
+
+        # Ripulisci se abbiamo creato noi la finestra master
+        try:
+            master.destroy()
+        except tk.TclError:
+            pass
+
+        return result
 
 
 #! METHODS

@@ -588,7 +588,7 @@ class TestResults(Protocol):
     def include_emg(self):
         return self._include_emg
 
-    def save_all(self, path: str, force_overwrite:bool=False):
+    def save_all(self, path: str, force_overwrite: bool = False):
 
         # check the inputs
         if not isinstance(path, str):
@@ -602,9 +602,11 @@ class TestResults(Protocol):
         # generate a recursive function that automatically save
         # the data in the proper folder
         def save(filename: str, obj: pd.DataFrame | go.Figure | dict):
-            def make_filename(file:str):
+            def make_filename(file: str):
                 if exists(file) and not force_overwrite:
-                    if not askyesnocancel("File already exits.", f"Overwrite {filename}?"):
+                    if not askyesnocancel(
+                        "File already exits.", f"Overwrite {filename}?"
+                    ):
                         name, ext = filename.rsplit(".", 1)  # type: ignore
                         file = name + "(1)" + "." + ext
                 makedirs(dirname(file), exist_ok=True)
@@ -956,17 +958,16 @@ class TestProtocol(Protocol):
         extension = "." + self.__class__.__name__.lower()
         if not file_path.endswith(extension):
             file_path += extension
-        while exists(file_path) and not force_overwrite:
+        if exists(file_path) and not force_overwrite:
             overwrite = askyesnocancel(
                 title="File already exists",
                 message="the provided file_path already exist. Overwrite?",
             )
             if not overwrite:
-                file_path = file_path[: len(extension)] + "_" + extension
-        if not exists(file_path) or force_overwrite:
-            makedirs(dirname(file_path), exist_ok=True)
-            with open(file_path, "wb") as buf:
-                pickle.dump(self, buf)
+                file_path = file_path[: len(extension)] + "(1)" + extension
+        makedirs(dirname(file_path), exist_ok=True)
+        with open(file_path, "wb") as buf:
+            pickle.dump(self, buf)
 
     @classmethod
     def load(cls, file_path: str):
