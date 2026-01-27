@@ -696,7 +696,7 @@ class JumpTestResults(TestResults):
                 if self.include_emg:
                     to_remove = []
                     for k in contact.emgsignals.keys():
-                        if any([i.lower() in k.lower() for i in muscle_map]):
+                        if all(i.lower() not in k.lower() for i in muscle_map):
                             to_remove.append(k)
                 else:
                     to_remove = contact.emgsignals.keys()
