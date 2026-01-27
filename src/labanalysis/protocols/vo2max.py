@@ -77,7 +77,8 @@ class SubmaximalVO2MaxTest(TestProtocol):
     @property
     def processed_data(self):
         out = self.copy()
-        self.processing_pipeline(out.metabolic_record, inplace=True)
+        pipeline = self.processing_pipeline
+        pipeline(out.metabolic_record, inplace=True)
         return out
 
     @property

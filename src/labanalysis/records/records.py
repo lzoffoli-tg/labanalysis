@@ -85,7 +85,7 @@ class Record:
         rows: slice | list[int | float | bool] | np.ndarray | None = None,
     ):
         # get a view
-        view_obj = self.__new__(type(self))
+        view_obj = type(self).__new__(type(self))  #type:ignore
         keys = self.__dict__
         for key in keys:
             if key != "_data":

@@ -395,7 +395,8 @@ class JumpTest(TestProtocol):
 
     def _process_record(self, record: TimeseriesRecord):
         # apply the pipeline to the test data
-        exe = self.processing_pipeline(record, inplace=False)  # type: ignore
+        pipeline = self.processing_pipeline
+        exe = pipeline(record, inplace=False)  # type: ignore
         if not isinstance(exe, type(record)):
             raise ValueError("Something went wrong during data processing.")
 
@@ -816,33 +817,24 @@ class JumpTestResults(TestResults):
                     ignore_index=True,
                 )
 
-            # get the best jump of each side
-            for side, df in sides_df.items():
-                if side == "bilateral":
-                    n = df.loc[df.parameter == "elevation (cm)", ["n", "left"]]
-                    n = n.copy().sort_values("left")["n"].to_numpy()[-1]
-                else:
-                    n = df.loc[df.parameter == "elevation (cm)", ["n", side]]
-                    n = n.copy().sort_values(side)["n"].to_numpy()[-1]
-                line = df.iloc[[0]].copy()
-                line.loc[line.index, "parameter"] = "best jump"
-                line.drop(["n"], inplace=True, axis=1)
-                if side == "bilateral":
-                    line.loc[line.index, "left"] = n
-                    line.loc[line.index, "right"] = n
-                else:
-                    line.loc[line.index, side] = n
-                df = pd.concat([df, line], ignore_index=True)
-                sides_df[side] = df
-
             # merge sides
+            df_unilateral = pd.DataFrame()
             if "left" in sides_df and "right" in sides_df:
-                df_unilateral = sides_df["left"].merge(
-                    sides_df["right"],
-                    on=["type", "parameter", "n", "side"],
-                )
-            else:
-                df_unilateral = pd.DataFrame()
+                index = pd.concat([sides_df['left'],sides_df['right']], ignore_index = True)
+                index = index[['parameter', 'type', 'side', 'n']].drop_duplicates()
+                index = pd.MultiIndex.from_frame(index)
+                limbs = ['left', 'right']
+                df_unilateral = pd.DataFrame(index = index, columns = limbs)
+                for limb in limbs:
+                    for (parameter, typ, side), dfs in sides_df[limb].groupby(['parameter', 'type', 'side']):
+                        for n, dfn in dfs.groupby('n'):
+                            index = pd.MultiIndex.from_tuples(
+                                tuples=[(parameter, typ, side, n)],
+                                names = ['parameter', 'type', 'side', 'n'],
+                            )
+                            df_unilateral.loc[(parameter, typ, side, n), limb] = dfn[limb].to_numpy()[0]
+                df_unilateral = pd.concat([df_unilateral.index.to_frame(), df_unilateral], axis = 1)
+                df_unilateral.reset_index(drop = True, inplace = True)
             if "bilateral" in sides_df:
                 df_bilateral = sides_df["bilateral"]
             else:
@@ -1150,7 +1142,9 @@ class JumpTestResults(TestResults):
         colors_plotted = []
         for k, (side, performances) in enumerate(performance_data.items()):
             for j, y in enumerate(performances):
-                value = round(y, 1)
+                if np.isnan(y):
+                    continue
+                value = float(round(y, 1))
 
                 # if normative data are available get the main bar color as
                 # the color of the rank achieved by the actual value.
@@ -1414,6 +1408,8 @@ class JumpTestResults(TestResults):
 
                 # plot the jumps
                 for n, x in enumerate(jump_values):
+                    if np.isnan(x):
+                        continue
 
                     # update the xrange values
                     if side not in xvals:
@@ -1424,7 +1420,7 @@ class JumpTestResults(TestResults):
                     # the color of the rank achieved by the actual value.
                     # Otherwise, use the color of the side with which the jump
                     # has been performed.
-                    value = round(x, 1)
+                    value = float(round(x, 1))
                     if len(rank_tops) > 0:
                         idx = np.where(rank_tops >= value)[0]
                         idx = idx[-1] if len(idx) > 0 else 0  # (len(rank_clrs) - 1)
