@@ -832,7 +832,7 @@ class JumpTestResults(TestResults):
                                 tuples=[(parameter, typ, side, n)],
                                 names = ['parameter', 'type', 'side', 'n'],
                             )
-                            df_unilateral.loc[(parameter, typ, side, n), limb] = dfn[limb].to_numpy()[0]
+                            df_unilateral.loc[index, limb] = dfn[limb].to_numpy()[0]
                 df_unilateral = pd.concat([df_unilateral.index.to_frame(), df_unilateral], axis = 1)
                 df_unilateral.reset_index(drop = True, inplace = True)
             if "bilateral" in sides_df:
