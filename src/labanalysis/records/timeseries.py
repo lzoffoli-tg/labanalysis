@@ -320,6 +320,17 @@ class Timeseries:
     def to_numpy(self):
         return self._data
 
+    def is_empty(self):
+        """
+        Check if the Timeseries is empty (all NaNs).
+
+        Returns
+        -------
+        bool
+            True if all data is NaN, False otherwise.
+        """
+        return bool(np.all(np.isnan(self._data)) or self._data.size == 0)
+    
     def _get_object_args(self, attr_map=None):
         """
         Extracts constructor arguments and internal attributes from the current

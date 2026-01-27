@@ -481,13 +481,13 @@ class JumpTest(TestProtocol):
     def processed_data(self):
         out = self.copy()
         for i, jump in enumerate(out.squat_jumps):
-            out._squat_jumps[i] = self._process_jump(jump)  # type: ignore
+            out.squat_jumps[i] = self._process_jump(jump)  # type: ignore
         for i, jump in enumerate(out.counter_movement_jumps):
-            out._counter_movement_jumps[i] = self._process_jump(jump)  # type: ignore
+            out.counter_movement_jumps[i] = self._process_jump(jump)  # type: ignore
         for i, jump in enumerate(out.drop_jumps):
-            out._drop_jumps[i] = self._process_jump(jump)  # type: ignore
+            out.drop_jumps[i] = self._process_jump(jump)  # type: ignore
         for i, jump in enumerate(out.repeated_jumps):
-            out._repeated_jumps[i] = self._process_jump(jump)  # type: ignore
+            out.repeated_jumps[i] = self._process_jump(jump)  # type: ignore
         if len(self.emg_normalization_references) > 0:
             out.set_emg_normalization_references(
                 self._process_record(self.emg_normalization_references)  # type: ignore

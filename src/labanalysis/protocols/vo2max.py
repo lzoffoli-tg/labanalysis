@@ -2,6 +2,7 @@
 
 #! IMPORTS
 
+from networkx import is_empty
 import numpy as np
 import pandas as pd
 import sympy
@@ -9,7 +10,7 @@ import plotly.graph_objects as go
 import plotly.colors as p_colors
 from plotly.subplots import make_subplots
 
-from ..signalprocessing import mean_filt
+from ..signalprocessing import crossings, crossovers, mean_filt
 
 from ..equations.cardio import Bike, Run
 from ..records.pipelines import get_default_processing_pipeline
@@ -102,21 +103,26 @@ class SubmaximalVO2MaxTestResults(TestResults):
         rq = test.metabolic_record.rq.to_numpy().flatten().astype(float)
         hr = test.metabolic_record.hr.to_numpy().flatten().astype(float)
         vo2 = test.metabolic_record.vo2.to_numpy().flatten().astype(float)
-        idx = np.where(rq > 0.95)[0]
         hrmax = self._get_hrmax(test)
-        from_hr = np.polyval(
-            np.polyfit(hr[idx], vo2[idx], 1),
-            hrmax,
-        )
+
         # from Beck O N, Kipp S K, Byrnes W C, Kram R.
         # Use aerobic energy expenditure instead of oxygen uptake to quantify
         # exercise intensity and predict endurance performance.
         # J Appl Physiol 125: 672–674, 2018.
         # https://www.doi.org/10.1152/japplphysiol.00940.2017.
-        idx = np.where(rq>0.832)
+        idx = np.where(rq>0.832)[0]
         vo2_perc = (2 * rq[idx] - 1.663999) ** 0.5 + 0.301
         from_rq = max(vo2[idx] / vo2_perc)
-        return float(min(from_hr, from_rq))
+
+        if test.metabolic_record.hr.is_empty():
+            return float(from_rq)
+        else:
+            idx = np.where(rq > 0.95)[0]
+            from_hr = np.polyval(
+                np.polyfit(hr[idx], vo2[idx], 1),
+                hrmax,
+            )
+            return float(min(from_hr, from_rq))
 
     def _get_fatmax(self, test: SubmaximalVO2MaxTest):
         wgt = test.participant.weight
@@ -153,8 +159,12 @@ class SubmaximalVO2MaxTestResults(TestResults):
 
         # calculate the additional parameters
         vt_vo2p = vt_vo2 / self._get_vo2max(test) * 100
-        vt_hr = float(hr[vt_idx])
-        vt_hrp = vt_hr / self._get_hrmax(test) * 100
+        if test.metabolic_record.hr.is_empty():
+            vt_hr = np.nan
+            vt_hrp = np.nan
+        else:   
+            vt_hr = float(hr[vt_idx])
+            vt_hrp = vt_hr / self._get_hrmax(test) * 100
         running_speed = float(Run().predict_speed(vo2=vt_vo2, grade=0)[0])
         cycling_power = Bike().predict_power(
             vo2=vt_vo2,
@@ -165,8 +175,8 @@ class SubmaximalVO2MaxTestResults(TestResults):
         return {
             ("VO2", "ml/kg/min"): round(vt_vo2, 1),
             ("VO2", "%VO2max"): round(vt_vo2p, 1),
-            ("HR", "bpm"): round(vt_hr, 1),
-            ("HR", "%HRmax"): round(vt_hrp, 1),
+            ("HR", "bpm"): '-' if hr.size == 0 else round(vt_hr, 1),
+            ("HR", "%HRmax"): '-' if hr.size == 0 else round(vt_hrp, 1),
             ("Running Speed", "km/h"): round(running_speed, 1),
             ("Cycling Power", "W"): round(cycling_power, 1),
         }
@@ -195,8 +205,8 @@ class SubmaximalVO2MaxTestResults(TestResults):
         return {
             ("VO2", "ml/kg/min"): round(float(vo2[idx]), 1),
             ("VO2", "%VO2max"): round(float(vo2p[idx]), 1),
-            ("HR", "bpm"): round(float(hr[idx]), 1),
-            ("HR", "%HRmax"): round(float(hrp[idx]), 1),
+            ("HR", "bpm"): '-' if hr.size == 0 else round(float(hr[idx]), 1),
+            ("HR", "%HRmax"): '-' if hr.size == 0 else round(float(hrp[idx]), 1),
             ("Running Speed", "km/h"): round(running_speed, 1),
             ("Cycling Power", "W"): round(cycling_power, 1),
         }
@@ -232,9 +242,12 @@ class SubmaximalVO2MaxTestResults(TestResults):
         out.loc[out.index, "VO2 %VO2max"] = (
             test.metabolic_record.vo2.to_numpy() / self._get_vo2max(test) * 100
         )
-        out.loc[out.index, "HR %HRmax"] = (
-            test.metabolic_record.hr.to_numpy() / self._get_hrmax(test) * 100
-        )
+        if test.metabolic_record.hr.is_empty():
+            out.loc[out.index, "HR %HRmax"] = None
+        else:
+            out.loc[out.index, "HR %HRmax"] = (
+                test.metabolic_record.hr.to_numpy() / self._get_hrmax(test) * 100
+            )
         cols = []
         for c in out.columns:
             splits = c.rsplit(" ", 1)
@@ -342,16 +355,17 @@ class SubmaximalVO2MaxTestResults(TestResults):
             False,
             titles[0],
         )
-        plot_trace(
-            time_val,
-            hr_val,
-            color_map[1],
-            hr_lbl,
-            1,
-            1,
-            True,
-            titles[0],
-        )
+        if not np.all(np.isnan(hr_val)):
+            plot_trace(
+                time_val,
+                hr_val,
+                color_map[1],
+                hr_lbl,
+                1,
+                1,
+                True,
+                titles[0],
+            )
 
         # top-right plot
         plot_trace(

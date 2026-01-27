@@ -766,11 +766,19 @@ class MetabolicRecord(Record):
             index=time,
             unit="L/min",
         )
-        hr = Signal1D(
-            data[("HR", "bpm")].to_numpy().astype(float),
-            index=time,
-            unit="1/min",
-        )
+        hr_data = data[("HR", "bpm")].to_numpy()
+        if np.any(np.array([isinstance(x, str) and x == '-' for x in hr_data])):
+            hr = Signal1D(
+                np.array([], dtype=float),
+                index=np.array([], dtype=float),
+                unit="1/min",
+            )
+        else:
+            hr = Signal1D(
+                hr_data.astype(float),
+                index=time,
+                unit="1/min",
+            )
         rf = Signal1D(
             data[("Rf", "1/min")].to_numpy().astype(float),
             index=time,
