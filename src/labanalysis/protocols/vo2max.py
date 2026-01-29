@@ -2,7 +2,6 @@
 
 #! IMPORTS
 
-from networkx import is_empty
 import numpy as np
 import pandas as pd
 import sympy
@@ -10,7 +9,7 @@ import plotly.graph_objects as go
 import plotly.colors as p_colors
 from plotly.subplots import make_subplots
 
-from ..signalprocessing import crossings, crossovers, mean_filt
+from ..signalprocessing import mean_filt
 
 from ..equations.cardio import Bike, Run
 from ..records.pipelines import get_default_processing_pipeline

@@ -7,7 +7,7 @@ base test module containing classes and functions used to perform lab tests.
 import pickle
 from datetime import date, datetime
 from os import makedirs
-from os.path import dirname, exists, join, isfile
+from os.path import dirname, exists, join
 from typing import Any, Callable, Literal, Protocol, Self, runtime_checkable
 
 import numpy as np
@@ -16,10 +16,8 @@ import plotly.graph_objects as go
 
 from ..messages import askyesnocancel
 from ..records.pipelines import ProcessingPipeline
-from ..records.records import ForcePlatform, TimeseriesRecord
-from ..records.timeseries import EMGSignal, Point3D, Signal1D, Signal3D
-from ..signalprocessing import butterworth_filt, rms_filt
-from ..utils import ureg, bpm_quantity
+from ..records.records import TimeseriesRecord
+from ..records.timeseries import EMGSignal
 
 __all__ = ["TestProtocol", "Participant", "TestResults"]
 
@@ -628,7 +626,7 @@ class TestResults(Protocol):
         save(join(path, "analytics"), self.analytics)
         save(join(path, "figures"), self.figures)
 
-    def __init__(self, test: Any, include_emg):
+    def __init__(self, test: Any, include_emg: bool):
         if not isinstance(include_emg, bool):
             raise ValueError("include_emg must be True or False.")
         self._include_emg = include_emg

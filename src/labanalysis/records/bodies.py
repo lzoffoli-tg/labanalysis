@@ -429,7 +429,7 @@ class WholeBody(TimeseriesRecord):
         with np.errstate(divide="ignore", invalid="ignore"):
             t = np.where(denominator != 0, numerator / denominator, np.nan)
 
-        intersection_points = p1 + direction * t[:, np.newaxis]
+        intersection_points = p1 + direction * t[:, np.newaxis]  # type: ignore
         return intersection_points._data
 
     def _get_projection_point_on_plane(

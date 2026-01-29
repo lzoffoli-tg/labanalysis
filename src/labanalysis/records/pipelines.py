@@ -207,8 +207,10 @@ def get_default_forceplatform_processing_func(fp: ForcePlatform):
     vals = fp.force.copy().to_numpy()
     module = fp.force.copy().module.to_numpy().flatten()  # type: ignore
     idxs = module < MINIMUM_CONTACT_FORCE_N
-    vals[idxs, :] = np.nan
-    fp.force[:, :] = vals
+    for i in ["origin", "force", "torque"]:
+        vals = fp[i].copy().to_numpy()
+        vals[idxs, :] = np.nan
+        fp[i][:, :] = vals
 
     # strip nans from the ends
     fp.strip(inplace=True)

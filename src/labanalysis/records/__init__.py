@@ -8,3 +8,4 @@ from .records import *
 from .strength import *
 from .timeseries import *
 from .posture import *
+from .agility import *
