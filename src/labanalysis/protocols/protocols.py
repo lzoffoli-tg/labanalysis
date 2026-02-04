@@ -578,10 +578,6 @@ class Participant:
         else:
             raw = pd.read_csv(filename, sep=";")
 
-        # get the weight
-        row = np.where(raw.iloc[:, 0] == "Weight (kg)")[0]
-        wgt = float(raw.iloc[row, 1].iloc[0])  # type: ignore
-
         # handle the participant generation if required
         try:
             name = str(raw.iloc[np.where(raw.iloc[:, 0] == "First Name")[0][0], 1])
@@ -596,11 +592,11 @@ class Participant:
         except Exception:
             gender = None
         try:
-            height = int(raw.iloc[np.where(raw.iloc[:, 0] == "Height (cm)")[0][0], 1])
+            height = int(raw.iloc[np.where(raw.iloc[:, 0] == "Height (cm)")[0][0], 1])  # type: ignore
         except Exception:
             height = None
         try:
-            weight = float(raw.iloc[np.where(raw.iloc[:, 0] == "Weight (kg)")[0][0], 1])
+            weight = float(raw.iloc[np.where(raw.iloc[:, 0] == "Weight (kg)")[0][0], 1])  # type: ignore
         except Exception:
             weight = None
         try:
@@ -632,8 +628,15 @@ class Participant:
                 mm, dd, aaaa = test_date.split("/")
                 test_date = date(int(aaaa), int(mm), int(dd))
             except Exception:
-                now = datetime.now()
-                test_date = date(now.year, now.month, now.day)
+                try:
+                    test_date = str(
+                        raw.columns[np.where(raw.columns == "Test date")[0][0] + 1]
+                    )
+                    dd, mm, aaaa = test_date.split("/")
+                    test_date = date(int(aaaa), int(mm), int(dd))
+                except Exception:
+                    now = datetime.now()
+                    test_date = date(now.year, now.month, now.day)
         return Participant(
             name=name,
             surname=surname,

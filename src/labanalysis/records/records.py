@@ -85,7 +85,7 @@ class Record:
         rows: slice | list[int | float | bool] | np.ndarray | None = None,
     ):
         # get a view
-        view_obj = type(self).__new__(type(self))  #type:ignore
+        view_obj = type(self).__new__(type(self))  # type:ignore
         keys = self.__dict__
         for key in keys:
             if key != "_data":
@@ -710,36 +710,59 @@ class MetabolicRecord(Record):
         # get the raw data
         if filename.endswith(".xlsx"):
             raw = pd.read_excel(filename)
-            datetime_format = "%d/%m/%Y-%H:%M:%S"
         else:
             raw = pd.read_csv(filename, sep=";")
-            datetime_format = "%m/%d/%Y-%H:%M:%S"
 
         # get the weight
-        wgt = float(raw.iloc[6, 1])  # type: ignore
+        wgt = float(raw.iloc[np.where(raw.iloc[:, 0] == "Weight (kg)")[0][0], 1])  # type: ignore
 
         # get the data values
-        time_col = np.where(raw.columns == "Time")[0][0]
-        data = raw.iloc[2:, (time_col + 1) :]
+        try:
+            time_col = np.where(raw.columns == "Time")[0][0]
+        except Exception:
+            time_col = np.where(raw.columns == "t")[0][0]
+        i0 = 0 if isinstance(raw.columns, pd.MultiIndex) else 2
+        data = raw.iloc[i0:, (time_col + 1) :]
 
         # update the column headers
-        labels = raw.columns[(time_col + 1) :].to_numpy().astype(str)
-        units = [
-            i.replace("---", "")
-            for i in raw.iloc[0, (time_col + 1) :].values.astype(str)
-        ]
+        labels = data.columns.to_numpy().astype(str)
+        if isinstance(raw.columns, pd.MultiIndex):
+            units = [str(i[1]) for i in data.columns]
+        else:
+            units = [
+                i.replace("---", "")
+                for i in raw.iloc[0, (time_col + 1) :].to_numpy().astype(str)
+            ]
         cols = pd.MultiIndex.from_tuples([(i, j) for i, j in zip(labels, units)])
         data.columns = cols
 
         # update the indices
-        date0 = raw.columns.to_numpy()[4]
-        time0 = str(raw.iloc[0, 4])
-        datetime0 = "-".join([date0, time0])
-        datetime0 = datetime.datetime.strptime(datetime0, datetime_format)
-        unit = raw.iloc[0, time_col]
+        try:
+            test_date = str(data.iloc[np.where(raw.iloc[:, 3] == "Test date")[0][0], 4])
+            dd, mm, aaaa = test_date.split("/")
+            test_date = datetime.date(int(aaaa), int(mm), int(dd))
+        except Exception:
+            try:
+                test_date = str(
+                    raw.columns[
+                        np.where(raw.columns == "Test date (MMDDYYYY)")[0][0] + 1
+                    ]
+                )
+                mm, dd, aaaa = test_date.split("/")
+                test_date = datetime.date(int(aaaa), int(mm), int(dd))
+            except Exception:
+                try:
+                    test_date = str(
+                        raw.columns[np.where(raw.columns == "Test date")[0][0] + 1]
+                    )
+                    dd, mm, aaaa = test_date.split("/")
+                    test_date = datetime.date(int(aaaa), int(mm), int(dd))
+                except Exception:
+                    now = datetime.datetime.now()
+                    test_date = datetime.date(now.year, now.month, now.day)
         col = []
         max_row = 0
-        for i, time in enumerate(raw.iloc[2:, time_col].values):
+        for i, time in enumerate(raw.iloc[i0:, time_col].to_numpy()):  # type: ignore
             try:
                 hour, minute, second = [int(i) for i in str(time).split(":")]
                 max_row = i
@@ -747,10 +770,9 @@ class MetabolicRecord(Record):
             except Exception:
                 break
         data = data.iloc[: max_row + 1]
-        data.index = pd.Index(col, name=f"Time [{unit}]")
 
         # get the signals
-        time = data.index.to_numpy()
+        time = np.array(col)
         vo2 = Signal1D(
             data[("VO2", "mL/min")].to_numpy().astype(float) / wgt,
             index=time,
@@ -761,13 +783,20 @@ class MetabolicRecord(Record):
             index=time,
             unit="mL/kg/min",
         )
-        ve = Signal1D(
-            data[("Ve", "L/min")].to_numpy().astype(float),
-            index=time,
-            unit="L/min",
-        )
+        try:
+            ve = Signal1D(
+                data[("Ve", "L/min")].to_numpy().astype(float),
+                index=time,
+                unit="L/min",
+            )
+        except Exception:
+            ve = Signal1D(
+                data[("VE", "L/min")].to_numpy().astype(float),
+                index=time,
+                unit="L/min",
+            )
         hr_data = data[("HR", "bpm")].to_numpy()
-        if np.any(np.array([isinstance(x, str) and x == '-' for x in hr_data])):
+        if np.any(np.array([isinstance(x, str) and x == "-" for x in hr_data])):
             hr = Signal1D(
                 np.array([], dtype=float),
                 index=np.array([], dtype=float),
