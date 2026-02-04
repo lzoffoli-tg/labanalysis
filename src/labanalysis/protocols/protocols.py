@@ -608,13 +608,32 @@ class Participant:
             dd, mm, aaaa = dob.split("/")
             dob = date(int(aaaa), int(mm), int(dd))
         except Exception:
-            dob = None
+            try:
+                dob = str(
+                    raw.iloc[
+                        np.where(raw.iloc[:, 0] == "Birthdate (MMDDYYYY)")[0][0], 1
+                    ]
+                )
+                mm, dd, aaaa = dob.split("/")
+                dob = date(int(aaaa), int(mm), int(dd))
+            except Exception:
+                dob = None
         try:
             test_date = str(raw.iloc[np.where(raw.iloc[:, 3] == "Test date")[0][0], 4])
             dd, mm, aaaa = test_date.split("/")
             test_date = date(int(aaaa), int(mm), int(dd))
         except Exception:
-            test_date = datetime.now().date
+            try:
+                test_date = str(
+                    raw.columns[
+                        np.where(raw.columns == "Test date (MMDDYYYY)")[0][0] + 1
+                    ]
+                )
+                mm, dd, aaaa = test_date.split("/")
+                test_date = date(int(aaaa), int(mm), int(dd))
+            except Exception:
+                now = datetime.now()
+                test_date = date(now.year, now.month, now.day)
         return Participant(
             name=name,
             surname=surname,
