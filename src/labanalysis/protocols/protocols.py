@@ -561,6 +561,70 @@ class Participant:
         """
         return self.dataframe.__str__()
 
+    @classmethod
+    def from_cosmed_file(cls, filename: str):
+        # check the filename
+        msg = "filename must be the path to a .csv or .xlsx file containing"
+        msg += " relevant test data."
+        if not isinstance(filename, str) or not exists(filename):
+            raise ValueError(msg)
+        assert filename.endswith(".xlsx") or filename.endswith(".csv"), (
+            filename + ' must be a ".xlsx" or a ".csv" file.'
+        )
+
+        # get the raw data
+        if filename.endswith(".xlsx"):
+            raw = pd.read_excel(filename)
+        else:
+            raw = pd.read_csv(filename, sep=";")
+
+        # get the weight
+        row = np.where(raw.iloc[:, 0] == "Weight (kg)")[0]
+        wgt = float(raw.iloc[row, 1].iloc[0])  # type: ignore
+
+        # handle the participant generation if required
+        try:
+            name = str(raw.iloc[np.where(raw.iloc[:, 0] == "First Name")[0][0], 1])
+        except Exception:
+            name = None
+        try:
+            surname = str(raw.iloc[np.where(raw.iloc[:, 0] == "Last Name")[0][0], 1])
+        except Exception:
+            surname = None
+        try:
+            gender = str(raw.iloc[np.where(raw.iloc[:, 0] == "Gender")[0][0], 1])
+        except Exception:
+            gender = None
+        try:
+            height = int(raw.iloc[np.where(raw.iloc[:, 0] == "Height (cm)")[0][0], 1])
+        except Exception:
+            height = None
+        try:
+            weight = float(raw.iloc[np.where(raw.iloc[:, 0] == "Weight (kg)")[0][0], 1])
+        except Exception:
+            weight = None
+        try:
+            dob = str(raw.iloc[np.where(raw.iloc[:, 0] == "D.O.B.")[0][0], 1])
+            dd, mm, aaaa = dob.split("/")
+            dob = date(int(aaaa), int(mm), int(dd))
+        except Exception:
+            dob = None
+        try:
+            test_date = str(raw.iloc[np.where(raw.iloc[:, 3] == "Test date")[0][0], 4])
+            dd, mm, aaaa = test_date.split("/")
+            test_date = date(int(aaaa), int(mm), int(dd))
+        except Exception:
+            test_date = datetime.now().date
+        return Participant(
+            name=name,
+            surname=surname,
+            gender=gender,
+            height=height,
+            weight=weight,
+            birthdate=dob,
+            recordingdate=test_date,
+        )
+
 
 @runtime_checkable
 class TestResults(Protocol):

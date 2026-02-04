@@ -229,7 +229,7 @@ class SubmaximalVO2MaxTestResults(TestResults):
         )
         out.loc["Estimated", [("FatMax", "g/min")]] = round(
             self._get_fatmax(test),
-            1,
+            2,
         )
         out.columns = pd.MultiIndex.from_tuples(
             out.columns.tolist(),  # type: ignore
