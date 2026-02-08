@@ -228,7 +228,7 @@ def plot_comparisons(
         )
 
         # plot the trend of the errors
-        if np.max(diffs) - np.min(diffs) == 0:
+        if (np.max(diffs) - np.min(diffs)) == 0:
             y_bias = np.zeros_like(x_rng2)
         else:
             f_bias = np.polyfit(means, diffs, 1)
