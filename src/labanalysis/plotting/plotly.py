@@ -228,11 +228,11 @@ def plot_comparisons(
         )
 
         # plot the trend of the errors
-        try:
+        if np.max(diffs) - np.min(diffs) == 0:
+            y_bias = np.zeros_like(x_rng2)
+        else:
             f_bias = np.polyfit(means, diffs, 1)
             y_bias = np.polyval(f_bias, x_rng2)
-        except Exception as e:
-            y_bias = np.tile(0, len(x_rng2))
         fig.add_trace(
             row=1,
             col=3,
