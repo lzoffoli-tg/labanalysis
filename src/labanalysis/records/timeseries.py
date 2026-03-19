@@ -183,7 +183,7 @@ class Timeseries:
             out.loc(start, stop, True)
             return out
 
-    def fillna(self, value=None, n_regressors=None, inplace=False):
+    def fillna(self, value=None, regressors=None, inplace=False):
         """
         Return a copy with NaNs replaced by the specified value or using advanced imputation for all contained objects.
 
@@ -206,7 +206,7 @@ class Timeseries:
         vals = sp_fillna(
             self._data.copy(),
             value,
-            n_regressors,
+            regressors,
             False,
         )
         vals = np.asarray(vals, float)

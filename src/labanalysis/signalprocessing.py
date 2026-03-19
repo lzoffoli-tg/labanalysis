@@ -60,7 +60,7 @@ from types import FunctionType, MethodType
 from typing import Literal
 
 import numpy as np
-from pandas import DataFrame, Series
+from pandas import DataFrame, Series, concat
 from scipy import signal  # type: ignore
 from scipy.interpolate import CubicSpline  # type: ignore
 from scipy.spatial.transform import Rotation
@@ -1115,7 +1115,7 @@ def gram_schmidt(i: np.ndarray, j: np.ndarray, k: np.ndarray | None = None):
 def fillna(
     arr: np.ndarray | DataFrame | Series,
     value: float | int | None = None,
-    n_regressors: int | None = None,
+    regressors: np.ndarray | DataFrame | Series | None = None,
     inplace: bool = False,
 ):
     """
@@ -1131,11 +1131,8 @@ def fillna(
         if None, nearest neighbours imputation from the sklearn package is
         used.
 
-    n_regressors : int | None, default=None
-        Number of regressors to be used in a Multiple Linear Regression model.
-        The model used the "n_regressors" most correlated columns of
-        arr as independent variables to fit the missing values. The procedure
-        is repeated for each dimension separately.
+    regressors : np.ndarray | DataFrame | Series | None, default=None
+        The regressors to be used in a Multiple Linear Regression model.
         If None, cubic spline interpolation is used on each column separately.
 
     inplace : bool, optional
@@ -1152,9 +1149,11 @@ def fillna(
             "'arr' must be a numpy.ndarray a pandas.DataFrame or a pandas.Series."
         )
     if isinstance(arr, np.ndarray):
-        obj = DataFrame(arr, copy=True)
+        cols = [f"Y{i}" for i in np.arange(arr.shape[1])]
+        obj = DataFrame(arr, columns=cols, copy=True)
     elif isinstance(arr, Series):
-        obj = DataFrame(arr, copy=True).T
+        cols = ["Y"]
+        obj = DataFrame(arr, columns=cols, copy=True).T
     else:
         obj = arr if inplace else arr.copy().astype(float)
     miss = np.isnan(obj.values)
@@ -1186,32 +1185,38 @@ def fillna(
             return obj
 
     # check if linear regression models have to be used
-    if n_regressors is not None:
-        # get the correlation matrix
-        cmat = obj.corr(numeric_only=True).values
+    if regressors is not None:
+        if isinstance(regressors, np.ndarray):
+            if regressors.ndim == 1:
+                cols = ["X"]
+                regressors = DataFrame(np.at_least2d(regressors).T, columns=cols)
+            else:
+                cols = [f"X{i}" for i in np.arange(regressors.shape[1])]
+                regressors = DataFrame(regressors, columns=cols)
+        elif isinstance(regressors, Series):
+            cols = ["X"]
+            regressors = DataFrame(np.at_least2d(regressors.values).T, columns=cols)
+        xmat = concat([obj, regressors], axis=1)
 
         # predict the missing values via linear regression over each column
-        cols = obj.columns.tolist()
+        xcols = regressors.columns.to_list()
         for i, ycol in enumerate(obj.columns):
-
-            # get the best regressors
-            corrs = abs(cmat[i])
-            cor_idx = np.argsort(corrs)[-n_regressors - 1 : -1]
-            xcols = [cols[i] for i in cor_idx]
 
             # get the indices of the samples that can be used for training
             # the regression model and those samples that can be predicted
             # with that model
-            i_old = obj.loc[obj[[ycol] + xcols].notna().all(axis=1)].index
-            i_new = obj.loc[obj[ycol].isna() & obj[xcols].notna().all(axis=1)].index
+            to_remove = [k for k in obj.columns if k != ycol]
+            new_mat = xmat.drop(to_remove, axis = 1).copy()
+            i_old = new_mat.dropna().index
+            i_new = new_mat.loc[new_mat[ycol].isna() & new_mat[xcols].notna().all(axis=1)].index
 
             # if there are enough valid samples get the predictions and replace
             # the missing data
             if len(i_old) > 2 and len(i_new) > 0:
-                xmat = obj.loc[i_old, xcols]
-                yarr = obj.loc[i_old, [ycol]]
-                lrm = PolynomialRegression(degree=1).fit(xmat, yarr)
-                preds = lrm.predict(obj.loc[i_new, xcols])
+                x_old = new_mat.loc[i_old, xcols]
+                y_old = new_mat.loc[i_old, [ycol]]
+                lrm = PolynomialRegression(degree=1).fit(x_old, y_old)
+                preds = lrm.predict(xmat.loc[i_new, xcols])
                 obj.loc[i_new, ycol] = preds.values.astype(float).flatten()
 
     # fill the missing data of each set via cubic spline
