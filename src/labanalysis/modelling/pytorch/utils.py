@@ -535,6 +535,7 @@ class TrainingLogger:
         self._epochs_without_improvement = 0
         self._patience = early_stopping_patience
         self._last_print_lines = 0  # Track lines printed for in-place updates
+        self._last_minimal_length = 0  # Track length of last minimal output
 
     def update(self, key: str, value: float):
         """
@@ -796,7 +797,13 @@ class TrainingLogger:
                 output += f" | {metrics_part}"
             output += f" | lr={lr:.2e} | no_improve={self._epochs_without_improvement} | gap={gap}"
 
+            # Clear previous output by overwriting with spaces
+            if self._last_minimal_length > 0:
+                print(" " * self._last_minimal_length, end="\r")
+
+            # Print new output and track its length
             print(output, end="\r")
+            self._last_minimal_length = len(output)
 
 
 class TorchTrainer:
