@@ -20,6 +20,7 @@ from ...utils import split_data
 __all__ = [
     "CustomDataset",
     "TorchTrainer",
+    "TrainingLogger",
     "PinballLoss",
     "QuantilicRangeLoss",
     "ComboLoss",
@@ -198,7 +199,12 @@ class UncertaintyWeighting(torch.nn.Module):
     def __init__(self, output_keys):
         super().__init__()
         self.output_keys = output_keys
-        self.log_vars = torch.nn.Parameter(torch.zeros(len(output_keys)))
+        self.log_vars = torch.nn.Parameter(
+            torch.zeros(
+                len(output_keys),
+                dtype=torch.float32,
+            )
+        )
 
     def forward(self, losses: Dict[str, torch.Tensor]):
         """
@@ -214,7 +220,7 @@ class UncertaintyWeighting(torch.nn.Module):
         torch.Tensor
             The uncertainty-weighted combined loss.
         """
-        total = torch.tensor(0)
+        total = torch.tensor(0, dtype=torch.float32)
         for idx, key in enumerate(self.output_keys):
             log_var = self.log_vars[idx]  # sᵢ
             precision = torch.exp(-log_var)  # exp(-sᵢ) = 1/σᵢ²
@@ -495,6 +501,304 @@ class MAEMetric(torch.nn.Module):
         return torch.mean(torch.abs(y_pred - y_true))
 
 
+class TrainingLogger:
+    """
+    Training logger for tracking model training progress.
+
+    Handles logging of losses, metrics, learning rates, and early-stopping state
+    during model training. Provides methods to update, query, and export training
+    history.
+
+    Attributes
+    ----------
+    _history : dict[str, list]
+        Dictionary storing all logged values as lists.
+    _best_loss : float
+        Best validation loss observed so far.
+    _epochs_without_improvement : int
+        Number of consecutive epochs without improvement.
+    _patience : int
+        Total patience for early stopping.
+    """
+
+    def __init__(self, early_stopping_patience: int = 1000):
+        """
+        Initialize the TrainingLogger.
+
+        Parameters
+        ----------
+        early_stopping_patience : int, default=1000
+            Maximum number of epochs without improvement before early stopping.
+        """
+        self._history = {}
+        self._best_loss = float("inf")
+        self._epochs_without_improvement = 0
+        self._patience = early_stopping_patience
+        self._last_print_lines = 0  # Track lines printed for in-place updates
+
+    def update(self, key: str, value: float):
+        """
+        Append a value to the specified metric key.
+
+        Parameters
+        ----------
+        key : str
+            Metric name (e.g., 'training_loss', 'validation_loss').
+        value : float
+            Value to append.
+        """
+        self._history.setdefault(key, []).append(value)
+
+    def update_early_stopping_state(
+        self, current_val_loss: float, threshold: float
+    ) -> bool:
+        """
+        Update early stopping state based on validation loss.
+
+        Parameters
+        ----------
+        current_val_loss : float
+            Current epoch's validation loss.
+        threshold : float
+            Minimum improvement threshold.
+
+        Returns
+        -------
+        improved : bool
+            True if validation loss improved beyond threshold.
+        """
+        if current_val_loss < self._best_loss - threshold:
+            self._best_loss = current_val_loss
+            self._epochs_without_improvement = 0
+            return True
+        else:
+            self._epochs_without_improvement += 1
+            return False
+
+    def get_early_stopping_gap(self) -> int:
+        """
+        Get the remaining epochs before triggering early stopping.
+
+        Returns
+        -------
+        gap : int
+            Number of epochs remaining before early stopping is triggered.
+        """
+        return max(0, self._patience - self._epochs_without_improvement)
+
+    def log_learning_rate(self, lr: float):
+        """
+        Log the current learning rate.
+
+        Parameters
+        ----------
+        lr : float
+            Current learning rate.
+        """
+        self.update("learning_rate", lr)
+
+    def get_current_epoch(self) -> int:
+        """
+        Get the current epoch number.
+
+        Returns
+        -------
+        epoch : int
+            Current epoch number (0 if no epochs logged).
+        """
+        return len(self._history.get("epoch", []))
+
+    def get_last_value(self, key: str) -> float | None:
+        """
+        Get the most recent value for a metric.
+
+        Parameters
+        ----------
+        key : str
+            Metric name.
+
+        Returns
+        -------
+        value : float or None
+            Most recent value, or None if key doesn't exist.
+        """
+        values = self._history.get(key)
+        return values[-1] if values else None
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export training history to a pandas DataFrame.
+
+        Returns
+        -------
+        df : pandas.DataFrame
+            DataFrame with all logged metrics.
+        """
+        return pd.DataFrame(self._history)
+
+    @property
+    def history(self) -> dict:
+        """
+        Access the full training history.
+
+        Returns
+        -------
+        history : dict[str, list]
+            Dictionary of all logged metrics.
+        """
+        return self._history
+
+    @property
+    def best_loss(self) -> float:
+        """Best validation loss observed."""
+        return self._best_loss
+
+    @property
+    def epochs_without_improvement(self) -> int:
+        """Number of epochs without improvement."""
+        return self._epochs_without_improvement
+
+    def print_epoch_summary(
+        self, epoch: int, val_loss: float, lr: float, verbose: str = "minimal"
+    ):
+        """
+        Print a summary of the current epoch.
+
+        Parameters
+        ----------
+        epoch : int
+            Current epoch number.
+        val_loss : float
+            Validation loss for this epoch.
+        lr : float
+            Current learning rate.
+        verbose : {'full', 'minimal', 'off'}, default='minimal'
+            Verbosity level:
+            - 'full': Multi-line output with per-output losses and metrics (updates in place)
+            - 'minimal': Single-line output with global losses and metrics (updates in place)
+            - 'off': No output
+
+        Notes
+        -----
+        - 'full' mode displays training and validation losses/metrics for each model output
+        - 'minimal' mode displays only global training/validation losses and metrics
+        - Both modes update in place using ANSI escape codes for clean terminal output
+        - Both modes show: epoch, learning rate, epochs without improvement, and early stopping gap
+        """
+        if verbose == "off":
+            return
+
+        gap = self.get_early_stopping_gap()
+
+        if verbose == "full":
+            # Clear previous output (move cursor up and clear lines)
+            if self._last_print_lines > 0:
+                for _ in range(self._last_print_lines):
+                    print("\033[F\033[K", end="")  # Move up and clear line
+
+            # Extract all training and validation metrics
+            lines = [
+                f"{'='*80}",
+                f"Epoch {epoch} | LR: {lr:.2e} | Best: {self._best_loss:.6f} | "
+                f"No Improve: {self._epochs_without_improvement} | Gap: {gap}",
+                f"{'-'*80}",
+            ]
+
+            # Get training loss
+            train_loss = self.get_last_value("training_loss")
+            if train_loss is not None:
+                lines.append(f"Training Loss:   {train_loss:.6f}")
+
+            # Get validation loss
+            lines.append(f"Validation Loss: {val_loss:.6f}")
+
+            # Find all output-specific metrics
+            output_keys = set()
+            metric_keys = set()
+            for key in self._history.keys():
+                if "_loss" in key and key not in ["training_loss", "validation_loss"]:
+                    # Extract output name (e.g., "training_output1_loss" -> "output1")
+                    parts = key.split("_")
+                    if len(parts) >= 3:
+                        output_name = "_".join(parts[1:-1])  # everything between step_type and "loss"
+                        output_keys.add(output_name)
+                elif key.startswith("training_") or key.startswith("validation_"):
+                    # Check if it's a metric
+                    parts = key.split("_")
+                    if len(parts) >= 3 and parts[-1] not in ["loss"]:
+                        metric_name = parts[-1]
+                        metric_keys.add(metric_name)
+
+            # Display per-output metrics
+            if output_keys:
+                lines.append(f"{'-'*80}")
+                for output_name in sorted(output_keys):
+                    lines.append(f"\n{output_name.upper()}:")
+
+                    # Loss
+                    train_out_loss = self.get_last_value(f"training_{output_name}_loss")
+                    val_out_loss = self.get_last_value(f"validation_{output_name}_loss")
+                    if train_out_loss is not None and val_out_loss is not None:
+                        lines.append(f"  Loss:    train={train_out_loss:.6f}  val={val_out_loss:.6f}")
+
+                    # Metrics
+                    for metric_name in sorted(metric_keys):
+                        train_metric = self.get_last_value(f"training_{output_name}_{metric_name}")
+                        val_metric = self.get_last_value(f"validation_{output_name}_{metric_name}")
+                        if train_metric is not None and val_metric is not None:
+                            lines.append(f"  {metric_name.upper()}:  train={train_metric:.6f}  val={val_metric:.6f}")
+
+            lines.append(f"{'='*80}")
+
+            # Join and print
+            output_text = "\n".join(lines)
+            print(output_text)
+
+            # Track number of lines printed (count newlines + 1)
+            self._last_print_lines = output_text.count("\n") + 1
+
+        elif verbose == "minimal":
+            # Get training loss
+            train_loss = self.get_last_value("training_loss")
+            train_str = f"train={train_loss:.4f}" if train_loss is not None else ""
+
+            # Build metric strings
+            metric_strs = []
+            metric_keys = set()
+            for key in self._history.keys():
+                if key.startswith("training_") and not "_loss" in key and not "learning_rate" in key:
+                    parts = key.split("_")
+                    if len(parts) >= 2:
+                        metric_name = parts[-1]
+                        if f"validation_{metric_name}" in self._history or any(f"validation_" in k and k.endswith(f"_{metric_name}") for k in self._history.keys()):
+                            metric_keys.add(metric_name)
+
+            for metric_name in sorted(metric_keys):
+                train_metric = self.get_last_value(f"training_{metric_name}")
+                val_metric = self.get_last_value(f"validation_{metric_name}")
+
+                # Try to find the metric in any output
+                if train_metric is None or val_metric is None:
+                    for key in self._history.keys():
+                        if key.endswith(f"_{metric_name}"):
+                            if key.startswith("training_"):
+                                train_metric = self.get_last_value(key)
+                            elif key.startswith("validation_"):
+                                val_metric = self.get_last_value(key)
+
+                if train_metric is not None and val_metric is not None:
+                    metric_strs.append(f"{metric_name}:t={train_metric:.4f}/v={val_metric:.4f}")
+
+            metrics_part = " | ".join(metric_strs) if metric_strs else ""
+
+            output = f"Epoch {epoch} | {train_str} | val={val_loss:.4f}"
+            if metrics_part:
+                output += f" | {metrics_part}"
+            output += f" | lr={lr:.2e} | no_improve={self._epochs_without_improvement} | gap={gap}"
+
+            print(output, end="\r")
+
+
 class TorchTrainer:
     """
     Trainer class for PyTorch models with support for multi-output training,
@@ -627,7 +931,7 @@ class TorchTrainer:
         self._uw_module = None
 
         # ------------ LOGGER ------------
-        self._logger = {}
+        self._logger = TrainingLogger(early_stopping_patience=early_stopping_patience)
 
     # ==================================================================
     # LOGGING HELPERS
@@ -636,11 +940,11 @@ class TorchTrainer:
     @property
     def logger(self):
         """Return training metrics history."""
-        return self._logger
+        return self._logger.history
 
     def _update_logger(self, key: str, value: float):
         """Append a value to the given metric key."""
-        self._logger.setdefault(key, []).append(value)
+        self._logger.update(key, value)
 
     # ==================================================================
     # BATCH PROCESSING
@@ -885,9 +1189,7 @@ class TorchTrainer:
             self._optimizer.add_param_group({"params": self._uw_module.parameters()})
 
         # ---------------- TRAINING LOOP ----------------
-        best_loss = float("inf")
         best_weights = None
-        no_improve = 0
         no_improve_lr = 0
 
         for epoch in range(self._epochs):
@@ -900,26 +1202,31 @@ class TorchTrainer:
             module.eval()
             self._step(module, val_loader, "validation")
 
-            val_loss = self._logger["validation_loss"][-1]
+            val_loss = self._logger.get_last_value("validation_loss")
+            if val_loss is None:
+                raise RuntimeError("Validation loss not found in logger")
 
-            if val_loss < best_loss - self._early_stopping_threshold:
-                best_loss = val_loss
-                no_improve = 0
+            lr = self._optimizer.param_groups[0]["lr"]
+
+            # Log learning rate
+            self._logger.log_learning_rate(lr)
+
+            # Update early stopping state
+            improved = self._logger.update_early_stopping_state(
+                val_loss, self._early_stopping_threshold
+            )
+
+            if improved:
                 no_improve_lr = 0
                 if self._restore_best_weights:
                     best_weights = module.state_dict().copy()
             else:
-                no_improve += 1
                 no_improve_lr += 1
 
-            if self._verbose != "off":
-                lr = self._optimizer.param_groups[0]["lr"]
-                print(
-                    f"Epoch {epoch+1} | val={val_loss:.4f} | lr={lr:.2e} | "
-                    f"no_improve={no_improve}",
-                    end="\r",
-                )
+            # Print epoch summary
+            self._logger.print_epoch_summary(epoch + 1, val_loss, lr, self._verbose)
 
+            # Learning rate decay
             if (
                 no_improve_lr >= int(self._early_stopping_patience * 0.33)
                 and self._decaying_rate is not None
@@ -930,7 +1237,8 @@ class TorchTrainer:
                     )
                 no_improve_lr = 0
 
-            if no_improve >= self._early_stopping_patience:
+            # Early stopping check
+            if self._logger.epochs_without_improvement >= self._early_stopping_patience:
                 if self._restore_best_weights and best_weights is not None:
                     module.load_state_dict(best_weights)
                 break
@@ -938,4 +1246,4 @@ class TorchTrainer:
         print("")
         module.eval()
 
-        return module, pd.DataFrame(self._logger)
+        return module, self._logger.to_dataframe()
