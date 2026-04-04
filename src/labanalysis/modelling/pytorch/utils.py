@@ -5,15 +5,21 @@ dataset for structured input/output and a trainer class with early stopping, lea
 rate decay, and metric tracking.
 """
 
-import inspect
 import warnings
-from datetime import datetime
 from typing import Callable, Dict, Literal
 
 import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader, Dataset
+
+try:
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+
+    PLOTLY_AVAILABLE = True
+except ImportError:
+    PLOTLY_AVAILABLE = False
 
 from ...utils import split_data
 
@@ -22,9 +28,11 @@ __all__ = [
     "TorchTrainer",
     "TrainingLogger",
     "PinballLoss",
+    "StandardizedMSELoss",
     "QuantilicRangeLoss",
     "ComboLoss",
     "MAEMetric",
+    "UncertaintyWeighting",
 ]
 
 
@@ -521,7 +529,12 @@ class TrainingLogger:
         Total patience for early stopping.
     """
 
-    def __init__(self, early_stopping_patience: int = 1000):
+    def __init__(
+        self,
+        early_stopping_patience: int = 1000,
+        enable_plotly: bool = True,
+        plotly_output_path: str = "training_dashboard.html",
+    ):
         """
         Initialize the TrainingLogger.
 
@@ -529,6 +542,10 @@ class TrainingLogger:
         ----------
         early_stopping_patience : int, default=1000
             Maximum number of epochs without improvement before early stopping.
+        enable_plotly : bool, default=True
+            Enable real-time Plotly dashboard generation.
+        plotly_output_path : str, default='training_dashboard.html'
+            Path to save the interactive Plotly dashboard.
         """
         self._history = {}
         self._best_loss = float("inf")
@@ -536,6 +553,16 @@ class TrainingLogger:
         self._patience = early_stopping_patience
         self._last_print_lines = 0  # Track lines printed for in-place updates
         self._last_minimal_length = 0  # Track length of last minimal output
+
+        # Plotly dashboard settings
+        self._enable_plotly = enable_plotly and PLOTLY_AVAILABLE
+        self._plotly_output_path = plotly_output_path
+        self._plotly_fig = None
+
+        if self._enable_plotly and not PLOTLY_AVAILABLE:
+            warnings.warn(
+                "Plotly is not installed. Dashboard generation disabled. Install with: pip install plotly"
+            )
 
     def update(self, key: str, value: float):
         """
@@ -660,10 +687,15 @@ class TrainingLogger:
         return self._epochs_without_improvement
 
     def print_epoch_summary(
-        self, epoch: int, val_loss: float, lr: float, verbose: str = "minimal"
+        self,
+        epoch: int,
+        val_loss: float,
+        lr: float,
+        verbose: str = "minimal",
+        update_dashboard: bool = True,
     ):
         """
-        Print a summary of the current epoch.
+        Print a summary of the current epoch and optionally update the dashboard.
 
         Parameters
         ----------
@@ -678,6 +710,8 @@ class TrainingLogger:
             - 'full': Multi-line output with per-output losses and metrics (updates in place)
             - 'minimal': Single-line output with global losses and metrics (updates in place)
             - 'off': No output
+        update_dashboard : bool, default=True
+            Whether to update the Plotly dashboard (if enabled).
 
         Notes
         -----
@@ -685,7 +719,12 @@ class TrainingLogger:
         - 'minimal' mode displays only global training/validation losses and metrics
         - Both modes update in place using ANSI escape codes for clean terminal output
         - Both modes show: epoch, learning rate, epochs without improvement, and early stopping gap
+        - Dashboard is updated every epoch if Plotly is enabled
         """
+        # Update dashboard first
+        if update_dashboard and self._enable_plotly:
+            self._update_plotly_dashboard()
+
         if verbose == "off":
             return
 
@@ -721,7 +760,9 @@ class TrainingLogger:
                     # Extract output name (e.g., "training_output1_loss" -> "output1")
                     parts = key.split("_")
                     if len(parts) >= 3:
-                        output_name = "_".join(parts[1:-1])  # everything between step_type and "loss"
+                        output_name = "_".join(
+                            parts[1:-1]
+                        )  # everything between step_type and "loss"
                         output_keys.add(output_name)
                 elif key.startswith("training_") or key.startswith("validation_"):
                     # Check if it's a metric
@@ -740,14 +781,22 @@ class TrainingLogger:
                     train_out_loss = self.get_last_value(f"training_{output_name}_loss")
                     val_out_loss = self.get_last_value(f"validation_{output_name}_loss")
                     if train_out_loss is not None and val_out_loss is not None:
-                        lines.append(f"  Loss:    train={train_out_loss:.6f}  val={val_out_loss:.6f}")
+                        lines.append(
+                            f"  Loss:    train={train_out_loss:.6f}  val={val_out_loss:.6f}"
+                        )
 
                     # Metrics
                     for metric_name in sorted(metric_keys):
-                        train_metric = self.get_last_value(f"training_{output_name}_{metric_name}")
-                        val_metric = self.get_last_value(f"validation_{output_name}_{metric_name}")
+                        train_metric = self.get_last_value(
+                            f"training_{output_name}_{metric_name}"
+                        )
+                        val_metric = self.get_last_value(
+                            f"validation_{output_name}_{metric_name}"
+                        )
                         if train_metric is not None and val_metric is not None:
-                            lines.append(f"  {metric_name.upper()}:  train={train_metric:.6f}  val={val_metric:.6f}")
+                            lines.append(
+                                f"  {metric_name.upper()}:  train={train_metric:.6f}  val={val_metric:.6f}"
+                            )
 
             lines.append(f"{'='*80}")
 
@@ -767,11 +816,18 @@ class TrainingLogger:
             metric_strs = []
             metric_keys = set()
             for key in self._history.keys():
-                if key.startswith("training_") and not "_loss" in key and not "learning_rate" in key:
+                if (
+                    key.startswith("training_")
+                    and not "_loss" in key
+                    and not "learning_rate" in key
+                ):
                     parts = key.split("_")
                     if len(parts) >= 2:
                         metric_name = parts[-1]
-                        if f"validation_{metric_name}" in self._history or any(f"validation_" in k and k.endswith(f"_{metric_name}") for k in self._history.keys()):
+                        if f"validation_{metric_name}" in self._history or any(
+                            f"validation_" in k and k.endswith(f"_{metric_name}")
+                            for k in self._history.keys()
+                        ):
                             metric_keys.add(metric_name)
 
             for metric_name in sorted(metric_keys):
@@ -788,7 +844,9 @@ class TrainingLogger:
                                 val_metric = self.get_last_value(key)
 
                 if train_metric is not None and val_metric is not None:
-                    metric_strs.append(f"{metric_name}:t={train_metric:.4f}/v={val_metric:.4f}")
+                    metric_strs.append(
+                        f"{metric_name}:t={train_metric:.4f}/v={val_metric:.4f}"
+                    )
 
             metrics_part = " | ".join(metric_strs) if metric_strs else ""
 
@@ -804,6 +862,280 @@ class TrainingLogger:
             # Print new output and track its length
             print(output, end="\r")
             self._last_minimal_length = len(output)
+
+    def _create_plotly_dashboard(self):
+        """
+        Create the initial Plotly dashboard with subplots for different metrics.
+
+        Returns
+        -------
+        fig : plotly.graph_objects.Figure
+            Configured Plotly figure with subplots.
+        """
+        if not PLOTLY_AVAILABLE:
+            return None
+
+        # Determine the number of unique metrics (excluding epoch and learning_rate)
+        metric_keys = set()
+        output_keys = set()
+
+        for key in self._history.keys():
+            if key in ["epoch", "learning_rate"]:
+                continue
+
+            if "_loss" in key:
+                if key not in ["training_loss", "validation_loss"]:
+                    # Extract output name
+                    parts = key.split("_")
+                    if len(parts) >= 3:
+                        output_name = "_".join(parts[1:-1])
+                        output_keys.add(output_name)
+            elif key.startswith("training_") or key.startswith("validation_"):
+                parts = key.split("_")
+                if len(parts) >= 2:
+                    metric_name = parts[-1]
+                    metric_keys.add(metric_name)
+
+        # Create subplots: 1 for global loss, 1 for LR, 1 for each metric, 1 for per-output losses
+        num_plots = 2 + len(metric_keys) + (1 if output_keys else 0)
+        subplot_titles = ["Global Loss", "Learning Rate"] + [
+            f"{m.upper()}" for m in sorted(metric_keys)
+        ]
+
+        if output_keys:
+            subplot_titles.append("Per-Output Losses")
+
+        fig = make_subplots(
+            rows=num_plots,
+            cols=1,
+            subplot_titles=subplot_titles,
+            vertical_spacing=0.05,
+        )
+
+        # Configure layout
+        fig.update_layout(
+            height=300 * num_plots,
+            showlegend=True,
+            title_text="Training Dashboard - Real-Time Updates",
+            hovermode="x unified",
+        )
+
+        return fig
+
+    def _update_plotly_dashboard(self):
+        """
+        Update the Plotly dashboard with current training history.
+
+        This method recreates all traces with the latest data to ensure
+        real-time visualization of training progress.
+        """
+        if not self._enable_plotly or not PLOTLY_AVAILABLE:
+            return
+
+        # Create figure if it doesn't exist
+        if self._plotly_fig is None:
+            self._plotly_fig = self._create_plotly_dashboard()
+            if self._plotly_fig is None:
+                return
+
+        # Clear existing traces
+        self._plotly_fig.data = []
+
+        epochs = self._history.get("epoch", [])
+        if not epochs:
+            return
+
+        # Determine metric and output keys
+        metric_keys = set()
+        output_keys = set()
+
+        for key in self._history.keys():
+            if key in ["epoch", "learning_rate"]:
+                continue
+
+            if "_loss" in key:
+                if key not in ["training_loss", "validation_loss"]:
+                    parts = key.split("_")
+                    if len(parts) >= 3:
+                        output_name = "_".join(parts[1:-1])
+                        output_keys.add(output_name)
+            elif key.startswith("training_") or key.startswith("validation_"):
+                parts = key.split("_")
+                if len(parts) >= 2:
+                    metric_name = parts[-1]
+                    metric_keys.add(metric_name)
+
+        current_row = 1
+
+        # Plot 1: Global Loss
+        train_loss = self._history.get("training_loss", [])
+        val_loss = self._history.get("validation_loss", [])
+
+        if train_loss:
+            self._plotly_fig.add_trace(
+                go.Scatter(
+                    x=epochs,
+                    y=train_loss,
+                    name="Training Loss",
+                    mode="lines",
+                    line=dict(color="blue"),
+                ),
+                row=current_row,
+                col=1,
+            )
+        if val_loss:
+            self._plotly_fig.add_trace(
+                go.Scatter(
+                    x=epochs,
+                    y=val_loss,
+                    name="Validation Loss",
+                    mode="lines",
+                    line=dict(color="red"),
+                ),
+                row=current_row,
+                col=1,
+            )
+
+        # Add best loss as a trace
+        if self._best_loss != float("inf") and epochs:
+            self._plotly_fig.add_trace(
+                go.Scatter(
+                    x=[epochs[0], epochs[-1]],
+                    y=[self._best_loss, self._best_loss],
+                    name=f"Best Loss: {self._best_loss:.6f}",
+                    mode="lines",
+                    line=dict(color="green", dash="dash"),
+                ),
+                row=current_row,
+                col=1,
+            )
+
+        self._plotly_fig.update_xaxes(title_text="Epoch", row=current_row, col=1)
+        self._plotly_fig.update_yaxes(
+            title_text="Loss", type="log", row=current_row, col=1
+        )
+        current_row += 1
+
+        # Plot 2: Learning Rate
+        lr = self._history.get("learning_rate", [])
+        if lr:
+            self._plotly_fig.add_trace(
+                go.Scatter(
+                    x=epochs,
+                    y=lr,
+                    name="Learning Rate",
+                    mode="lines",
+                    line=dict(color="purple"),
+                ),
+                row=current_row,
+                col=1,
+            )
+        self._plotly_fig.update_xaxes(title_text="Epoch", row=current_row, col=1)
+        self._plotly_fig.update_yaxes(
+            title_text="Learning Rate", type="log", row=current_row, col=1
+        )
+        current_row += 1
+
+        # Plot 3+: Metrics
+        colors = {"training": "blue", "validation": "red"}
+        for metric_name in sorted(metric_keys):
+            for prefix in ["training", "validation"]:
+                metric_key = f"{prefix}_{metric_name}"
+                if metric_key in self._history:
+                    self._plotly_fig.add_trace(
+                        go.Scatter(
+                            x=epochs,
+                            y=self._history[metric_key],
+                            name=f"{prefix.capitalize()} {metric_name.upper()}",
+                            mode="lines",
+                            line=dict(color=colors[prefix]),
+                        ),
+                        row=current_row,
+                        col=1,
+                    )
+
+            self._plotly_fig.update_xaxes(title_text="Epoch", row=current_row, col=1)
+            self._plotly_fig.update_yaxes(
+                title_text=metric_name.upper(), row=current_row, col=1
+            )
+            current_row += 1
+
+        # Plot N: Per-output losses
+        if output_keys:
+            color_palette = [
+                "#1f77b4",
+                "#ff7f0e",
+                "#2ca02c",
+                "#d62728",
+                "#9467bd",
+                "#8c564b",
+                "#e377c2",
+                "#7f7f7f",
+            ]
+            for idx, output_name in enumerate(sorted(output_keys)):
+                color = color_palette[idx % len(color_palette)]
+
+                train_key = f"training_{output_name}_loss"
+                val_key = f"validation_{output_name}_loss"
+
+                if train_key in self._history:
+                    self._plotly_fig.add_trace(
+                        go.Scatter(
+                            x=epochs,
+                            y=self._history[train_key],
+                            name=f"{output_name} (train)",
+                            mode="lines",
+                            line=dict(color=color, dash="solid"),
+                        ),
+                        row=current_row,
+                        col=1,
+                    )
+
+                if val_key in self._history:
+                    self._plotly_fig.add_trace(
+                        go.Scatter(
+                            x=epochs,
+                            y=self._history[val_key],
+                            name=f"{output_name} (val)",
+                            mode="lines",
+                            line=dict(color=color, dash="dash"),
+                        ),
+                        row=current_row,
+                        col=1,
+                    )
+
+            self._plotly_fig.update_xaxes(title_text="Epoch", row=current_row, col=1)
+            self._plotly_fig.update_yaxes(
+                title_text="Per-Output Loss", type="log", row=current_row, col=1
+            )
+
+        # Save to HTML file
+        self._plotly_fig.write_html(
+            self._plotly_output_path,
+            auto_open=False,
+            config={"displayModeBar": True, "responsive": True},
+        )
+
+    def update_dashboard(self):
+        """
+        Manually trigger dashboard update.
+
+        Use this method to update the Plotly dashboard with the latest training data.
+        The dashboard is automatically updated during training, but this method can be
+        called manually if needed.
+        """
+        self._update_plotly_dashboard()
+
+    def get_dashboard_path(self) -> str:
+        """
+        Get the file path of the generated dashboard.
+
+        Returns
+        -------
+        path : str
+            Path to the HTML dashboard file.
+        """
+        return self._plotly_output_path
 
 
 class TorchTrainer:
@@ -869,6 +1201,12 @@ class TorchTrainer:
     use_uncertainty_weighting : bool, default=False
         Whether to apply task uncertainty weighting.
 
+    enable_plotly : bool, default=True
+        Enable real-time Plotly dashboard generation.
+
+    plotly_output_path : str, default='training_dashboard.html'
+        Path to save the interactive Plotly dashboard.
+
     Attributes
     ----------
     logger : dict[str, list]
@@ -882,6 +1220,7 @@ class TorchTrainer:
     - Models must return either a dict or a tensor.
     - Extra losses must be functions with no parameters.
     - Multi-output handling is native and automatic.
+    - If Plotly is enabled, a real-time dashboard is generated and updated each epoch.
     """
 
     def __init__(
@@ -901,6 +1240,8 @@ class TorchTrainer:
         verbose: Literal["full", "minimal", "off"] = "minimal",
         debug: bool = False,
         use_uncertainty_weighting: bool = True,
+        enable_plotly: bool = True,
+        plotly_output_path: str = "training_dashboard.html",
     ):
 
         # ------------ BASIC VALIDATION ------------
@@ -938,7 +1279,11 @@ class TorchTrainer:
         self._uw_module = None
 
         # ------------ LOGGER ------------
-        self._logger = TrainingLogger(early_stopping_patience=early_stopping_patience)
+        self._logger = TrainingLogger(
+            early_stopping_patience=early_stopping_patience,
+            enable_plotly=enable_plotly,
+            plotly_output_path=plotly_output_path,
+        )
 
     # ==================================================================
     # LOGGING HELPERS
@@ -1046,12 +1391,12 @@ class TorchTrainer:
 
         if isinstance(loader.dataset.y, dict):
             keys = list(loader.dataset.y.keys())
-            losses = {k: 0.0 for k in keys}
-            samples = {k: 0.0 for k in keys}
+            losses = {k: torch.tensor(0.0) for k in keys}
+            samples = {k: torch.tensor(0.0) for k in keys}
             trues = {k: [] for k in keys}
             preds = {k: [] for k in keys}
         else:
-            losses, samples, trues, preds = 0.0, 0.0, [], []
+            losses, samples, trues, preds = torch.tensor(0.0), torch.tensor(0.0), [], []
 
         total_loss = 0
         batches = 0
@@ -1060,7 +1405,7 @@ class TorchTrainer:
             bt, bp, bl, bs = self._process_batch(module, xb, yb, extra_losses)
 
             if isinstance(bl, dict):
-                if self._use_uncertainty_weighting:
+                if self._use_uncertainty_weighting and self._uw_module:
                     batch_loss = self._uw_module(bl)
                 else:
                     batch_loss = sum(bl.values())
@@ -1068,6 +1413,8 @@ class TorchTrainer:
                 batch_loss = bl
 
             if step_type == "training":
+                if isinstance(batch_loss, int):
+                    raise ValueError("batch_loss is int but it cannot.")
                 self._optimizer.zero_grad()
                 batch_loss.backward()
                 self._optimizer.step()
@@ -1082,14 +1429,14 @@ class TorchTrainer:
                         trues[k].append(bt[k])
                         preds[k].append(bp[k])
                 else:
-                    v = bl.item()
-                    n = bs.item()
+                    v = bl.item()  # type: ignore
+                    n = bs.item()  # type: ignore
                     losses += v * n
                     samples += n
-                    trues.append(bt)
-                    preds.append(bp)
+                    trues.append(bt)  # type: ignore
+                    preds.append(bp)  # type: ignore
 
-                total_loss += batch_loss.item()
+                total_loss += batch_loss.item()  # type: ignore
                 batches += 1
 
         epoch_loss = total_loss / batches
@@ -1102,11 +1449,11 @@ class TorchTrainer:
             preds = {"output": preds}
 
         for k in losses:
-            avg = losses[k] / samples[k]
-            self._update_logger(f"{step_type}_{k}_loss", avg)
+            avg = losses[k] / samples[k]  # type: ignore
+            self._update_logger(f"{step_type}_{k}_loss", avg)  # type: ignore
 
-            t = torch.cat(trues[k], 0)
-            p = torch.cat(preds[k], 0)
+            t = torch.cat(trues[k], 0)  # type: ignore
+            p = torch.cat(preds[k], 0)  # type: ignore
 
             for mname, fun in self._metrics.items():
                 self._update_logger(f"{step_type}_{k}_{mname}", fun(p, t).item())
