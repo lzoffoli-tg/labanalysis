@@ -48,19 +48,29 @@ _NO = "no"
 
 
 class _TkMessage(Dialog):
-    "A message box"
+    """
+    Tkinter message box dialog with topmost window behavior.
+
+    Extended Dialog class that ensures message boxes appear on top of all
+    windows and automatically creates a parent window if needed.
+
+    Attributes
+    ----------
+    command : str
+        Tkinter command name for message boxes.
+    """
 
     command = "tk_messageBox"
 
     def show(self, **options):
-        # Crea una finestra parent topmost se non esiste
+        # Create a topmost parent window if it doesn't exist
         master = self.master
         if master is None:
             master = tk.Tk()
-            master.withdraw()  # Nascondi la finestra principal
+            master.withdraw()  # Hide the main window
             self.master = master
 
-        # Porta la finestra parent in primo piano e rendila topmost
+        # Bring the parent window to foreground and make it topmost
         try:
             master.attributes("-topmost", True)
             master.lift()
@@ -70,7 +80,7 @@ class _TkMessage(Dialog):
 
         result = super().show(**options)
 
-        # Ripulisci se abbiamo creato noi la finestra master
+        # Clean up if we created the master window
         try:
             master.destroy()
         except tk.TclError:
@@ -84,6 +94,28 @@ class _TkMessage(Dialog):
 
 # Rename _icon and _type options to allow overriding them in options
 def _show(title=None, message=None, _icon=None, _type=None, **options):
+    """
+    Internal function to display a Tkinter message box.
+
+    Parameters
+    ----------
+    title : str, optional
+        Dialog window title.
+    message : str, optional
+        Message text to display.
+    _icon : str, optional
+        Icon type ('error', 'info', 'question', 'warning').
+    _type : str, optional
+        Dialog type defining which buttons to show
+        ('ok', 'okcancel', 'retrycancel', 'yesno', 'yesnocancel').
+    **options : dict
+        Additional Tkinter message box options.
+
+    Returns
+    -------
+    str
+        Button clicked by user ('ok', 'cancel', 'yes', 'no', 'retry').
+    """
     if _icon and "icon" not in options:
         options["icon"] = _icon
     if _type and "type" not in options:
@@ -103,39 +135,165 @@ def _show(title=None, message=None, _icon=None, _type=None, **options):
 
 
 def showinfo(title=None, message=None, **options):
-    "Show an info message"
+    """
+    Display an information message dialog.
+
+    Shows a message box with an information icon and OK button.
+
+    Parameters
+    ----------
+    title : str, optional
+        Dialog window title.
+    message : str, optional
+        Information message to display.
+    **options : dict
+        Additional Tkinter message box options (parent, default, etc.).
+
+    Returns
+    -------
+    str
+        Always returns 'ok'.
+    """
     return _show(title, message, _INFO, _OK, **options)
 
 
 def showwarning(title=None, message=None, **options):
-    "Show a warning message"
+    """
+    Display a warning message dialog.
+
+    Shows a message box with a warning icon and OK button.
+
+    Parameters
+    ----------
+    title : str, optional
+        Dialog window title.
+    message : str, optional
+        Warning message to display.
+    **options : dict
+        Additional Tkinter message box options (parent, default, etc.).
+
+    Returns
+    -------
+    str
+        Always returns 'ok'.
+    """
     return _show(title, message, _WARNING, _OK, **options)
 
 
 def showerror(title=None, message=None, **options):
-    "Show an error message"
+    """
+    Display an error message dialog.
+
+    Shows a message box with an error icon and OK button.
+
+    Parameters
+    ----------
+    title : str, optional
+        Dialog window title.
+    message : str, optional
+        Error message to display.
+    **options : dict
+        Additional Tkinter message box options (parent, default, etc.).
+
+    Returns
+    -------
+    str
+        Always returns 'ok'.
+    """
     return _show(title, message, _ERROR, _OK, **options)
 
 
 def askquestion(title=None, message=None, **options):
-    "Ask a question"
+    """
+    Ask a yes/no question dialog.
+
+    Shows a message box with a question icon and Yes/No buttons.
+
+    Parameters
+    ----------
+    title : str, optional
+        Dialog window title.
+    message : str, optional
+        Question to ask the user.
+    **options : dict
+        Additional Tkinter message box options (parent, default, etc.).
+
+    Returns
+    -------
+    str
+        'yes' if Yes clicked, 'no' if No clicked.
+    """
     return _show(title, message, _QUESTION, _YESNO, **options)
 
 
 def askokcancel(title=None, message=None, **options):
-    "Ask if operation should proceed; return true if the answer is ok"
+    """
+    Ask for confirmation to proceed with an operation.
+
+    Shows a message box with a question icon and OK/Cancel buttons.
+
+    Parameters
+    ----------
+    title : str, optional
+        Dialog window title.
+    message : str, optional
+        Question or confirmation prompt.
+    **options : dict
+        Additional Tkinter message box options (parent, default, etc.).
+
+    Returns
+    -------
+    bool
+        True if OK clicked, False if Cancel clicked.
+    """
     s = _show(title, message, _QUESTION, _OKCANCEL, **options)
     return s == _OK
 
 
 def askyesno(title=None, message=None, **options):
-    "Ask a question; return true if the answer is yes"
+    """
+    Ask a yes/no question and return boolean result.
+
+    Shows a message box with a question icon and Yes/No buttons.
+
+    Parameters
+    ----------
+    title : str, optional
+        Dialog window title.
+    message : str, optional
+        Question to ask the user.
+    **options : dict
+        Additional Tkinter message box options (parent, default, etc.).
+
+    Returns
+    -------
+    bool
+        True if Yes clicked, False if No clicked.
+    """
     s = _show(title, message, _QUESTION, _YESNO, **options)
     return s == _YES
 
 
 def askyesnocancel(title=None, message=None, **options):
-    "Ask a question; return true if the answer is yes, None if cancelled."
+    """
+    Ask a yes/no/cancel question and return boolean or None.
+
+    Shows a message box with a question icon and Yes/No/Cancel buttons.
+
+    Parameters
+    ----------
+    title : str, optional
+        Dialog window title.
+    message : str, optional
+        Question to ask the user.
+    **options : dict
+        Additional Tkinter message box options (parent, default, etc.).
+
+    Returns
+    -------
+    bool or None
+        True if Yes clicked, False if No clicked, None if Cancel clicked.
+    """
     s = _show(title, message, _QUESTION, _YESNOCANCEL, **options)
     # s might be a Tcl index object, so convert it to a string
     s = str(s)
@@ -145,7 +303,25 @@ def askyesnocancel(title=None, message=None, **options):
 
 
 def askretrycancel(title=None, message=None, **options):
-    "Ask if operation should be retried; return true if the answer is yes"
+    """
+    Ask whether to retry a failed operation.
+
+    Shows a message box with a warning icon and Retry/Cancel buttons.
+
+    Parameters
+    ----------
+    title : str, optional
+        Dialog window title.
+    message : str, optional
+        Description of the operation to retry.
+    **options : dict
+        Additional Tkinter message box options (parent, default, etc.).
+
+    Returns
+    -------
+    bool
+        True if Retry clicked, False if Cancel clicked.
+    """
     s = _show(title, message, _WARNING, _RETRYCANCEL, **options)
     return s == _RETRY
 

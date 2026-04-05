@@ -5,8 +5,17 @@ __all__ = ["Brzycki1RM"]
 
 class Brzycki1RM:
     """
-    class allowing the calculation of the 1RM and its derivatives according
-    to the Brzycki equaiton.
+    Brzycki equation for 1-repetition maximum (1RM) prediction.
+
+    This class implements the Brzycki equation for predicting one-repetition
+    maximum (1RM) from submaximal loads and repetitions. The equation is valid
+    for 1-36 repetitions.
+
+    The Brzycki equation: 1RM = load × 36 / (37 - reps)
+
+    Notes
+    -----
+    Valid range: 1-36 repetitions. Accuracy decreases with higher repetition counts.
     """
 
     def _validate_reps(self, reps: object):
@@ -32,20 +41,27 @@ class Brzycki1RM:
 
     def predict_1rm(self, reps: int, load: float | int):
         """
-        return the 1RM in kg from the given reps and load in kg
+        Predict one-repetition maximum from submaximal load and repetitions.
+
+        Calculate the estimated 1RM using the Brzycki equation from a submaximal
+        load and the number of repetitions performed to failure.
 
         Parameters
         ----------
-        reps: int
-            the number of repetitions
-
-        load: float | int
-            the number of load
+        reps : int
+            Number of repetitions performed to failure (must be 1-36).
+        load : float or int
+            Submaximal load in kg used for the repetitions.
 
         Returns
         -------
-        1rm: float
-            return the predicted 1RM in kg.
+        rm1 : float
+            Predicted one-repetition maximum in kg.
+
+        Raises
+        ------
+        ValueError
+            If reps is outside the valid range [1, 36], or if load < 0.
         """
         self._validate_reps(reps)
         self._validate_load(load)
@@ -53,20 +69,27 @@ class Brzycki1RM:
 
     def predict_reps(self, rm1: float | int, load: float | int):
         """
-        return the 1RM in kg from the given reps and load in kg
+        Predict maximum repetitions from 1RM and load.
+
+        Calculate the maximum number of repetitions that can be performed at a
+        given load using the Brzycki equation rearranged for repetitions.
 
         Parameters
         ----------
-        rm1: float | int
-            the 1rm in kg
-
-        load: float | int
-            the number of load
+        rm1 : float or int
+            One-repetition maximum in kg.
+        load : float or int
+            Training load in kg (must be ≤ 1RM).
 
         Returns
         -------
-        1rm: float
-            return the predicted 1RM in kg.
+        reps : float
+            Predicted maximum number of repetitions at the given load.
+
+        Raises
+        ------
+        ValueError
+            If load > rm1, or if rm1 or load are invalid values.
         """
         self._validate_1rm(rm1)
         self._validate_load(load)
@@ -76,20 +99,27 @@ class Brzycki1RM:
 
     def predict_load(self, rm1: float | int, reps: int):
         """
-        return the 1RM in kg from the given reps and load in kg
+        Predict training load from 1RM and target repetitions.
+
+        Calculate the load that allows a specific number of repetitions to be
+        performed using the Brzycki equation rearranged for load.
 
         Parameters
         ----------
-        rm1: float | int
-            the 1rm in kg
-
-        reps: int
-            the number of reps
+        rm1 : float or int
+            One-repetition maximum in kg.
+        reps : int
+            Target number of repetitions (must be 1-36).
 
         Returns
         -------
-        load: float
-            return the load allowing the required number of reps given the 1RM.
+        load : float
+            Predicted training load in kg that allows the target repetitions.
+
+        Raises
+        ------
+        ValueError
+            If reps is outside the valid range [1, 36], or if rm1 is invalid.
         """
         self._validate_reps(reps)
         self._validate_1rm(rm1)

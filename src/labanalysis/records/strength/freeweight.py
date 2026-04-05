@@ -69,7 +69,7 @@ class DefaultFreeWeightObject(WholeBody):
         a figure representing the results of the test.
     """
 
-    _total_load_kg: float  # variabile specifica della classe
+    _total_load_kg: float  # class-specific variable
 
     def __init__(
         self,
@@ -366,7 +366,7 @@ class DefaultFreeWeightObject(WholeBody):
         return metrics
 
 
-# definisce la fase concentrica e eccentrica di una ripetizione
+# Defines the concentric and eccentric phase of a repetition
 class RepetitionPhase(DefaultFreeWeightObject):
     """
     Split a repetition into eccentric and concentric phases.
@@ -512,14 +512,14 @@ class RepetitionPhase(DefaultFreeWeightObject):
     @property
     def phase(self):
         """split the signal into the eccentric and concentric phase"""
-        # ottengo la posizione del bilanciere o dei manubri
-        # se non sono presenti i marker del bilanciere, uso la media dei manubri
-        # se non sono presenti neanche i manubri, ritorno None
+        # Get barbell or dumbbell position
+        # If barbell markers not present, use average of dumbbells
+        # If dumbbells also not present, return None
         position = self.tool_position
         if position is None:
             raise ValueError("No barbell or dumbbell position available")
 
-        # calcolo la fase in base alla direzione del movimento verticale
+        # Calculate phase based on vertical movement direction
         y = position[self.vertical_axis].to_numpy().flatten()
         dz = np.diff(y)
         integrale = np.trapezoid(dz)
@@ -1034,6 +1034,6 @@ class FreeWeightExercise(DefaultFreeWeightObject):
         """return a list of FreeWeightRepetition instances"""
         repetitions: list[FreeWeightRepetition] = []
 
-        # TODO definire le logiche di separazione delle ripetizioni
+        # TODO: Define repetition separation logic
 
         return repetitions

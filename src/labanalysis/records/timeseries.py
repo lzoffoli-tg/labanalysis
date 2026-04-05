@@ -24,6 +24,60 @@ __all__ = ["Timeseries", "Signal1D", "Signal3D", "EMGSignal", "Point3D"]
 
 
 class Timeseries:
+    """
+    Time-indexed multi-column data container with unit support.
+
+    Base class for time-series data providing pandas-like indexing, arithmetic
+    operations, unit conversion, and signal processing capabilities. Designed for
+    biomechanical and physiological signals.
+
+    Attributes
+    ----------
+    index : np.ndarray
+        Time index array (1D).
+    columns : np.ndarray
+        Column labels array (1D).
+    _data : np.ndarray
+        Internal data storage (2D array: rows=time, cols=variables).
+    _unit : pint.Quantity or str
+        Unit of measurement for the data.
+
+    Properties
+    ----------
+    ix : TimeseriesIXIndexer
+        Integer-based indexer for iloc-style access.
+    unit : str
+        String representation of the unit of measurement.
+    shape : tuple
+        Shape of the data array (n_timepoints, n_columns).
+
+    Notes
+    -----
+    - Supports arithmetic operations (+, -, *, /, etc.) with broadcasting
+    - Integrates with pint for unit conversion and validation
+    - Provides fillna() for gap filling via interpolation
+    - Can be converted to pandas DataFrame or numpy array
+    - Supports method chaining with inplace operations
+
+    See Also
+    --------
+    Signal1D : 1D time-series specialization
+    Signal3D : 3D vector time-series
+    Point3D : 3D position trajectory
+    EMGSignal : Electromyography signal
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from labanalysis import Timeseries
+    >>> data = np.random.randn(100, 3)
+    >>> index = np.linspace(0, 10, 100)
+    >>> ts = Timeseries(data, index, columns=['X', 'Y', 'Z'], unit='m')
+    >>> ts.shape
+    (100, 3)
+    >>> ts.unit
+    'm'
+    """
 
     @property
     def ix(self):
@@ -168,6 +222,42 @@ class Timeseries:
             return out
 
     def loc(self, start: float | int, stop: float | int, inplace: bool = False):
+        """
+        Extract time window between start and stop indices.
+
+        Filters the timeseries to include only samples where the index
+        falls within [start, stop] inclusive.
+
+        Parameters
+        ----------
+        start : float or int
+            Lower bound of the time window (inclusive).
+        stop : float or int
+            Upper bound of the time window (inclusive).
+        inplace : bool, optional
+            If True, modifies the timeseries in place.
+            If False, returns a new timeseries. Default is False.
+
+        Returns
+        -------
+        Timeseries or None
+            If inplace=False, returns new Timeseries with filtered data.
+            If inplace=True, returns None (modifies self).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> ts = Timeseries(np.random.randn(100, 2), index=np.linspace(0, 10, 100))
+        >>> # Extract window from 2.5 to 7.5 seconds
+        >>> windowed = ts.loc(2.5, 7.5)
+        >>> windowed.shape[0] < ts.shape[0]
+        True
+
+        >>> # Modify in place
+        >>> ts.loc(2.5, 7.5, inplace=True)
+        >>> ts.index[0] >= 2.5 and ts.index[-1] <= 7.5
+        True
+        """
         if not isinstance(start, (float, int)):
             raise ValueError("start must be int or float")
         if not isinstance(stop, (float, int)):

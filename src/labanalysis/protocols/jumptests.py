@@ -35,6 +35,118 @@ from .protocols import Participant, TestProtocol, TestResults
 
 
 class JumpTest(TestProtocol):
+    """
+    Test protocol for comprehensive jump performance assessment.
+
+    JumpTest manages and analyzes multiple types of vertical jumps including
+    squat jumps (SJ), counter-movement jumps (CMJ), drop jumps (DJ), and
+    repeated jumps. The class handles data acquisition from force platforms,
+    processes biomechanical signals, normalizes EMG data, and generates
+    performance reports with normative comparisons.
+
+    The protocol supports:
+    - Multiple jump types with distinct biomechanical characteristics
+    - Bilateral and unilateral jump execution
+    - EMG normalization and muscle activation analysis
+    - Automated data processing pipelines
+    - Normative data comparison for performance ranking
+
+    Parameters
+    ----------
+    participant : Participant
+        Participant information including demographics and anthropometrics.
+        Must have weight specified.
+    normative_data : pd.DataFrame, optional
+        Reference data for performance ranking and comparison.
+        Default is jumps_normative_values.
+    emg_normalization_references : TimeseriesRecord or str or 'self', optional
+        Reference signals for EMG amplitude normalization. If 'self', uses
+        test data for normalization. Default is empty TimeseriesRecord.
+    emg_normalization_function : callable, optional
+        Function to compute normalization value from reference (e.g., np.mean,
+        np.max). Default is np.mean.
+    emg_activation_references : TimeseriesRecord or str or 'self', optional
+        Reference signals for determining muscle activation thresholds.
+        Default is empty TimeseriesRecord.
+    emg_activation_threshold : float, optional
+        Threshold multiplier for detecting muscle activation onset.
+        Default is 3 (3x reference level).
+    relevant_muscle_map : list of str or None, optional
+        List of muscle names to include in analysis. If None, includes all
+        detected muscles. Default is None.
+    squat_jumps : list of SingleJump, optional
+        Squat jump trials. Default is empty list.
+    counter_movement_jumps : list of SingleJump, optional
+        Counter-movement jump trials. Default is empty list.
+    drop_jumps : list of DropJump, optional
+        Drop jump trials. Default is empty list.
+    repeated_jumps : list of SingleJump, optional
+        Individual jumps from repeated jump sequences. Default is empty list.
+
+    Attributes
+    ----------
+    squat_jumps : list of SingleJump
+        Squat jump trials (concentric-only jumps from static position).
+    counter_movement_jumps : list of SingleJump
+        Counter-movement jump trials (jumps with pre-stretch).
+    drop_jumps : list of DropJump
+        Drop jump trials (plyometric jumps from elevated surface).
+    repeated_jumps : list of SingleJump
+        Individual jumps from continuous jumping sequences.
+    jumps : list
+        All jumps combined (all four types concatenated).
+    processed_data : JumpTest
+        Copy of test with all signals processed through the pipeline.
+    processing_pipeline : ProcessingPipeline
+        Signal processing pipeline with jump-specific configurations.
+
+    Notes
+    -----
+    Jump Types:
+    - Squat Jump (SJ): Concentric-only jump from static semi-squat position
+      (no counter-movement allowed). Measures pure concentric power.
+    - Counter-Movement Jump (CMJ): Jump with preliminary downward movement
+      to utilize stretch-shortening cycle. Measures reactive strength.
+    - Drop Jump (DJ): Jump immediately after landing from a box. Measures
+      fast stretch-shortening cycle and reactive strength index (RSI).
+    - Repeated Jumps: Continuous jumping for fatigue or endurance assessment.
+
+    Processing Pipeline:
+    - Force platforms: 30 Hz lowpass filter, moment calculation
+    - EMG signals: 20-450 Hz bandpass, 50ms RMS envelope (vs. 200ms default)
+    - Kinematic markers: Standard WholeBody processing pipeline
+    - Reference frame: Auto-aligned to bilateral force center for bilateral jumps
+
+    Performance Metrics:
+    - Elevation (cm): Jump height calculated from flight time and impulse
+    - Flight time (ms): Aerial phase duration
+    - Contact time (ms): Ground contact duration
+    - Takeoff velocity (m/s): Velocity at takeoff instant
+    - RSI (cm/s): Reactive strength index (elevation/contact_time)
+    - Force symmetry (%): Left-right force balance for bilateral jumps
+    - EMG activation timing (ms): Muscle onset relative to landing
+    - EMG pre-activation ratio (%): Pre-landing vs. post-landing EMG
+
+    See Also
+    --------
+    SingleJump : Single vertical jump record.
+    DropJump : Drop jump record with box height.
+    RepeatedJumps : Continuous jumping sequence.
+    JumpTestResults : Results container with figures and summaries.
+
+    Examples
+    --------
+    >>> participant = Participant(weight=75, gender='male')
+    >>> test = JumpTest.from_files(
+    ...     participant=participant,
+    ...     squat_jump_files=['sj_trial1.tdf'],
+    ...     counter_movement_jump_files=['cmj_trial1.tdf', 'cmj_trial2.tdf'],
+    ...     drop_jump_files=['dj_40cm.tdf'],
+    ...     drop_jump_heights_cm=[40]
+    ... )
+    >>> results = test.get_results(include_emg=True)
+    >>> print(results.summary)
+    """
 
     @property
     def repeated_jumps(self):
@@ -568,6 +680,69 @@ class JumpTest(TestProtocol):
 
 
 class JumpTestResults(TestResults):
+    """
+    Results container for jump test analysis with automated reporting.
+
+    JumpTestResults processes JumpTest data to generate comprehensive
+    performance summaries, interactive visualizations, and normative
+    comparisons. The class automatically computes all relevant jump metrics,
+    generates publication-ready figures, and provides structured data export.
+
+    Parameters
+    ----------
+    test : JumpTest
+        Processed jump test data to analyze.
+    include_emg : bool
+        Whether to include EMG analysis in results (activation timing,
+        amplitude, and pre-activation ratios).
+
+    Attributes
+    ----------
+    summary : pd.DataFrame
+        Comprehensive table of all jump metrics including elevation, contact
+        time, flight time, RSI, force symmetry, and EMG metrics.
+    analytics : pd.DataFrame
+        Time-series data for all jumps in long format for detailed analysis.
+    figures : dict of str -> go.Figure or dict
+        Dictionary of interactive Plotly figures:
+        - 'ground_reaction_forces': Force-time curves for all jumps
+        - 'elevation': Jump height with normative bands and symmetry
+        - 'contact_time': Contact time with normative ranking (DJ/repeated only)
+        - 'rsi': Reactive strength index (DJ/repeated only)
+        - 'muscle_activation_ratio': EMG pre-activation (DJ only, if include_emg)
+        - 'muscle_activation_time': EMG onset timing (DJ only, if include_emg)
+
+    Notes
+    -----
+    Metric Calculations:
+    - Elevation: min(flight_time_method, impulse_method) for conservative estimate
+    - Flight time method: h = (t_flight^2 * g) / 8
+    - Impulse method: h = v_takeoff^2 / (2*g), where v from force integral
+    - RSI: elevation / (contact_time / 1000)
+    - Force symmetry: 100 * (R - L) / mean(R, L)
+
+    EMG Metrics (Drop Jumps only):
+    - Activation time: Time from landing to sustained EMG > threshold
+    - Pre-activation ratio: mean(EMG_pre) / max(EMG_loading) * 100
+    - Pre-window: 25ms before landing
+    - Loading window: Landing to bodyweight crossing
+
+    Figure Organization:
+    Each figure type may contain multiple subplots organized by:
+    - Jump type (SJ, CMJ, DJ, Repeated)
+    - Side (bilateral, left, right)
+    - Box height (for drop jumps)
+
+    Normative data (if available) is displayed as colored bands overlaying
+    the performance bars, with ranks typically defined as:
+    - 5-level: Elite, Above Average, Average, Below Average, Poor
+    - 3-level: Good, Average, Poor
+
+    See Also
+    --------
+    JumpTest : Test protocol for jump assessment.
+    TestResults : Parent class for test results.
+    """
 
     def __init__(self, test: JumpTest, include_emg: bool):
         if not isinstance(test, JumpTest):

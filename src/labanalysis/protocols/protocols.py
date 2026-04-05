@@ -778,9 +778,9 @@ class TestResults(Protocol):
 
     #! MANDATORY FIELDS TO BE IMPLEMENTED
 
-    def _get_summary(self, test: Any) -> pd.DataFrame: ...
+    def _get_summary(self, test: Any): ...
 
-    def _get_analytics(self, test: Any) -> pd.DataFrame: ...
+    def _get_analytics(self, test: Any): ...
 
     def _get_figures(
         self, test: Any
@@ -1088,14 +1088,14 @@ class TestProtocol(Protocol):
 
     #! MANDATORY METHODS TO BE IMPLEMENTED
 
-    def get_results(self, include_emg: bool = True) -> TestResults: ...
+    def get_results(self, include_emg: bool = True): ...
 
     @property
-    def processing_pipeline(self) -> ProcessingPipeline:
+    def processing_pipeline(self):
         """
         exercise data processing pipeline
         """
         ...
 
     @property
-    def processed_data(self) -> Self: ...
+    def processed_data(self): ...

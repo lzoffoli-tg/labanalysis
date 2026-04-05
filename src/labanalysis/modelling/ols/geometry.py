@@ -180,7 +180,7 @@ class GeometricObject(Protocol):
             raise ValueError(msg)
         """
 
-    def _expand_dimensions(self, **dimensions: np.ndarray) -> np.ndarray: ...
+    def _expand_dimensions(self, **dimensions: np.ndarray): ...
 
     def copy(self):
         """create a copy of the current object."""
@@ -672,11 +672,26 @@ class Ellipse(GeometricObject):
 
     @property
     def domains(self):
-        """return the value limits accepted for each dimension"""
+        """
+        Return the value limits accepted for each dimension.
+
+        Computes the domain (x-range) and codomain (y-range) of the ellipse
+        by solving the discriminant inequality.
+
+        Returns
+        -------
+        dict
+            Dictionary with 'x' and 'y' keys containing tuples (min, max).
+
+        Notes
+        -----
+        Treats the equation as a quadratic in both x and y, then solves
+        the discriminant inequality ≥ 0 to find valid ranges.
+        """
         if not self.is_fitted():
             raise ValueError("'domains' must be called after fit.")
 
-        # Trattiamo l'equazione come un quadratico in y:
+        # Treat equation as quadratic in y:
         # C*y^2 + (Bx + E)*y + (Ax^2 + Dx + F)
         x, y = sympy.symbols("x, y")
         A, B, C, D, E, F = list(self.betas.values())
@@ -684,17 +699,17 @@ class Ellipse(GeometricObject):
         bx = B * x + E
         cx = A * x**2 + D * x + F
 
-        # Trattiamo l'equazione come un quadratico in y:
+        # Treat equation as quadratic in x:
         # A*x^2 + (By + D)*x + (Cy^2 + Ey + F)
         ay = A
         by = B * y + D
         cy = C * y**2 + E * y + F
 
-        # Calcolo del discriminante del quadratico in y
+        # Calculate discriminant for both quadratics
         discriminant_x = bx**2 - 4 * ax * cx
         discriminant_y = by**2 - 4 * ay * cy
 
-        # Risolvo l'inequazione discriminante >= 0 per trovare il dominio
+        # Solve inequality discriminant >= 0 to find domain
         domain = sympy.solve(discriminant_x >= 0, x)
         x = (float(domain.args[0].args[0]), float(domain.args[1].args[1]))
         codomain = sympy.solve(discriminant_y >= 0, y)
@@ -716,9 +731,19 @@ class Ellipse(GeometricObject):
     @property
     def area(self):
         """
-        Calcola l'area dell'ellisse data l'equazione generale:
-        A*x^2 + B*x*y + C*y^2 + D*x + E*y + F = 0
-        Assumendo che rappresenti un'ellisse reale.
+        Calculate the area of the ellipse.
+
+        Uses the standard formula for ellipse area given semi-axes.
+
+        Returns
+        -------
+        float
+            Area of the ellipse (π * a * b).
+
+        Notes
+        -----
+        Assumes the general equation A*x^2 + B*x*y + C*y^2 + D*x + E*y + F = 0
+        represents a real ellipse.
         """
         a, b = self.semi_axes
         return np.pi * a * b
@@ -726,24 +751,37 @@ class Ellipse(GeometricObject):
     @property
     def major_axis(self):
         """
-        Dati i coefficienti dell'equazione Ax^2 + Bxy + Cy^2 + Dx + Ey + F = 0,
-        restituisce la linea che definisce l'asse maggiore.
+        Return the line defining the major axis of the ellipse.
+
+        Extracts the major axis direction from the eigenvector corresponding
+        to the smallest eigenvalue of the quadratic form matrix.
+
+        Returns
+        -------
+        Line2D
+            Line passing through the ellipse center along the major axis.
+
+        Notes
+        -----
+        Given coefficients of Ax^2 + Bxy + Cy^2 + Dx + Ey + F = 0,
+        the major axis aligns with the eigenvector of the smallest eigenvalue
+        of the quadratic form matrix Q = [[A, B/2], [B/2, C]].
         """
         A = self.betas["A"]
         B = self.betas["B"]
         C = self.betas["C"]
 
-        # Matrice della forma quadratica
+        # Quadratic form matrix
         Q = np.array([[A, B / 2], [B / 2, C]])
 
-        # Calcolo autovalori e autovettori
+        # Calculate eigenvalues and eigenvectors
         eigenvalues, eigenvectors = np.linalg.eigh(Q)
 
-        # L'autovettore associato al minore autovalore è la direzione dell'asse maggiore
+        # Eigenvector associated with smallest eigenvalue is major axis direction
         min_index = np.argmin(eigenvalues)
         direction = eigenvectors[:, min_index]
 
-        # Calcolo la retta dell'asse maggiore
+        # Calculate major axis line
         dx, dy = direction
         x0, y0 = self.center
         out = Line2D()
@@ -753,24 +791,37 @@ class Ellipse(GeometricObject):
     @property
     def minor_axis(self):
         """
-        Dati i coefficienti dell'equazione Ax^2 + Bxy + Cy^2 + Dx + Ey + F = 0,
-        restituisce la linea che definisce l'asse minore.
+        Return the line defining the minor axis of the ellipse.
+
+        Extracts the minor axis direction from the eigenvector corresponding
+        to the largest eigenvalue of the quadratic form matrix.
+
+        Returns
+        -------
+        Line2D
+            Line passing through the ellipse center along the minor axis.
+
+        Notes
+        -----
+        Given coefficients of Ax^2 + Bxy + Cy^2 + Dx + Ey + F = 0,
+        the minor axis aligns with the eigenvector of the largest eigenvalue
+        of the quadratic form matrix Q = [[A, B/2], [B/2, C]].
         """
         A = self.betas["A"]
         B = self.betas["B"]
         C = self.betas["C"]
 
-        # Matrice della forma quadratica
+        # Quadratic form matrix
         Q = np.array([[A, B / 2], [B / 2, C]])
 
-        # Calcolo autovalori e autovettori
+        # Calculate eigenvalues and eigenvectors
         eigenvalues, eigenvectors = np.linalg.eigh(Q)
 
-        # L'autovettore associato al minore autovalore è la direzione dell'asse maggiore
+        # Eigenvector associated with largest eigenvalue is minor axis direction
         max_index = np.argmax(eigenvalues)
         direction = eigenvectors[:, max_index]
 
-        # calcolo la retta dell'asse minore
+        # Calculate minor axis line
         dx, dy = direction
         x0, y0 = self.center
         out = Line2D()
@@ -779,32 +830,49 @@ class Ellipse(GeometricObject):
 
     @property
     def semi_axes(self):
-        """return the length of the semi axes"""
+        """
+        Return the lengths of the semi-major and semi-minor axes.
+
+        Returns
+        -------
+        tuple of float
+            (a, b) where a is semi-major axis length and b is semi-minor axis length.
+
+        Raises
+        ------
+        ValueError
+            If equation does not represent an ellipse or semi-axes cannot be determined.
+
+        Notes
+        -----
+        The semi-axes are computed from eigenvalues of the quadratic form matrix
+        and the translated F value at the center: a, b = sqrt(-f0 / eigenvalues).
+        """
         A, B, C, D, E, F = list(self.betas.values())
 
-        # Verifica se l'equazione rappresenta un'ellisse
+        # Verify equation represents an ellipse
         discriminant = B**2 - 4 * A * C
         if discriminant >= 0:
-            raise ValueError("L'equazione non rappresenta un'ellisse.")
+            raise ValueError("The equation does not represent an ellipse.")
 
-        # Matrice del termine quadratico
+        # Quadratic term matrix
         M = np.array([[A, B / 2], [B / 2, C]])
 
-        # Coordinate del centro dell'ellisse
+        # Ellipse center coordinates
         x0, y0 = self.center
 
-        # Valore di F traslato al centro
+        # F value translated to center
         f0 = A * x0**2 + B * x0 * y0 + C * y0**2 + D * x0 + E * y0 + F
 
-        # Autovalori della matrice M
+        # Eigenvalues of matrix M
         eigvals = np.linalg.eigvals(M)
         if f0 == 0 or np.any(eigvals == 0):
-            raise ValueError("Impossibile determinare i semiassi")
+            raise ValueError("Cannot determine semi-axes")
 
-        # Calcolo dei semiassi
+        # Calculate semi-axes
         a, b = np.sqrt(-f0 / eigvals[:2])
 
-        # Ordina per ottenere semiasse maggiore e minore
+        # Sort to obtain major and minor semi-axes
         return float(a), float(b)
 
     @property
@@ -816,12 +884,26 @@ class Ellipse(GeometricObject):
 
     @property
     def foci(self):
+        """
+        Return the coordinates of the two foci of the ellipse.
 
-        # Distanza focale
+        Returns
+        -------
+        tuple of tuple
+            ((x1, y1), (x2, y2)) coordinates of the two foci.
+
+        Notes
+        -----
+        Foci are calculated using focal distance c = sqrt(a² - b²) in the
+        rotated coordinate system, then inverse rotation transforms them
+        back to the original coordinate system.
+        """
+
+        # Focal distance
         a, b = self.semi_axes
         c = np.sqrt(abs(a**2 - b**2))
 
-        # Fuochi nel sistema ruotato
+        # Foci in rotated system
         if a > b:
             f1_rot = np.array([c, 0])
             f2_rot = np.array([-c, 0])
@@ -829,7 +911,7 @@ class Ellipse(GeometricObject):
             f1_rot = np.array([0, c])
             f2_rot = np.array([0, -c])
 
-        # Rotazione inversa per tornare al sistema originale
+        # Inverse rotation to return to original system
         theta = self.rotation_angle / 180 * np.pi
         cos_t = np.cos(theta)
         sin_t = np.sin(theta)

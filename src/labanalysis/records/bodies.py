@@ -13,6 +13,128 @@ __all__ = ["WholeBody"]
 
 
 class WholeBody(TimeseriesRecord):
+    """
+    Full body biomechanical model with anatomical landmarks and joint angles.
+
+    This class represents a complete human body model including anatomical landmark
+    positions (3D points), ground reaction forces, and computed joint kinematics.
+    Automatically calculates joint centers, segment reference frames, and joint
+    angles based on provided anatomical markers.
+
+    Parameters
+    ----------
+    left_hand_ground_reaction_force : ForcePlatform, optional
+        Left hand GRF data.
+    right_hand_ground_reaction_force : ForcePlatform, optional
+        Right hand GRF data.
+    left_foot_ground_reaction_force : ForcePlatform, optional
+        Left foot GRF data.
+    right_foot_ground_reaction_force : ForcePlatform, optional
+        Right foot GRF data.
+    left_heel : Point3D, optional
+        Left heel marker position.
+    right_heel : Point3D, optional
+        Right heel marker position.
+    left_toe : Point3D, optional
+        Left toe marker position.
+    right_toe : Point3D, optional
+        Right toe marker position.
+    left_metatarsal_head : Point3D, optional
+        Left metatarsal head marker.
+    right_metatarsal_head : Point3D, optional
+        Right metatarsal head marker.
+    left_ankle_medial : Point3D, optional
+        Left medial malleolus marker.
+    left_ankle_lateral : Point3D, optional
+        Left lateral malleolus marker.
+    right_ankle_medial : Point3D, optional
+        Right medial malleolus marker.
+    right_ankle_lateral : Point3D, optional
+        Right lateral malleolus marker.
+    left_knee_medial : Point3D, optional
+        Left medial femoral epicondyle marker.
+    left_knee_lateral : Point3D, optional
+        Left lateral femoral epicondyle marker.
+    right_knee_medial : Point3D, optional
+        Right medial femoral epicondyle marker.
+    right_knee_lateral : Point3D, optional
+        Right lateral femoral epicondyle marker.
+    left_throcanter : Point3D, optional
+        Left greater trochanter marker.
+    right_throcanter : Point3D, optional
+        Right greater trochanter marker.
+    left_asis : Point3D, optional
+        Left anterior superior iliac spine marker.
+    right_asis : Point3D, optional
+        Right anterior superior iliac spine marker.
+    left_psis : Point3D, optional
+        Left posterior superior iliac spine marker.
+    right_psis : Point3D, optional
+        Right posterior superior iliac spine marker.
+    left_shoulder_anterior : Point3D, optional
+        Left anterior shoulder marker.
+    left_shoulder_posterior : Point3D, optional
+        Left posterior shoulder marker.
+    right_shoulder_anterior : Point3D, optional
+        Right anterior shoulder marker.
+    right_shoulder_posterior : Point3D, optional
+        Right posterior shoulder marker.
+    left_elbow_medial : Point3D, optional
+        Left medial epicondyle marker.
+    left_elbow_lateral : Point3D, optional
+        Left lateral epicondyle marker.
+    right_elbow_medial : Point3D, optional
+        Right medial epicondyle marker.
+    right_elbow_lateral : Point3D, optional
+        Right lateral epicondyle marker.
+    left_wrist_medial : Point3D, optional
+        Left medial wrist marker.
+    left_wrist_lateral : Point3D, optional
+        Left lateral wrist marker.
+    right_wrist_medial : Point3D, optional
+        Right medial wrist marker.
+    right_wrist_lateral : Point3D, optional
+        Right lateral wrist marker.
+    s2 : Point3D, optional
+        Second sacral vertebra marker.
+    l2 : Point3D, optional
+        Second lumbar vertebra marker.
+    c7 : Point3D, optional
+        Seventh cervical vertebra marker.
+    sc : Point3D, optional
+        Sternoclavicular joint marker.
+    **extra_signals : Signal1D, Signal3D, EMGSignal, Point3D, or ForcePlatform
+        Additional signals to include in the record.
+
+    Attributes
+    ----------
+    _angular_measures : list of str
+        List of all available joint angle properties.
+
+    Notes
+    -----
+    - Joint centers (ankle, knee, hip, shoulder, elbow, wrist) are calculated
+      as midpoints between medial and lateral markers
+    - Hip joint centers use De Leva (1996) regression equations
+    - Joint angles follow standard biomechanical conventions (flexion/extension,
+      abduction/adduction, internal/external rotation)
+    - Pelvis and trunk angles can be computed in global or local reference frames
+    - All angle properties return Signal1D objects in degrees
+
+    Examples
+    --------
+    >>> # Create from marker data
+    >>> body = WholeBody(
+    ...     left_heel=heel_marker,
+    ...     right_heel=heel_marker,
+    ...     left_ankle_medial=ankle_med,
+    ...     left_ankle_lateral=ankle_lat,
+    ...     # ... other markers
+    ... )
+    >>> # Access computed joint angles
+    >>> knee_flexion = body.left_knee_flexionextension
+    >>> hip_abd = body.left_hip_abductionadduction
+    """
 
     _angular_measures = [
         "left_ankle_flexionextension",
@@ -277,36 +399,59 @@ class WholeBody(TimeseriesRecord):
 
     def _get_least_squares_plane_coefs(self, *points: Point3D):
         """
-        Calcola i coefficienti del piano (a, b, c, d) per ogni istante temporale
-        dati almeno 3 punti 3D per ciascun campione.
+        Calculate plane coefficients (a, b, c, d) at each time instant using least squares.
+
+        Fits a plane to at least 3 points in 3D space using principal component
+        analysis. The plane normal is determined by the eigenvector corresponding
+        to the smallest eigenvalue of the covariance matrix.
+
+        Parameters
+        ----------
+        *points : Point3D
+            At least 3 Point3D instances defining the plane at each time sample.
+
+        Returns
+        -------
+        coefficients : np.ndarray, shape (N, 4)
+            Plane coefficients [a, b, c, d] at each time instant where
+            ax + by + cz + d = 0 defines the plane equation.
+
+        Notes
+        -----
+        The algorithm:
+        1. Computes centroid of input points
+        2. Centers points relative to centroid
+        3. Computes covariance matrix for each sample
+        4. Extracts normal vector (eigenvector of smallest eigenvalue)
+        5. Calculates d coefficient from normal and centroid
         """
         for point in points:
             if not isinstance(point, Point3D):
                 raise ValueError("all points must be Point3D instances.")
 
-        # Calcola il baricentro per ogni campione
+        # Calculate centroid for each sample
         mat = np.stack([i.to_numpy() for i in points], axis=1)
         centroid = np.mean(mat, axis=1, keepdims=True)
 
-        # Centra i punti rispetto al baricentro
+        # Center points relative to centroid
         centered = mat - centroid
 
-        # Calcola la matrice di covarianza per ogni campione
+        # Calculate covariance matrix for each sample
         cov = np.einsum("nij,nik->njk", centered, centered) / mat.shape[1]
 
-        # Calcola autovalori e autovettori
+        # Calculate eigenvalues and eigenvectors
         eigvals, eigvecs = np.linalg.eigh(cov)
 
-        # L'autovettore associato al minimo autovalore è la normale al piano
+        # Eigenvector associated with smallest eigenvalue is the plane normal
         normals = eigvecs[:, :, 0]
 
-        # Coefficienti a, b, c
+        # Coefficients a, b, c
         a, b, c = normals[:, :3].T
 
-        # Calcola d = - (a*x + b*y + c*z) usando il baricentro
+        # Calculate d = -(a*x + b*y + c*z) using centroid
         d = -np.sum(normals * centroid[:, 0, :], axis=1)
 
-        # Stack dei coefficienti
+        # Stack coefficients
         coefficients = np.stack([a, b, c, d], axis=1)
 
         return coefficients
@@ -318,38 +463,62 @@ class WholeBody(TimeseriesRecord):
         ortogonal_to: Point3D,
     ):
         """
-        Calcola i coefficienti (a, b, c, d) del piano passante per onplane_a e
-        onplane_b, tale che la retta che congiunge ortogonal_to al piano sia
-        perpendicolare al piano stesso.
+        Calculate plane coefficients passing through two points with orthogonal constraint.
+
+        Computes plane equation (a, b, c, d) for a plane that:
+        - Passes through points onplane_a and onplane_b
+        - Has normal perpendicular to the line connecting ortogonal_to to the plane
+
+        Parameters
+        ----------
+        onplane_a : Point3D
+            First point on the plane.
+        onplane_b : Point3D
+            Second point on the plane.
+        ortogonal_to : Point3D
+            Point defining orthogonal constraint direction.
+
+        Returns
+        -------
+        coefficients : np.ndarray, shape (N, 4)
+            Plane coefficients [a, b, c, d] where ax + by + cz + d = 0.
+
+        Notes
+        -----
+        The plane normal is found by:
+        1. Computing in-plane vector v = b - a
+        2. Computing raw normal n_raw = a - ortogonal_to
+        3. Removing component of n_raw parallel to v (Gram-Schmidt)
+        4. The orthogonal component becomes the plane normal
         """
-        # Estrai i dati: shape (T, 3)
+        # Extract data: shape (T, 3)
         a_data = onplane_a.to_numpy()
         b_data = onplane_b.to_numpy()
         o_data = ortogonal_to.to_numpy()
 
-        # Vettore nel piano: v = b - a
+        # In-plane vector: v = b - a
         v = b_data - a_data
 
-        # Vettore dalla terza al piano: n_raw = a - ortogonal_to
+        # Raw normal vector: n_raw = a - ortogonal_to
         n_raw = a_data - o_data
 
-        # Normalizzazione di v
+        # Normalize v
         v_norm = np.linalg.norm(v, axis=1, keepdims=True)
         v_unit = v / v_norm
 
-        # Proiezione di n_raw su v
+        # Project n_raw onto v
         proj = np.sum(n_raw * v_unit, axis=1, keepdims=True) * v_unit
 
-        # Componente ortogonale a v: normale al piano
+        # Component orthogonal to v: plane normal
         normal = n_raw - proj
 
-        # Coefficienti a, b, c
+        # Coefficients a, b, c
         a, b, c = normal[:, 0], normal[:, 1], normal[:, 2]
 
-        # Calcolo di d usando il punto a_data
+        # Calculate d using point a_data
         d = -np.sum(normal * a_data, axis=1)
 
-        # Stack dei coefficienti
+        # Stack coefficients
         coefficients = np.stack([a, b, c, d], axis=1)
 
         return coefficients
@@ -360,7 +529,24 @@ class WholeBody(TimeseriesRecord):
         planes: Timeseries,
     ):
         """
-        Calcola la (minima) distanza di un punto da un piano.
+        Calculate the perpendicular distance from a point to a plane.
+
+        Parameters
+        ----------
+        point : Point3D
+            3D point coordinates at each time instant.
+        planes : Timeseries
+            Plane coefficients [a, b, c, d] at each time instant.
+
+        Returns
+        -------
+        Signal1D
+            Perpendicular distance from point to plane at each time instant.
+
+        Notes
+        -----
+        Uses the point-to-plane distance formula:
+            distance = |ax + by + cz + d| / sqrt(a² + b² + c²)
         """
         coefs = planes.to_numpy()
         nums = np.sum(point.to_numpy() * coefs[:, :3], axis=1) + coefs[:, 3]
@@ -375,36 +561,61 @@ class WholeBody(TimeseriesRecord):
         plane: Timeseries,
     ):
         """
-        Trasla punti 3D lungo gli assi locali definiti da un piano.
+        Translate 3D points along local axes defined by a plane.
+
+        Creates a local coordinate system aligned with the plane and applies
+        translations expressed in this local frame to the input points.
+
+        Parameters
+        ----------
+        point : Point3D
+            3D points to translate.
+        local_translations : Signal3D
+            Translation vectors in the plane's local coordinate system.
+        plane : Timeseries
+            Plane coefficients [a, b, c, d] defining the local axes.
+
+        Returns
+        -------
+        Point3D
+            Translated points in global coordinates.
+
+        Notes
+        -----
+        Local coordinate system construction:
+        1. Plane normal becomes z-axis
+        2. Arbitrary vector cross normal gives x-axis
+        3. Normal cross x gives y-axis (right-handed system)
+        4. Translations in local frame are rotated to global frame
         """
-        # Estrai i coefficienti a, b, c
+        # Extract plane normal coefficients a, b, c
         normals = plane.ix[:, :3].to_numpy()
         norm_normals = np.linalg.norm(normals, axis=1, keepdims=True)
-        normals_unit = normals / norm_normals  # normalizzazione
+        normals_unit = normals / norm_normals  # normalize
 
-        # Vettore arbitrario per costruire base ortonormale
+        # Arbitrary vector to construct orthonormal basis
         arbitrary = np.tile(np.array([1.0, 0.0, 0.0]), (len(normals_unit), 1))
         parallel_mask = np.isclose(
             np.abs(np.sum(normals_unit * arbitrary, axis=1)), 1.0
         )
         arbitrary[parallel_mask] = np.array([0.0, 1.0, 0.0])
 
-        # Asse x locale
+        # Local x-axis
         x_local = np.cross(arbitrary, normals_unit)
         x_local /= np.linalg.norm(x_local, axis=1, keepdims=True)
 
-        # Asse y locale
+        # Local y-axis
         y_local = np.cross(normals_unit, x_local)
         y_local /= np.linalg.norm(y_local, axis=1, keepdims=True)
 
-        # Matrice di rotazione: colonne = [x_local, y_local, normale]
+        # Rotation matrix: columns = [x_local, y_local, normal]
         R = np.stack([x_local, y_local, normals_unit], axis=2)  # shape (N, 3, 3)
 
-        # Trasformazione delle traslazioni locali in globali
+        # Transform local translations to global coordinates
         l_trans = np.asarray(local_translations)
         T_global = np.einsum("nij,nj->ni", R, l_trans)
 
-        # Applica la traslazione ai punti
+        # Apply translation to points
         out: Point3D = point.copy() + T_global
         return out
 
@@ -415,8 +626,30 @@ class WholeBody(TimeseriesRecord):
         plane: Timeseries,
     ):
         """
-        Calcola il punto di intersezione tra una linea (p1 -> p2) e un
-        piano definito da (a, b, c, d) per ogni istante temporale.
+        Calculate intersection point between a line and a plane.
+
+        Finds where the line defined by p1 -> p2 intersects the plane
+        at each time instant.
+
+        Parameters
+        ----------
+        p1 : Point3D
+            First point defining the line.
+        p2 : Point3D
+            Second point defining the line.
+        plane : Timeseries
+            Plane coefficients [a, b, c, d] at each time instant.
+
+        Returns
+        -------
+        np.ndarray
+            Intersection points at each time instant. NaN where line is
+            parallel to plane.
+
+        Notes
+        -----
+        Uses parametric line equation: P = p1 + t*(p2 - p1)
+        Solves for t where P satisfies plane equation: ax + by + cz + d = 0
         """
         direction = np.asarray(p2 - p1)
         planearr = np.asarray(plane)
@@ -438,8 +671,28 @@ class WholeBody(TimeseriesRecord):
         plane: Timeseries,
     ):
         """
-        Calcola il punto sul piano (per ogni istante temporale) che minimizza
-        la distanza da un punto 3D: la proiezione ortogonale.
+        Calculate orthogonal projection of a point onto a plane.
+
+        Finds the point on the plane that minimizes distance to the input point
+        (perpendicular projection).
+
+        Parameters
+        ----------
+        point : Point3D
+            3D point to project.
+        plane : Timeseries
+            Plane coefficients [a, b, c, d] at each time instant.
+
+        Returns
+        -------
+        Point3D
+            Projected points on the plane.
+
+        Notes
+        -----
+        The projection is found by moving from the point along the plane normal
+        until reaching the plane. Distance t along normal satisfies:
+            t = (ax + by + cz + d) / (a² + b² + c²)
         """
         point_array = point.to_numpy()  # [x, y, z]
         planearr = plane.to_numpy()  # Nx4: [a, b, c, d]
@@ -468,11 +721,32 @@ class WholeBody(TimeseriesRecord):
         p3: Point3D | np.ndarray,
     ):
         """
-        Calcola l'angolo (in gradi) formato da tre punti 3D: A, B, C
-        dove B è il vertice.
+        Calculate angle formed by three 3D points with vertex at the middle point.
+
+        Computes the angle at point p2 formed by the segments p1-p2 and p2-p3
+        using the law of cosines.
+
+        Parameters
+        ----------
+        p1 : Point3D or np.ndarray
+            First point (shape (N, 3)).
+        p2 : Point3D or np.ndarray
+            Vertex point (shape (N, 3)).
+        p3 : Point3D or np.ndarray
+            Third point (shape (N, 3)).
+
+        Returns
+        -------
+        np.ndarray
+            Angles in degrees at each time instant.
+
+        Notes
+        -----
+        Uses law of cosines: cos(θ) = (AB² + BC² - AC²) / (2·AB·BC)
+        where AB, BC, AC are segment lengths.
         """
 
-        # get the segments length
+        # Get segment lengths
         v1 = p1.to_numpy() if isinstance(p1, Point3D) else p1
         v2 = p2.to_numpy() if isinstance(p2, Point3D) else p2
         v3 = p3.to_numpy() if isinstance(p3, Point3D) else p3
@@ -501,19 +775,19 @@ class WholeBody(TimeseriesRecord):
         origin_np = origin.to_numpy()  # shape (n, 3)
         direction_np = direction.to_numpy()  # shape (n, 3)
 
-        # Vettori dal punto all'origine
+        # Vectors from origin to point
         v = point_np - origin_np  # shape (n, 3)
 
-        # Lunghezza della proiezione scalare su ciascun asse
+        # Scalar projection length onto each axis
         proj_length = np.sum(v * direction_np, axis=1)
         proj_length /= np.sum(direction_np**2, axis=1)  # shape (n,)
 
-        # Calcolo dei punti proiettati
+        # Calculate projected points
         proj_np = origin_np + (
             proj_length[:, np.newaxis] * direction_np
         )  # shape (n, 3)
 
-        # Restituisce un nuovo Point3D con le stesse proprietà del punto originale
+        # Return new Point3D with same properties as original point
         return Point3D(
             proj_np,
             point.index,
@@ -1150,19 +1424,19 @@ class WholeBody(TimeseriesRecord):
         Internal rotation is positive, external rotation is negative.
         """
 
-        # Ottengo i parametri necessari
+        # Get necessary parameters
         rmat = self.left_hip_referenceframe[1]
         knee_lat = self._get_point("left_knee_lateral")
         knee_med = self._get_point("left_knee_medial")
         ankle_lat = self._get_point("left_ankle_lateral")
         ankle_med = self._get_point("left_ankle_medial")
 
-        # ottengo il vettore medio
+        # Compute average vector from medial-lateral markers
         v1 = (knee_lat - knee_med).to_numpy()
         v2 = (ankle_lat - ankle_med).to_numpy()
         va = (v1 + v2) / 2
 
-        # determio la matrice di rotazione del sistema di riferimento
+        # Determine reference frame rotation matrix
         i = (self.left_hip - self.right_hip).to_numpy()
         i = i / np.linalg.norm(i, axis=1, keepdims=True)
         k = (self.left_hip - self.left_knee).to_numpy()
@@ -1170,21 +1444,20 @@ class WholeBody(TimeseriesRecord):
         j = np.cross(k, i)
         rmat = gram_schmidt(i, j, k).transpose((0, 2, 1))
 
-        # allineo il vettore al nuovo sistema di riferimento
+        # Align vector to new reference frame
         vr = np.einsum("nij,nj->ni", rmat, va)
 
-        # considero il piano trasverso solidale al sistema di riferimento
-        # generato
+        # Consider transverse plane fixed to the generated reference frame
         cols = knee_lat.columns
         axes_labels = [self.lateral_axis, self.anteroposterior_axis]
         col_map = [np.where(cols == i)[0][0] for i in axes_labels]
         col_map = np.array(col_map)
         x, y = vr[:, col_map].T
 
-        # calcolo l'angolo del vettore rispetto al piano
+        # Calculate angle of vector with respect to plane
         angle = np.degrees(np.arctan2(y, x))
 
-        # Ritorno l'angolo
+        # Return angle
         return Signal1D(data=angle, index=knee_lat.index, unit="°")
 
     @property
@@ -1193,19 +1466,19 @@ class WholeBody(TimeseriesRecord):
         Return the right hip internal/external rotation in degrees.
         Internal rotation is positive, external rotation is negative.
         """
-        # Ottengo i parametri necessari
+        # Get necessary parameters
         rmat = self.right_hip_referenceframe[1]
         knee_lat = self._get_point("right_knee_lateral")
         knee_med = self._get_point("right_knee_medial")
         ankle_lat = self._get_point("right_ankle_lateral")
         ankle_med = self._get_point("right_ankle_medial")
 
-        # ottengo il vettore medio
+        # Compute average vector from medial-lateral markers
         v1 = (knee_lat - knee_med).to_numpy()
         v2 = (ankle_lat - ankle_med).to_numpy()
         va = (v1 + v2) / 2
 
-        # determio la matrice di rotazione del sistema di riferimento
+        # Determine reference frame rotation matrix
         i = (self.left_hip - self.right_hip).to_numpy()
         i = i / np.linalg.norm(i, axis=1, keepdims=True)
         k = (self.left_hip - self.left_knee).to_numpy()
@@ -1213,25 +1486,24 @@ class WholeBody(TimeseriesRecord):
         j = np.cross(k, i)
         rmat = gram_schmidt(i, j, k).transpose((0, 2, 1))
 
-        # allineo il vettore al nuovo sistema di riferimento
+        # Align vector to new reference frame
         vr = np.einsum("nij,nj->ni", rmat, va)
 
-        # considero il piano trasverso solidale al sistema di riferimento
-        # generato
+        # Consider transverse plane fixed to the generated reference frame
         cols = knee_lat.columns
         axes_labels = [self.lateral_axis, self.anteroposterior_axis]
         col_map = [np.where(cols == i)[0][0] for i in axes_labels]
         col_map = np.array(col_map)
         x, y = vr[:, col_map].T
 
-        # calcolo l'angolo del vettore rispetto al piano
+        # Calculate angle of vector with respect to plane
         angle = np.degrees(np.arctan2(y, x))
 
-        # correggo il segno dell'angolo
+        # Correct angle sign
         angle = 180 - angle
         angle[y < 0] = angle[y < 0] - 360
 
-        # Ritorno l'angolo
+        # Return angle
         return Signal1D(data=angle, index=knee_lat.index, unit="°")
 
     @property
@@ -1242,23 +1514,23 @@ class WholeBody(TimeseriesRecord):
         Anterior tilt is negative, posterior tilt is positive.
         """
 
-        # get the pelvis points projected into its least squares plane
+        # Get pelvis points projected into least squares plane
         l_asis, r_asis, l_psis, r_psis = self._get_projected_pelvis_points()
 
-        # definisco il vettore che determina l'asse anteroposteriore del bacino
+        # Define vector determining anteroposterior axis of pelvis
         ap = ((l_asis + r_asis) / 2 - (l_psis + r_psis) / 2).to_numpy()
 
-        # considero solo il piano sagittale globale
+        # Consider only global sagittal plane
         cols = l_asis.columns
         axes_labels = [self.anteroposterior_axis, self.vertical_axis]
         col_map = [np.where(cols == i)[0][0] for i in axes_labels]
         col_map = np.array(col_map)
 
-        # calcolo l'angolo
+        # Calculate angle
         x, y = ap[:, col_map].T
         angle = np.degrees(np.arctan2(y, x))
 
-        # Ritorno l’angolo
+        # Return angle
         return Signal1D(data=angle, index=l_asis.index, unit="°")
 
     @property
@@ -1269,23 +1541,23 @@ class WholeBody(TimeseriesRecord):
         Right tilt is positive, left tilt is negative.
         """
 
-        # get the pelvis points projected into its least squares plane
+        # Get pelvis points projected into least squares plane
         l_asis, r_asis, l_psis, r_psis = self._get_projected_pelvis_points()
 
-        # definisco il vettore che determina l'asse laterale del bacino
+        # Define vector determining lateral axis of pelvis
         ml = ((l_asis + l_psis) / 2 - (r_asis + r_psis) / 2).to_numpy()
 
-        # considero solo il piano frontale globale
+        # Consider only global frontal plane
         cols = l_asis.columns
         axes_labels = [self.lateral_axis, self.vertical_axis]
         col_map = [np.where(cols == i)[0][0] for i in axes_labels]
         col_map = np.array(col_map)
 
-        # calcolo l'angolo
+        # Calculate angle
         x, y = ml[:, col_map].T
         angle = np.degrees(np.arctan2(y, x))
 
-        # Ritorno l’angolo
+        # Return angle
         return Signal1D(data=angle, index=l_asis.index, unit="°")
 
     @property
@@ -1296,23 +1568,23 @@ class WholeBody(TimeseriesRecord):
         Right rotation is positive, left rotation is negative.
         """
 
-        # get the pelvis points projected into its least squares plane
+        # Get pelvis points projected into least squares plane
         l_asis, r_asis, l_psis, r_psis = self._get_projected_pelvis_points()
 
-        # definisco il vettore che determina l'asse laterale del bacino
+        # Define vector determining lateral axis of pelvis
         ml = ((l_asis + l_psis) / 2 - (r_asis + r_psis) / 2).to_numpy()
 
-        # considero solo il piano trasverso globale
+        # Consider only global transverse plane
         cols = l_asis.columns
         axes_labels = [self.lateral_axis, self.anteroposterior_axis]
         col_map = [np.where(cols == i)[0][0] for i in axes_labels]
         col_map = np.array(col_map)
 
-        # calcolo l'angolo
+        # Calculate angle
         x, y = ml[:, col_map].T
         angle = np.degrees(np.arctan2(y, x))
 
-        # Ritorno l’angolo
+        # Return angle
         return Signal1D(data=angle, index=l_asis.index, unit="°")
 
     @property
@@ -1323,25 +1595,25 @@ class WholeBody(TimeseriesRecord):
         Flexion is positive, extension is negative.
         """
 
-        # get the pelvis points projected into its least squares plane
+        # Get pelvis points projected into least squares plane
         l_asis, r_asis, l_psis, r_psis = self._get_projected_pelvis_points()
 
-        # ottengo il vettore che definisce il rachide
+        # Get vector defining spine (rachis)
         c7 = self._get_point("c7").to_numpy()
         base = ((l_psis + r_psis) / 2).to_numpy()
         vt = c7 - base
 
-        # considero solo il piano sagittale globale
+        # Consider only global sagittal plane
         cols = l_psis.columns
         axes_labels = [self.anteroposterior_axis, self.vertical_axis]
         col_map = [np.where(cols == i)[0][0] for i in axes_labels]
         col_map = np.array(col_map)
 
-        # calcolo l'angolo
+        # Calculate angle
         x, y = vt[:, col_map].T
         angle = np.degrees(np.arctan2(y, x))
 
-        # Ritorno l’angolo
+        # Return angle
         return Signal1D(data=90 - angle, index=l_psis.index, unit="°")
 
     @property
@@ -1352,25 +1624,25 @@ class WholeBody(TimeseriesRecord):
         Right tilt is negative, left tilt is positive.
         """
 
-        # get the pelvis points projected into its least squares plane
+        # Get pelvis points projected into least squares plane
         l_asis, r_asis, l_psis, r_psis = self._get_projected_pelvis_points()
 
-        # ottengo il vettore che definisce il rachide
+        # Get vector defining spine (rachis)
         c7 = self._get_point("c7").to_numpy()
         base = ((l_psis + r_psis) / 2).to_numpy()
         vt = c7 - base
 
-        # considero solo il piano frontale globale
+        # Consider only global frontal plane
         cols = l_psis.columns
         axes_labels = [self.lateral_axis, self.vertical_axis]
         col_map = [np.where(cols == i)[0][0] for i in axes_labels]
         col_map = np.array(col_map)
 
-        # calcolo l'angolo
+        # Calculate angle
         x, y = vt[:, col_map].T
         angle = np.degrees(np.arctan2(y, x))
 
-        # Ritorno l’angolo
+        # Return angle
         return Signal1D(data=angle - 90, index=l_psis.index, unit="°")
 
     @property
@@ -1381,20 +1653,20 @@ class WholeBody(TimeseriesRecord):
         Right rotation is positive, left rotation is negative.
         """
 
-        # ottengo il vettore che definisce l'asse delle spalle
+        # Get vector defining shoulder axis
         vt = self.left_shoulder - self.right_shoulder
 
-        # considero solo il piano trasverso globale
+        # Consider only global transverse plane
         cols = vt.columns
         axes_labels = [self.lateral_axis, self.anteroposterior_axis]
         col_map = [np.where(cols == i)[0][0] for i in axes_labels]
         col_map = np.array(col_map)
 
-        # calcolo l'angolo
+        # Calculate angle
         x, y = vt.copy().to_numpy()[:, col_map].T
         angle = np.degrees(np.arctan2(y, x))
 
-        # Ritorno l’angolo
+        # Return angle
         return Signal1D(data=angle, index=vt.index, unit="°")
 
     @property
@@ -1414,20 +1686,20 @@ class WholeBody(TimeseriesRecord):
         Right tilt is positive, left tilt is negative.
         """
 
-        # definisco il vettore che determina l'orientamento delle spalle
+        # Define vector determining shoulder orientation
         ml = self.left_shoulder - self.right_shoulder
 
-        # considero solo il piano frontale globale
+        # Consider only global frontal plane
         cols = ml.columns
         axes_labels = [self.lateral_axis, self.vertical_axis]
         col_map = [np.where(cols == i)[0][0] for i in axes_labels]
         col_map = np.array(col_map)
 
-        # calcolo l'angolo
+        # Calculate angle
         x, y = ml.copy().to_numpy()[:, col_map].T
         angle = np.degrees(np.arctan2(y, x))
 
-        # Ritorno l’angolo
+        # Return angle
         return Signal1D(data=angle, index=ml.index, unit="°")
 
     @property
@@ -1493,12 +1765,11 @@ class WholeBody(TimeseriesRecord):
         Return the left shoulder abduction/adduction in degrees.
         Abduction will be positive, adduction negative.
         """
-        # ottengo i parametri necessari
+        # Get necessary parameters
         shoulder, rmat = self.left_shoulder_referenceframe
         elbow = self.left_elbow
 
-        # calcolo l'orientamento del braccio rispetto al sistema di riferimento
-        # della spalla
+        # Calculate arm orientation with respect to shoulder reference frame
         angle, x, y = self._get_angle_by_point_on_reference_frame_and_plane(
             elbow,
             shoulder,
@@ -1515,12 +1786,11 @@ class WholeBody(TimeseriesRecord):
         Return the right shoulder abduction/adduction in degrees.
         Abduction will be positive, adduction negative.
         """
-        # ottengo i parametri necessari
+        # Get necessary parameters
         shoulder, rmat = self.right_shoulder_referenceframe
         elbow = self.right_elbow
 
-        # calcolo l'orientamento del braccio rispetto al sistema di riferimento
-        # della spalla
+        # Calculate arm orientation with respect to shoulder reference frame
         angle, x, y = self._get_angle_by_point_on_reference_frame_and_plane(
             elbow,
             shoulder,
@@ -1529,8 +1799,8 @@ class WholeBody(TimeseriesRecord):
             self.vertical_axis,  # type: ignore
         )
 
-        # correggo il segno dell'angolo
-        # TODO [RMSIN-448] rimane da correggere il caso di gradi maggiori di 90 gradi
+        # Correct angle sign
+        # TODO [RMSIN-448]: Need to correct case of angles greater than 90 degrees
         return -1 * (90 + angle)
 
     @property
@@ -1539,7 +1809,7 @@ class WholeBody(TimeseriesRecord):
         Return the left shoulder internal/external rotation in degrees.
         Internal rotation is positive, external rotation is negative.
         """
-        # Ottengo i parametri necessari
+        # Get necessary parameters
         elbow_lat = self._get_point("left_elbow_lateral")
         elbow_med = self._get_point("left_elbow_medial")
         l_asis, r_asis, l_psis, r_psis = self._get_projected_pelvis_points()
@@ -1553,10 +1823,10 @@ class WholeBody(TimeseriesRecord):
             c7 - base,
         )
 
-        # ottengo il vettore di riferimento
+        # Get reference vector
         va = (elbow_lat - elbow_med).to_numpy()
 
-        # determio la matrice di rotazione del sistema di riferimento
+        # Determine rotation matrix for reference frame
         i = (shoulder - proj).to_numpy()
         i = i / np.linalg.norm(i, axis=1, keepdims=True)
         k = (shoulder - self.left_elbow).to_numpy()
@@ -1564,21 +1834,20 @@ class WholeBody(TimeseriesRecord):
         j = np.cross(k, i)
         rmat = gram_schmidt(i, j, k).transpose((0, 2, 1))
 
-        # allineo il vettore al nuovo sistema di riferimento
+        # Align vector to new reference frame
         vr = np.einsum("nij,nj->ni", rmat, va)
 
-        # considero il piano trasverso solidale al sistema di riferimento
-        # generato
+        # Consider transverse plane fixed to the generated reference frame
         cols = elbow_lat.columns
         axes_labels = [self.lateral_axis, self.anteroposterior_axis]
         col_map = [np.where(cols == i)[0][0] for i in axes_labels]
         col_map = np.array(col_map)
         x, y = vr[:, col_map].T
 
-        # calcolo l'angolo del vettore rispetto al piano
+        # Calculate angle of vector with respect to plane
         angle = np.degrees(np.arctan2(y, x))
 
-        # Ritorno l'angolo
+        # Return angle
         return Signal1D(data=angle, index=elbow_lat.index, unit="°")
 
     @property
@@ -1587,7 +1856,7 @@ class WholeBody(TimeseriesRecord):
         Return the right shoulder internal/external rotation in degrees.
         Internal rotation is positive, external rotation is negative.
         """
-        # Ottengo i parametri necessari
+        # Get necessary parameters
         elbow_lat = self._get_point("right_elbow_lateral")
         elbow_med = self._get_point("right_elbow_medial")
         l_asis, r_asis, l_psis, r_psis = self._get_projected_pelvis_points()
@@ -1601,10 +1870,10 @@ class WholeBody(TimeseriesRecord):
             c7 - base,
         )
 
-        # ottengo il vettore di riferimento
+        # Get reference vector
         va = (elbow_med - elbow_lat).to_numpy()
 
-        # determio la matrice di rotazione del sistema di riferimento
+        # Determine rotation matrix for reference frame
         i = (proj - shoulder).to_numpy()
         i = i / np.linalg.norm(i, axis=1, keepdims=True)
         k = (shoulder - self.right_elbow).to_numpy()
@@ -1612,21 +1881,20 @@ class WholeBody(TimeseriesRecord):
         j = np.cross(k, i)
         rmat = gram_schmidt(i, j, k).transpose((0, 2, 1))
 
-        # allineo il vettore al nuovo sistema di riferimento
+        # Align vector to new reference frame
         vr = np.einsum("nij,nj->ni", rmat, va)
 
-        # considero il piano trasverso solidale al sistema di riferimento
-        # generato
+        # Consider transverse plane fixed to the generated reference frame
         cols = elbow_lat.columns
         axes_labels = [self.lateral_axis, self.anteroposterior_axis]
         col_map = [np.where(cols == i)[0][0] for i in axes_labels]
         col_map = np.array(col_map)
         x, y = vr[:, col_map].T
 
-        # calcolo l'angolo del vettore rispetto al piano
+        # Calculate angle of vector with respect to plane
         angle = np.degrees(np.arctan2(y, x))
 
-        # Ritorno l'angolo
+        # Return angle
         return Signal1D(data=-angle, index=elbow_lat.index, unit="°")
 
     @property

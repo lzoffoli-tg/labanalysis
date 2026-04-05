@@ -1,7 +1,6 @@
 """pytorch custom modules"""
 
 import itertools
-from typing import Dict, List, Optional, Union
 
 import torch
 
@@ -9,13 +8,53 @@ __all__ = ["FeaturesGenerator", "BoxCoxTransform", "SigmoidTransformer", "PCA", 
 
 
 class FeaturesGenerator(torch.nn.Module):
+    """
+    Polynomial feature generator with transformations and interactions.
+
+    Generates polynomial features from input tensors by applying various
+    transformations (powers, logarithms, inverses) and optionally computing
+    interaction terms between features.
+
+    Parameters
+    ----------
+    order : int, default=2
+        Maximum polynomial order for power transformations.
+    apply_log_transform : bool, default=True
+        Whether to apply logarithmic transformations (log1p).
+    apply_inverse_transform : bool, default=True
+        Whether to apply inverse transformations (1/x).
+    include_interactions : bool, default=True
+        Whether to generate interaction terms between different variables.
+    input_keys : list of str, optional
+        Specific input keys to process. If None, processes all inputs.
+
+    Attributes
+    ----------
+    order : int
+        Maximum polynomial order.
+    apply_log_transform : bool
+        Flag for logarithmic transformations.
+    apply_inverse_transform : bool
+        Flag for inverse transformations.
+    include_interactions : bool
+        Flag for interaction terms.
+    input_keys : list of str or None
+        Keys to process from input dictionary.
+
+    Notes
+    -----
+    - Boolean tensors are treated differently (no log/inverse transformations)
+    - NaN, inf, and -inf values are replaced with 0.0 in the output
+    - Output keys are constructed by joining transformation names with underscores
+    """
+
     def __init__(
         self,
         order: int = 2,
         apply_log_transform: bool = True,
         apply_inverse_transform: bool = True,
         include_interactions: bool = True,
-        input_keys: Optional[List[str]] = None,
+        input_keys: list[str] | None = None,
     ):
         super().__init__()
         self.order = order
@@ -24,9 +63,24 @@ class FeaturesGenerator(torch.nn.Module):
         self.include_interactions = include_interactions
         self.input_keys = input_keys if input_keys is not None else None
 
-    def forward(self, inputs: Dict[str, torch.Tensor]):
-        outputs: Dict[str, torch.Tensor] = {}
-        transformed_by_var: Dict[str, List[str]] = {}
+    def forward(self, inputs: dict[str, torch.Tensor]):
+        """
+        Generate polynomial features with transformations.
+
+        Parameters
+        ----------
+        inputs : dict of str to torch.Tensor
+            Dictionary of input tensors to transform.
+
+        Returns
+        -------
+        outputs : dict of str to torch.Tensor
+            Dictionary containing original inputs plus all generated features.
+            Keys are constructed from transformation names (e.g., "x_pow2", "x_log",
+            "x_inv", "x_x_y" for interactions).
+        """
+        outputs: dict[str, torch.Tensor] = {}
+        transformed_by_var: dict[str, list[str]] = {}
         keys_to_use = (
             self.input_keys if self.input_keys is not None else list(inputs.keys())
         )
@@ -100,12 +154,52 @@ class FeaturesGenerator(torch.nn.Module):
 
 
 class BoxCoxTransform(torch.nn.Module):
+    """
+    Learnable Box-Cox transformation layer.
+
+    Applies a parametric Box-Cox transformation with learnable lambda parameters:
+        - If λ = 0: y = log(x)
+        - If λ ≠ 0: y = (x^λ - 1) / λ
+
+    Parameters
+    ----------
+    n_features : int
+        Number of input features. Each feature has its own learnable lambda parameter.
+
+    Attributes
+    ----------
+    n_features : int
+        Number of features.
+    lambda_param : torch.nn.Parameter
+        Learnable lambda parameters of shape (n_features,), constrained to be
+        positive via softplus activation.
+
+    Notes
+    -----
+    - The lambda parameters are initialized to 1.0
+    - Softplus activation ensures lambda values remain positive during training
+    - Provides inverse transformation for reconstructing original values
+    """
+
     def __init__(self, n_features: int):
         super().__init__()
         self.n_features = n_features
         self.lambda_param = torch.nn.Parameter(torch.ones(n_features))
 
     def forward(self, x: torch.Tensor):
+        """
+        Apply Box-Cox transformation to input tensor.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input tensor of shape (batch_size,) or (batch_size, n_features).
+
+        Returns
+        -------
+        out : torch.Tensor
+            Transformed tensor of the same shape as input.
+        """
         if x.ndim == 1:
             x = x.unsqueeze(1)
 
@@ -129,6 +223,19 @@ class BoxCoxTransform(torch.nn.Module):
         return out
 
     def inverse(self, y: torch.Tensor):
+        """
+        Apply inverse Box-Cox transformation to reconstruct original values.
+
+        Parameters
+        ----------
+        y : torch.Tensor
+            Transformed tensor of shape (batch_size,) or (batch_size, n_features).
+
+        Returns
+        -------
+        out : torch.Tensor
+            Reconstructed tensor of the same shape as input.
+        """
         if y.ndim == 1:
             y = y.unsqueeze(1)
 
@@ -176,7 +283,19 @@ class SigmoidTransformer(torch.nn.Module):
         self.Q = torch.nn.Parameter(torch.randn(input_dim, output_dim))
 
     def forward(self, x: torch.Tensor):
+        """
+        Apply sigmoid transformation to input tensor.
 
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input tensor with transform_dim dimension of size input_dim.
+
+        Returns
+        -------
+        y : torch.Tensor
+            Transformed tensor with transform_dim dimension of size output_dim.
+        """
         # Move transform_dim to last
         x = x.transpose(self.transform_dim, -1)
 
@@ -190,14 +309,31 @@ class SigmoidTransformer(torch.nn.Module):
 
 
 class PCA(torch.nn.Module):
-    def __init__(self, input_dim: int, output_dim: int):
-        """
-        PCA-like layer with learnable orthogonality via regularization.
+    """
+    PCA-like dimensionality reduction layer with learnable orthogonality.
 
-        Args:
-            input_dim (int): Dimensionality of input features.
-            output_dim (int): Dimensionality of output features.
-        """
+    Linear projection layer that can be trained with orthogonality constraints
+    via regularization loss, similar to Principal Component Analysis.
+
+    Parameters
+    ----------
+    input_dim : int
+        Dimensionality of input features.
+    output_dim : int
+        Dimensionality of output features (number of components).
+
+    Attributes
+    ----------
+    linear : torch.nn.Linear
+        Linear transformation layer without bias.
+
+    Notes
+    -----
+    Use `orthogonality_loss()` as a regularization term during training to
+    encourage orthonormal rows in the weight matrix.
+    """
+
+    def __init__(self, input_dim: int, output_dim: int):
         super().__init__()
         self.linear = torch.nn.Linear(
             input_dim,
@@ -206,12 +342,32 @@ class PCA(torch.nn.Module):
         )
 
     def forward(self, x):
+        """
+        Apply linear projection.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input tensor of shape (..., input_dim).
+
+        Returns
+        -------
+        torch.Tensor
+            Projected tensor of shape (..., output_dim).
+        """
         return self.linear(x)
 
     def orthogonality_loss(self):
         """
-        Computes the orthogonality loss for the weight matrix.
-        Encourages rows of the weight matrix to be orthonormal.
+        Compute orthogonality regularization loss.
+
+        Encourages rows of the weight matrix to be orthonormal by penalizing
+        deviation from identity in W @ W^T.
+
+        Returns
+        -------
+        torch.Tensor
+            Frobenius norm of (W @ W^T - I), where W is the weight matrix.
         """
         W = self.linear.weight  # Shape: [output_dim, input_dim]
         WT_W = torch.matmul(W, W.t())  # Shape: [output_dim, output_dim]
@@ -221,15 +377,32 @@ class PCA(torch.nn.Module):
 
 class Lasso(torch.nn.Module):
     """
-    Modello di regressione lineare con penalizzazione L1 personalizzata
-    (tipo Lasso), dove il coefficiente di penalizzazione è appreso come
-    parametro.
+    Linear regression layer with learnable L1 (Lasso) penalization.
 
-    Args:
-        in_features (int): Numero di feature in input.
-        out_features (int): Numero di output.
-        bias (bool, optional): Se includere il termine di bias nella regressione.
-        Default: True.
+    Linear regression model where the L1 regularization coefficient is learned
+    as a parameter during training, allowing adaptive feature selection.
+
+    Parameters
+    ----------
+    in_features : int
+        Number of input features.
+    out_features : int
+        Number of output targets.
+    bias : bool, default=True
+        Whether to include bias term in the regression.
+
+    Attributes
+    ----------
+    linear : torch.nn.Linear
+        Linear transformation layer.
+    alpha_raw : torch.nn.Parameter
+        Raw learnable L1 penalty coefficients of shape (out_features, in_features).
+        Transformed to positive values via softplus during loss computation.
+
+    Notes
+    -----
+    Use `lasso_loss()` as a regularization term during training to apply
+    adaptive L1 penalization.
     """
 
     def __init__(self, in_features: int, out_features: int, bias: bool = True):
@@ -244,22 +417,28 @@ class Lasso(torch.nn.Module):
 
     def forward(self, x):
         """
-        Applica la trasformazione lineare all'input.
+        Apply linear transformation to input.
 
-        Args:
-            x (Tensor): Input tensor di forma (batch_size, in_features).
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input tensor of shape (batch_size, in_features).
 
-        Returns:
-            Tensor: Output della regressione lineare.
+        Returns
+        -------
+        torch.Tensor
+            Output of linear regression, shape (batch_size, out_features).
         """
         return self.linear(x)
 
     def lasso_loss(self):
         """
-        Calcola la penalizzazione L1 con pesi adattivi appresi.
+        Compute adaptive L1 penalization with learned weights.
 
-        Returns:
-            Tensor: Valore della penalizzazione L1.
+        Returns
+        -------
+        torch.Tensor
+            Scalar L1 penalty value (sum of alpha * |weights|).
         """
         alpha = torch.log1p(torch.exp(self.alpha_raw))  # softplus
         l1_penalty = torch.sum(alpha * torch.abs(self.linear.weight))

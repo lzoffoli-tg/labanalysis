@@ -18,6 +18,108 @@ __all__ = ["RunningTest", "WalkingTest"]
 
 
 class RunningTest(RunningExercise, TestProtocol):
+    """
+    Test protocol for running gait analysis and biomechanical assessment.
+
+    RunningTest extends RunningExercise with test protocol capabilities,
+    enabling systematic running gait analysis with participant tracking,
+    cycle detection, and automated metrics extraction. The class combines
+    biomechanical gait analysis with clinical test protocol structure.
+
+    The test automatically detects individual running steps from continuous
+    data, extracts spatiotemporal parameters, and organizes results into
+    structured summaries and time-series analytics suitable for clinical
+    reporting and research analysis.
+
+    Parameters
+    ----------
+    participant : Participant
+        Participant information including demographics and anthropometrics.
+    normative_data : pd.DataFrame, optional
+        Reference data for performance comparison. Default is empty DataFrame.
+    algorithm : {'kinematics', 'kinetics'}, optional
+        Cycle detection algorithm. 'kinematics' uses marker trajectories,
+        'kinetics' uses force platform data. Default is 'kinematics'.
+    ground_reaction_force_threshold : float or int, optional
+        Minimum vertical ground reaction force (N) for foot contact detection
+        when using kinetics algorithm. Default is DEFAULT_MINIMUM_CONTACT_GRF_N.
+    height_threshold : float or int, optional
+        Maximum normalized height for foot contact detection when using
+        kinematics algorithm. Default is DEFAULT_MINIMUM_HEIGHT_PERCENTAGE.
+    left_foot_ground_reaction_force : ForcePlatform or None, optional
+        Force platform data for left foot. Default is None.
+    right_foot_ground_reaction_force : ForcePlatform or None, optional
+        Force platform data for right foot. Default is None.
+    left_heel : Point3D or None, optional
+        Left heel marker trajectory. Default is None.
+    right_heel : Point3D or None, optional
+        Right heel marker trajectory. Default is None.
+    left_toe : Point3D or None, optional
+        Left toe marker trajectory. Default is None.
+    right_toe : Point3D or None, optional
+        Right toe marker trajectory. Default is None.
+    **extra_signals : Signal1D, Signal3D, EMGSignal, Point3D, ForcePlatform
+        Additional biomechanical signals (joint angles, EMG, etc.).
+
+    Attributes
+    ----------
+    cycles : list of RunningStep
+        Detected running steps extracted from continuous data.
+    get_results : dict
+        Dictionary containing 'summary' DataFrame with per-cycle metrics
+        and 'analytics' dict with time-series data (COP, GRF).
+    participant : Participant
+        Participant demographics and anthropometrics.
+    normative_data : pd.DataFrame
+        Reference data for normative comparisons.
+
+    Notes
+    -----
+    Running Gait Characteristics:
+    - Flight phase: Period when neither foot contacts the ground
+    - Contact phase: Period from footstrike to toe-off
+    - Loading response: Footstrike to midstance (shock absorption)
+    - Propulsion: Midstance to toe-off (push-off)
+
+    Extracted Metrics (via get_results):
+    - Contact time (ms): Duration of foot-ground contact
+    - Flight time (ms): Duration of aerial phase
+    - Cycle time (ms): Total duration of one step
+    - Peak vertical force (N): Maximum ground reaction force
+    - Lateral displacement (mm): Mediolateral COP excursion
+    - Vertical displacement (mm): Vertical COP excursion
+
+    Algorithm Selection:
+    - Kinematics: Requires left_heel, right_heel, left_toe, right_toe markers
+    - Kinetics: Requires force platform data (left/right_foot_ground_reaction_force)
+
+    The test inherits full-body biomechanical model from WholeBody, enabling
+    joint angle calculations, segment kinematics, and comprehensive movement
+    analysis when appropriate markers are provided.
+
+    See Also
+    --------
+    RunningExercise : Running gait exercise with cycle detection.
+    RunningStep : Individual running step with phase segmentation.
+    WalkingTest : Walking gait test protocol.
+    TestProtocol : Base class for test protocols.
+
+    Examples
+    --------
+    >>> participant = Participant(age=30, weight=70, height=175)
+    >>> test = RunningTest.from_tdf(
+    ...     file='running_trial.tdf',
+    ...     participant=participant,
+    ...     algorithm='kinematics',
+    ...     left_heel='LHEE',
+    ...     right_heel='RHEE',
+    ...     left_toe='LTOE',
+    ...     right_toe='RTOE'
+    ... )
+    >>> results = test.get_results
+    >>> print(results['summary'])  # Spatiotemporal parameters per cycle
+    >>> print(results['analytics']['ground_reaction_force'])  # GRF time-series
+    """
 
     @property
     def get_results(self):
@@ -311,6 +413,117 @@ class RunningTest(RunningExercise, TestProtocol):
 
 
 class WalkingTest(WalkingExercise, TestProtocol):
+    """
+    Test protocol for walking gait analysis and biomechanical assessment.
+
+    WalkingTest extends WalkingExercise with test protocol capabilities,
+    enabling systematic walking gait analysis with participant tracking,
+    stride detection, and automated metrics extraction. The class combines
+    biomechanical gait analysis with clinical test protocol structure.
+
+    The test automatically detects individual walking strides from continuous
+    data, identifies gait sub-phases (stance, swing, double support), extracts
+    spatiotemporal parameters, and organizes results into structured summaries
+    and time-series analytics suitable for clinical reporting.
+
+    Parameters
+    ----------
+    participant : Participant
+        Participant information including demographics and anthropometrics.
+    normative_data : pd.DataFrame, optional
+        Reference data for performance comparison. Default is empty DataFrame.
+    algorithm : {'kinematics', 'kinetics'}, optional
+        Cycle detection algorithm. 'kinematics' uses marker trajectories,
+        'kinetics' uses force platform data. Default is 'kinematics'.
+    ground_reaction_force_threshold : float or int, optional
+        Minimum vertical ground reaction force (N) for foot contact detection
+        when using kinetics algorithm. Default is DEFAULT_MINIMUM_CONTACT_GRF_N.
+    height_threshold : float or int, optional
+        Maximum normalized height for foot contact detection when using
+        kinematics algorithm. Default is DEFAULT_MINIMUM_HEIGHT_PERCENTAGE.
+    left_foot_ground_reaction_force : ForcePlatform or None, optional
+        Force platform data for left foot. Default is None.
+    right_foot_ground_reaction_force : ForcePlatform or None, optional
+        Force platform data for right foot. Default is None.
+    left_heel : Point3D or None, optional
+        Left heel marker trajectory. Default is None.
+    right_heel : Point3D or None, optional
+        Right heel marker trajectory. Default is None.
+    left_toe : Point3D or None, optional
+        Left toe marker trajectory. Default is None.
+    right_toe : Point3D or None, optional
+        Right toe marker trajectory. Default is None.
+    **extra_signals : Signal1D, Signal3D, EMGSignal, Point3D, ForcePlatform
+        Additional biomechanical signals (joint angles, EMG, etc.).
+
+    Attributes
+    ----------
+    cycles : list of WalkingStride
+        Detected walking strides extracted from continuous data.
+    get_results : dict
+        Dictionary containing 'summary' DataFrame with per-stride metrics
+        and 'analytics' dict with time-series data (COP, GRF).
+    participant : Participant
+        Participant demographics and anthropometrics.
+    normative_data : pd.DataFrame
+        Reference data for normative comparisons.
+
+    Notes
+    -----
+    Walking Gait Phases:
+    - Stance phase: Foot in contact with ground (~60% of stride)
+    - Swing phase: Foot in the air (~40% of stride)
+    - Double support: Both feet on ground (two periods per stride)
+    - Single support: Only one foot on ground
+
+    A stride is defined from one foot's toe-off to the next toe-off of the
+    same foot, encompassing one complete gait cycle including the swing
+    phase, opposite footstrike, and the following stance phase.
+
+    Extracted Metrics (via get_results):
+    - Stride time (ms): Duration of complete stride cycle
+    - Stance time (ms): Duration of stance phase
+    - Swing time (ms): Duration of swing phase
+    - Double support time (ms): Duration when both feet contact ground
+    - Single support time (ms): Duration of single-leg stance
+    - Peak vertical force (N): Maximum ground reaction force
+    - Lateral displacement (mm): Mediolateral COP excursion
+    - Vertical displacement (mm): Vertical COP excursion
+
+    Algorithm Selection:
+    - Kinematics: Requires left_heel, right_heel, left_toe, right_toe markers
+    - Kinetics: Requires force platform data (left/right_foot_ground_reaction_force)
+
+    Unlike running, walking lacks a flight phase and is characterized by
+    continuous ground contact with alternating single and double support
+    periods. This fundamental difference affects cycle detection and phase
+    segmentation algorithms.
+
+    The test inherits full-body biomechanical model from WholeBody, enabling
+    joint angle calculations, segment kinematics, and comprehensive movement
+    analysis when appropriate markers are provided.
+
+    See Also
+    --------
+    WalkingExercise : Walking gait exercise with stride detection.
+    WalkingStride : Individual walking stride with phase segmentation.
+    RunningTest : Running gait test protocol.
+    TestProtocol : Base class for test protocols.
+
+    Examples
+    --------
+    >>> participant = Participant(age=65, weight=68, height=165)
+    >>> test = WalkingTest.from_tdf(
+    ...     file='walking_trial.tdf',
+    ...     participant=participant,
+    ...     algorithm='kinetics',
+    ...     left_foot_ground_reaction_force='FP_Left',
+    ...     right_foot_ground_reaction_force='FP_Right'
+    ... )
+    >>> results = test.get_results
+    >>> print(results['summary'])  # Spatiotemporal parameters per stride
+    >>> print(results['analytics']['centre_of_pressure'])  # COP trajectory
+    """
 
     def __init__(
         self,

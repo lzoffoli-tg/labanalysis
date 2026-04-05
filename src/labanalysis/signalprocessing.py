@@ -106,19 +106,52 @@ def find_peaks(
     """
     Find peaks in the signal.
 
+    Detects local maxima in a 1D signal where the derivative changes from
+    positive to negative. Optionally filters peaks by minimum height and
+    minimum separation distance.
+
     Parameters
     ----------
     arr : np.ndarray
-        The input signal.
+        The input signal (1D array).
     height : int or float or None, optional
-        The minimum height of the peaks.
+        Minimum peak height. Peaks below this value are excluded.
+        Default is None (no height filtering).
     distance : int or None, optional
-        The minimum distance between the peaks.
+        Minimum distance (in samples) between consecutive peaks.
+        When peaks are closer, only the highest is kept.
+        Default is None (no distance filtering).
 
     Returns
     -------
     np.ndarray
-        The array containing the indices of the detected peaks.
+        Array of indices where peaks are located in the input signal.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> signal = np.array([0, 1, 2, 1, 0, 3, 2, 1, 0])
+    >>> peaks = find_peaks(signal)
+    >>> peaks
+    array([2, 5])
+
+    >>> # With height threshold
+    >>> peaks = find_peaks(signal, height=2.5)
+    >>> peaks
+    array([5])
+
+    >>> # With minimum distance
+    >>> peaks = find_peaks(signal, distance=4)
+    >>> peaks
+    array([5])
+
+    Notes
+    -----
+    Peak detection algorithm:
+    1. Computes first derivative using forward differences
+    2. Identifies points where derivative changes from ≥0 to <0
+    3. Filters by height threshold if specified
+    4. Filters by minimum distance if specified (keeps highest peak)
     """
     # get all peaks
     d1y = arr[1:] - arr[:-1]
@@ -150,15 +183,40 @@ def continuous_batches(
     """
     Return the list of indices defining batches where consecutive arr values are True.
 
+    Identifies contiguous sequences of True values in a boolean array, optionally
+    merging batches separated by short False gaps (tolerance).
+
     Parameters
     ----------
     arr : np.ndarray
         A 1D boolean array.
+    tolerance : int, optional
+        Maximum number of False values that can separate two batches
+        before they are merged into one. Default is 0 (no merging).
 
     Returns
     -------
     list of list of int
-        A list of lists containing the indices defining each batch of consecutive True values.
+        A list of lists containing the indices defining each batch of consecutive
+        True values.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> signal = np.array([False, True, True, False, False, True, True, True])
+    >>> batches = continuous_batches(signal)
+    >>> batches
+    [[1, 2], [5, 6, 7]]
+
+    >>> # With tolerance=1, merge batches separated by 1 False
+    >>> batches = continuous_batches(signal, tolerance=1)
+    >>> batches
+    [[1, 2, 5, 6, 7]]
+
+    Notes
+    -----
+    Useful for identifying contact phases in force platform data, stance phases
+    in gait analysis, or any contiguous event detection in boolean signals.
     """
     locs = arr.astype(int)
     idxs = np.diff(locs)
@@ -627,25 +685,57 @@ def butterworth_filt(
     """
     Apply a Butterworth filter with the specified parameters.
 
+    Implements a Butterworth digital filter using second-order sections (SOS)
+    for improved numerical stability. Optionally applies zero-phase filtering
+    using forward-backward filtering.
+
     Parameters
     ----------
     arr : np.ndarray
-        The signal to be filtered.
+        The signal to be filtered (1D array).
     fcut : float, int, list, or tuple, optional
-        The cutoff frequency of the filter.
+        Cutoff frequency in Hz. For bandpass/bandstop filters, provide
+        [low_cut, high_cut]. Default is 1 Hz.
     fsamp : float or int, optional
-        The sampling frequency of the signal.
+        Sampling frequency of the signal in Hz. Default is 2 Hz.
     order : int, optional
-        The order of the filter.
+        Filter order. Higher orders provide steeper roll-off but may
+        introduce instability. Default is 5.
     ftype : str, optional
-        The type of filter: "bandpass", "lowpass", "highpass", "bandstop".
+        Filter type: "lowpass", "highpass", "bandpass", or "bandstop".
+        Default is "lowpass".
     phase_corrected : bool, optional
-        If True, apply the filter twice in opposite directions to correct for phase lag.
+        If True, applies filtfilt (forward-backward) for zero phase shift.
+        If False, applies single-pass filtering with phase distortion.
+        Default is True.
 
     Returns
     -------
     np.ndarray
-        The filtered signal.
+        The filtered signal (1D array).
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> # Generate noisy signal
+    >>> t = np.linspace(0, 1, 1000)
+    >>> signal = np.sin(2 * np.pi * 5 * t) + 0.5 * np.random.randn(1000)
+    >>> # Apply 6 Hz lowpass filter at 1000 Hz sampling
+    >>> filtered = butterworth_filt(signal, fcut=6, fsamp=1000, order=4)
+
+    >>> # Bandpass filter 10-50 Hz
+    >>> bandpass = butterworth_filt(signal, fcut=[10, 50], fsamp=1000, ftype="bandpass")
+
+    Notes
+    -----
+    - Cutoff frequencies are normalized to Nyquist frequency (fsamp/2) internally
+    - Uses SOS (second-order sections) representation for numerical stability
+    - Phase-corrected filtering (filtfilt) effectively doubles the filter order
+    - Common in biomechanics: 4th order lowpass at 6 Hz for kinematic data
+
+    See Also
+    --------
+    residual_analysis : Determine optimal cutoff frequency using Winter's method
     """
 
     # get the filter coefficients
@@ -717,25 +807,73 @@ def residual_analysis(
     minsamp: int = 2,
 ) -> tuple[float, np.ndarray, np.ndarray]:
     """
-    Perform Winter's residual analysis of the input signal.
+    Perform Winter's residual analysis to determine optimal filter cutoff frequency.
+
+    Implements the method described in Winter (2009) for objectively selecting
+    cutoff frequencies by analyzing the residual (difference between filtered
+    and unfiltered signal) across multiple cutoff frequencies.
 
     Parameters
     ----------
     arr : np.ndarray
-        The signal to be investigated.
+        The signal to be investigated (1D array).
     ffun : FunctionType or MethodType
-        The filter to be used for the analysis.
+        Filtering function to apply. Must accept arr and fcut parameters and
+        return filtered signal. Typically butterworth_filt.
     fnum : int, optional
-        The number of frequencies to be tested.
+        Number of cutoff frequencies to test. Default is 1000.
     fmax : float or int or None, optional
-        The maximum frequency to be tested.
+        Maximum cutoff frequency to test in Hz. If None, uses Nyquist
+        frequency. Default is None.
     nseg : int, optional
-        The number of segments for fitting.
+        Number of segments for piecewise linear fitting of residual curve.
+        Default is 2 (finds single crossover point).
     minsamp : int, optional
-        The minimum number of elements per segment.
+        Minimum number of frequency samples required per segment.
+        Default is 2.
 
     Returns
     -------
+    optimal_fcut : float
+        Optimal cutoff frequency (Hz) at the crossover point.
+    fcuts : np.ndarray
+        Array of tested cutoff frequencies.
+    residuals : np.ndarray
+        Array of residual RMS values corresponding to each cutoff.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from functools import partial
+    >>> # Generate test signal
+    >>> t = np.linspace(0, 1, 1000)
+    >>> signal = np.sin(2 * np.pi * 5 * t) + 0.1 * np.random.randn(1000)
+    >>> # Define filter function
+    >>> filt_fun = partial(butterworth_filt, fsamp=1000, order=4)
+    >>> # Find optimal cutoff
+    >>> fcut_opt, fcuts, residuals = residual_analysis(signal, filt_fun)
+    >>> print(f"Optimal cutoff: {fcut_opt:.2f} Hz")
+
+    Notes
+    -----
+    The method works by:
+    1. Filtering signal at multiple cutoff frequencies
+    2. Computing RMS of residual (filtered - original) for each
+    3. Fitting piecewise linear segments to residual curve
+    4. Finding crossover point where segments intersect
+
+    The optimal cutoff is where signal content transitions to noise,
+    indicated by change in residual growth rate.
+
+    References
+    ----------
+    Winter, D. A. (2009). Biomechanics and Motor Control of Human Movement.
+    Fourth Edition. Hoboken, NJ: John Wiley & Sons, Inc.
+
+    See Also
+    --------
+    butterworth_filt : Butterworth filter implementation
+    crossovers : Find intersection points of piecewise linear fits
     float
         The suggested cutoff value.
     np.ndarray
@@ -780,27 +918,32 @@ def _sse(
     segm: list[tuple[int]],
 ):
     """
-    method used to calculate the residuals
+    Calculate sum of squared errors for piecewise linear regression.
+
+    This helper function fits separate linear regression lines to each
+    segment defined by the breakpoints in segm and computes the total
+    sum of squared residuals across all segments.
 
     Parameters
     ----------
-
-    xval: np.ndarray[Any, np.dtype[np.float64]],
-        the x axis signal
-
-    yval: np.ndarray[Any, np.dtype[np.float64]],
-        the y axis signal
-
-    segm: list[tuple[int]],
-        the extremes among which the segments have to be fitted
+    xval : np.ndarray
+        The independent variable (x-axis) values.
+    yval : np.ndarray
+        The dependent variable (y-axis) values to be fitted.
+    segm : list of tuple of int
+        Breakpoint indices defining segment boundaries. Each consecutive
+        pair of indices defines one segment for linear fitting.
 
     Returns
     -------
+    float
+        Sum of squared errors across all segments after fitting a linear
+        regression line to each segment independently.
 
-    sse: float
-        the sum of squared errors corresponding to the error obtained
-        fitting the y-x relationship according to the segments provided
-        by s.
+    Notes
+    -----
+    Used internally by crossovers() to evaluate different segmentation
+    strategies when fitting piecewise linear models.
     """
     sse = 0.0
     for i in np.arange(len(segm) - 1):
@@ -1078,37 +1221,80 @@ def outlyingness(
 
 def gram_schmidt(i: np.ndarray, j: np.ndarray, k: np.ndarray | None = None):
     """
-    applies Gram-Schmidt process to obtain ortonormal bases starting from
-    3 vectors (i, j, k)
+    Apply Gram-Schmidt orthonormalization to obtain orthonormal bases from input vectors.
+
+    The Gram-Schmidt process transforms a set of linearly independent vectors
+    into an orthonormal basis. This implementation handles batched operations
+    on multiple sets of 3D vectors simultaneously, commonly used for defining
+    coordinate systems in biomechanics and motion analysis.
 
     Parameters
     ----------
-    - i, j, k: array (N, 3)
+    i : np.ndarray, shape (N, 3)
+        First set of 3D vectors defining the primary axis direction.
+        Will be normalized to form the first basis vector e1.
+    j : np.ndarray, shape (N, 3)
+        Second set of 3D vectors defining the plane containing e1 and e2.
+        Will be orthogonalized against e1 and normalized to form e2.
+    k : np.ndarray or None, shape (N, 3), optional
+        Third set of 3D vectors. If provided, will be orthogonalized
+        against e1 and e2 to form e3. If None, e3 is computed as the
+        cross product of e1 and e2. Default is None.
 
     Returns
     -------
-    - R: array (N, 3, 3)
+    R : np.ndarray, shape (N, 3, 3)
+        Stack of rotation matrices where R[n, :, :] is the 3x3 rotation
+        matrix with orthonormal basis vectors [e1, e2, e3] as columns
+        for the n-th input set.
+
+    Notes
+    -----
+    The Gram-Schmidt orthonormalization process:
+    1. Normalize the first vector: e1 = i / ||i||
+    2. Orthogonalize j against e1: u2 = j - proj_{e1}(j)
+       Then normalize: e2 = u2 / ||u2||
+    3. If k is provided: orthogonalize against e1 and e2: u3 = k - proj_{e1}(k) - proj_{e2}(k)
+       Then normalize: e3 = u3 / ||u3||
+       If k is None: compute e3 = e1 × e2 (cross product)
+
+    The resulting basis vectors satisfy:
+    - ||e1|| = ||e2|| = ||e3|| = 1 (unit vectors)
+    - e1 · e2 = e1 · e3 = e2 · e3 = 0 (orthogonal)
+    - e1 × e2 = e3 (right-handed coordinate system)
+
+    This is commonly used in biomechanics to define anatomical reference
+    frames from landmark positions, where i, j, k represent directions
+    derived from anatomical landmarks.
+
+    Examples
+    --------
+    >>> # Define a simple coordinate system from three direction vectors
+    >>> i = np.array([[1, 0, 0], [1, 0, 0]])  # X direction
+    >>> j = np.array([[0, 1, 0], [0, 1, 0]])  # Y direction
+    >>> R = gram_schmidt(i, j)
+    >>> R.shape
+    (2, 3, 3)
     """
-    # Primo vettore normalizzato
+    # Normalize first vector
     e1 = i / np.linalg.norm(i, axis=1, keepdims=True)
 
-    # Proiezione di j su e1 e ortogonalizzazione
+    # Project j onto e1 and orthogonalize
     proj_j_on_e1 = np.sum(j * e1, axis=1, keepdims=True) * e1
     u2 = j - proj_j_on_e1
     e2 = u2 / np.linalg.norm(u2, axis=1, keepdims=True)
 
     if k is not None:
-        # Proiezione di k su e1 ed e2 e ortogonalizzazione
+        # Project k onto e1 and e2, then orthogonalize
         proj_k_on_e1 = np.sum(k * e1, axis=1, keepdims=True) * e1
         proj_k_on_e2 = np.sum(k * e2, axis=1, keepdims=True) * e2
         u3 = k - proj_k_on_e1 - proj_k_on_e2
         e3 = u3 / np.linalg.norm(u3, axis=1, keepdims=True)
     else:
-
-        # calcolo come prodotto vettoriale
+        # Calculate third vector as cross product
         e3 = np.cross(e1, e2)
 
-    # Stack dei vettori ortonormali come colonne della matrice di rotazione
+    # Stack orthonormal vectors as columns of rotation matrix
     return np.stack([e1, e2, e3], axis=2)  # shape (N, 3, 3)
 
 
@@ -1119,29 +1305,67 @@ def fillna(
     inplace: bool = False,
 ):
     """
-    Fill missing values in the array or dataframe.
+    Fill missing values (NaN) in arrays or DataFrames using various imputation methods.
+
+    This function provides multiple strategies for handling missing data:
+    constant value replacement, linear regression imputation, or cubic spline
+    interpolation. The method is automatically selected based on the provided
+    parameters.
 
     Parameters
     ----------
-    arr : np.ndarray | DataFrame | Series,
-        array with nans to be filled
-
-    value : float or None
-        the value to be used for missing data replacement.
-        if None, nearest neighbours imputation from the sklearn package is
-        used.
-
-    regressors : np.ndarray | DataFrame | Series | None, default=None
-        The regressors to be used in a Multiple Linear Regression model.
-        If None, cubic spline interpolation is used on each column separately.
-
+    arr : np.ndarray or DataFrame or Series
+        Array, DataFrame, or Series containing missing values (NaN) to be filled.
+    value : float or int or None, optional
+        Constant value for missing data replacement. If provided, all NaN
+        values are replaced with this value. If None, more sophisticated
+        imputation methods are used. Default is None.
+    regressors : np.ndarray or DataFrame or Series or None, optional
+        Independent variables for multiple linear regression imputation.
+        If provided, missing values are predicted using linear regression
+        with these regressors as predictors. If None, cubic spline
+        interpolation is applied to each column independently.
+        Default is None.
     inplace : bool, optional
-        If True, fill in place (for DataFrame/Series). If False, return a new object.
+        If True, modify the input object in place (for DataFrame/Series).
+        If False, return a new object with filled values. For np.ndarray,
+        inplace=True modifies the array directly. Default is False.
 
     Returns
     -------
-    filled: np.ndarray, DataFrame, or Series
-        the vector without missing data.
+    np.ndarray or DataFrame or Series
+        The array/DataFrame/Series with missing values filled. Return type
+        matches input type. If inplace=True, returns None for DataFrame/Series.
+
+    Notes
+    -----
+    Imputation Strategy:
+    1. If `value` is provided: All NaN replaced with constant value
+    2. If `regressors` provided: Linear regression imputation
+       - Fits separate regression model for each column
+       - Predicts missing values from available regressors
+       - Falls back to cubic spline for values that cannot be predicted
+    3. If neither provided: Cubic spline interpolation on each column
+
+    Linear Regression Imputation:
+    - Requires at least 3 valid samples per column for model fitting
+    - Only predicts values where all regressors are available
+    - Polynomial regression of degree 1 (linear) is used
+
+    Cubic Spline Interpolation:
+    - Applied to each column independently
+    - Requires at least 2 valid values for interpolation
+    - Extrapolation at boundaries uses natural cubic spline
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> arr = np.array([1.0, np.nan, 3.0, np.nan, 5.0])
+    >>> fillna(arr)  # Cubic spline interpolation
+    array([1., 2., 3., 4., 5.])
+
+    >>> fillna(arr, value=0)  # Constant replacement
+    array([1., 0., 3., 0., 5.])
     """
     # check if missing values exist
     if not isinstance(arr, (DataFrame, np.ndarray, Series)):

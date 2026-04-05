@@ -199,22 +199,32 @@ class BiostrengthProduct:
 
     def slice(self, start_time: float, stop_time: float):
         """
-        slice _summary_
+        Extract a time window from the biomechanical data.
 
-        _extended_summary_
+        Creates a new Product object containing only the data within the
+        specified time range [start_time, stop_time] inclusive.
 
         Parameters
         ----------
         start_time : float
-            the start time of the slice
-
+            Start time of the slice in seconds.
         stop_time : float
-            the end time of the slice
+            End time of the slice in seconds.
 
         Returns
         -------
-        sliced: Product
-            a sliced version of the object.
+        Product
+            New Product object with sliced time-series data (time, motor position,
+            motor load) filtered to the specified window.
+
+        Examples
+        --------
+        >>> # Extract data from 2 to 5 seconds
+        >>> product_slice = product.slice(2.0, 5.0)
+        >>> product_slice._time_s[0] >= 2.0
+        True
+        >>> product_slice._time_s[-1] <= 5.0
+        True
         """
         idx = (self._time_s >= start_time) & (self._time_s <= stop_time)
         idx = np.where(idx)[0]

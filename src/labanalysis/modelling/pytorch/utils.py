@@ -5,21 +5,13 @@ dataset for structured input/output and a trainer class with early stopping, lea
 rate decay, and metric tracking.
 """
 
-import warnings
-from typing import Callable, Dict, Literal
+import time
+from typing import Callable, Literal
 
 import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader, Dataset
-
-try:
-    import plotly.graph_objects as go
-    from plotly.subplots import make_subplots
-
-    PLOTLY_AVAILABLE = True
-except ImportError:
-    PLOTLY_AVAILABLE = False
 
 from ...utils import split_data
 
@@ -60,8 +52,8 @@ class CustomDataset(Dataset):
 
     def __init__(
         self,
-        x: torch.Tensor | Dict[str, torch.Tensor],
-        y: torch.Tensor | Dict[str, torch.Tensor],
+        x: torch.Tensor | dict[str, torch.Tensor],
+        y: torch.Tensor | dict[str, torch.Tensor],
     ):
         """
         Initialize the CustomDataset.
@@ -214,7 +206,7 @@ class UncertaintyWeighting(torch.nn.Module):
             )
         )
 
-    def forward(self, losses: Dict[str, torch.Tensor]):
+    def forward(self, losses: dict[str, torch.Tensor]):
         """
         Combine per-output losses into a single weighted loss.
 
@@ -277,28 +269,69 @@ class PinballLoss(torch.nn.Module):
 
 class StandardizedMSELoss(torch.nn.Module):
     """
-    Mean Squared Error loss computed on standardized values, with optional
-    fixed or dynamically-updated running statistics. Supports multi-output
-    regression by maintaining per-output statistics.
+    Mean Squared Error loss computed on standardized values with running statistics.
 
-    Modalità operative:
-    1. mean e std forniti → statistiche fissate (nessun aggiornamento).
-    2. mean/std non forniti → statistiche inizializzate al primo batch e
-       aggiornate incrementally, pesate sulla numerosità dei batch.
-    3. Le statistiche sono buffer (no gradienti, no ottimizzazione).
+    This loss function standardizes predictions and targets before computing MSE,
+    which can improve training stability and make the loss scale-invariant across
+    different output dimensions. Supports multi-output regression by maintaining
+    per-output statistics (mean and standard deviation).
 
-    Assunzioni:
-    - y_true e y_pred hanno shape (batch_size, n_outputs, ...)
-    - le statistiche sono calcolate lungo la dimensione batch
-
-    Parametri
+    Parameters
     ----------
-    mean : torch.Tensor, opzionale
-        Tensor di shape (n_outputs,) con le medie per output.
-    std : torch.Tensor, opzionale
-        Tensor di shape (n_outputs,) con le deviazioni standard per output.
-    eps : float, default=1e-8
-        Termine numerico per evitare divisioni per zero.
+    mean : torch.Tensor or None, optional
+        Pre-computed mean tensor of shape (n_outputs,) with mean values per
+        output dimension. If provided along with `std`, statistics are fixed
+        (no updates during training). Default is None.
+    std : torch.Tensor or None, optional
+        Pre-computed standard deviation tensor of shape (n_outputs,) with
+        std values per output dimension. If provided along with `mean`,
+        statistics are fixed. Default is None.
+    eps : float, optional
+        Numerical stability term to avoid division by zero when standardizing.
+        Default is 1e-8.
+
+    Attributes
+    ----------
+    running_mean : torch.Tensor
+        Running mean per output, shape (n_outputs,). Registered as buffer
+        (no gradients, no optimization).
+    running_std : torch.Tensor
+        Running standard deviation per output, shape (n_outputs,). Registered
+        as buffer (no gradients, no optimization).
+    running_count : torch.Tensor
+        Cumulative sample count for incremental statistics update.
+    freeze_stats : bool
+        If True, statistics are fixed. If False, statistics are updated
+        incrementally each forward pass.
+
+    Notes
+    -----
+    Operating Modes:
+    1. Fixed statistics: If both `mean` and `std` are provided, statistics
+       remain constant (freeze_stats=True, no updates).
+    2. Dynamic statistics: If `mean` or `std` is None, statistics are
+       initialized on first batch and updated incrementally with each batch,
+       weighted by batch size.
+    3. All statistics are stored as buffers (no gradient computation).
+
+    Assumptions:
+    - Inputs y_true and y_pred have shape (batch_size, n_outputs, ...)
+    - Statistics are computed across the batch dimension
+    - Additional dimensions beyond (batch_size, n_outputs) are flattened
+      for statistics computation
+
+    The incremental update uses Welford's online algorithm for numerical
+    stability when combining batch statistics with running statistics.
+
+    Examples
+    --------
+    >>> # Fixed statistics mode
+    >>> mean = torch.tensor([0.5, 1.0])
+    >>> std = torch.tensor([0.2, 0.5])
+    >>> loss_fn = StandardizedMSELoss(mean=mean, std=std)
+
+    >>> # Dynamic statistics mode
+    >>> loss_fn = StandardizedMSELoss()  # Updates stats automatically
     """
 
     def __init__(self, mean=None, std=None, eps=1e-8):
@@ -310,7 +343,7 @@ class StandardizedMSELoss(torch.nn.Module):
             self.register_buffer("running_std", std.clone().detach())
             self.freeze_stats = True
         else:
-            # Inizializzate al primo forward
+            # Initialized on first forward pass
             self.register_buffer("running_mean", torch.tensor([]))
             self.register_buffer("running_std", torch.tensor([]))
             self.freeze_stats = False
@@ -319,15 +352,18 @@ class StandardizedMSELoss(torch.nn.Module):
 
     def update_stats(self, y_true):
         """
-        Aggiorna mean e std per output usando un aggiornamento incrementale
-        pesato sul numero di campioni del batch.
+        Update running mean and std using incremental batch-weighted algorithm.
 
-        Parametri
+        Uses Welford's online algorithm to combine batch statistics with
+        running statistics, weighted by the number of samples in each.
+
+        Parameters
         ----------
         y_true : torch.Tensor
-            Tensor di shape (batch_size, n_outputs, ...)
+            Target tensor of shape (batch_size, n_outputs, ...).
+            Additional dimensions beyond n_outputs are flattened.
         """
-        # Riduciamo eventuali dimensioni extra
+        # Flatten any extra dimensions beyond (batch_size, n_outputs)
         batch_size = y_true.shape[0]
         y_flat = y_true.view(batch_size, y_true.shape[1], -1)
 
@@ -335,11 +371,12 @@ class StandardizedMSELoss(torch.nn.Module):
         batch_var = y_flat.var(dim=(0, 2), unbiased=False)
 
         if self.running_count == 0:
-            # Primo batch
+            # First batch: initialize statistics
             self.running_mean = batch_mean
             self.running_std = torch.sqrt(batch_var)
             self.running_count = torch.tensor(float(batch_size), device=y_true.device)
         else:
+            # Incremental update with Welford's algorithm
             total_count = self.running_count + batch_size
 
             delta = batch_mean - self.running_mean
@@ -359,19 +396,27 @@ class StandardizedMSELoss(torch.nn.Module):
 
     def forward(self, y_pred, y_true):
         """
-        Calcola la MSE tra y_pred e y_true dopo standardizzazione per output.
+        Compute MSE between y_pred and y_true after per-output standardization.
 
-        Parametri
+        Parameters
         ----------
         y_pred : torch.Tensor
-            Predizioni del modello, shape (batch_size, n_outputs, ...)
+            Model predictions, shape (batch_size, n_outputs, ...).
         y_true : torch.Tensor
-            Target, stessa shape di y_pred
+            Target values, same shape as y_pred.
 
-        Ritorna
+        Returns
         -------
         torch.Tensor
-            Valore scalare della MSE standardizzata.
+            Scalar standardized MSE loss value.
+
+        Notes
+        -----
+        Standardization formula per output i:
+            z_i = (x_i - mean_i) / (std_i + eps)
+
+        The loss is:
+            L = mean((z_pred - z_true)^2)
         """
         if not self.freeze_stats:
             self.update_stats(y_true)
@@ -379,7 +424,7 @@ class StandardizedMSELoss(torch.nn.Module):
         mean = self.running_mean
         std = self.running_std + self.eps
 
-        # Broadcasting automatico su batch e dimensioni extra
+        # Automatic broadcasting across batch and extra dimensions
         y_pred_std = (y_pred - mean) / std
         y_true_std = (y_true - mean) / std
 
@@ -532,8 +577,6 @@ class TrainingLogger:
     def __init__(
         self,
         early_stopping_patience: int = 1000,
-        enable_plotly: bool = True,
-        plotly_output_path: str = "training_dashboard.html",
     ):
         """
         Initialize the TrainingLogger.
@@ -542,10 +585,6 @@ class TrainingLogger:
         ----------
         early_stopping_patience : int, default=1000
             Maximum number of epochs without improvement before early stopping.
-        enable_plotly : bool, default=True
-            Enable real-time Plotly dashboard generation.
-        plotly_output_path : str, default='training_dashboard.html'
-            Path to save the interactive Plotly dashboard.
         """
         self._history = {}
         self._best_loss = float("inf")
@@ -553,16 +592,7 @@ class TrainingLogger:
         self._patience = early_stopping_patience
         self._last_print_lines = 0  # Track lines printed for in-place updates
         self._last_minimal_length = 0  # Track length of last minimal output
-
-        # Plotly dashboard settings
-        self._enable_plotly = enable_plotly and PLOTLY_AVAILABLE
-        self._plotly_output_path = plotly_output_path
-        self._plotly_fig = None
-
-        if self._enable_plotly and not PLOTLY_AVAILABLE:
-            warnings.warn(
-                "Plotly is not installed. Dashboard generation disabled. Install with: pip install plotly"
-            )
+        self._start_time = None  # Training start time
 
     def update(self, key: str, value: float):
         """
@@ -603,7 +633,7 @@ class TrainingLogger:
             self._epochs_without_improvement += 1
             return False
 
-    def get_early_stopping_gap(self) -> int:
+    def get_early_stopping_gap(self):
         """
         Get the remaining epochs before triggering early stopping.
 
@@ -613,6 +643,34 @@ class TrainingLogger:
             Number of epochs remaining before early stopping is triggered.
         """
         return max(0, self._patience - self._epochs_without_improvement)
+
+    def start_timer(self):
+        """Start the training timer."""
+        self._start_time = time.time()
+
+    def get_elapsed_time(self):
+        """
+        Get formatted elapsed time since training started.
+
+        Returns
+        -------
+        elapsed : str
+            Formatted elapsed time (e.g., "1h 23m 45s" or "45s").
+        """
+        if self._start_time is None:
+            return "0s"
+
+        elapsed = time.time() - self._start_time
+        hours = int(elapsed // 3600)
+        minutes = int((elapsed % 3600) // 60)
+        seconds = int(elapsed % 60)
+
+        if hours > 0:
+            return f"{hours}h {minutes}m {seconds}s"
+        elif minutes > 0:
+            return f"{minutes}m {seconds}s"
+        else:
+            return f"{seconds}s"
 
     def log_learning_rate(self, lr: float):
         """
@@ -625,7 +683,7 @@ class TrainingLogger:
         """
         self.update("learning_rate", lr)
 
-    def get_current_epoch(self) -> int:
+    def get_current_epoch(self):
         """
         Get the current epoch number.
 
@@ -636,7 +694,7 @@ class TrainingLogger:
         """
         return len(self._history.get("epoch", []))
 
-    def get_last_value(self, key: str) -> float | None:
+    def get_last_value(self, key: str):
         """
         Get the most recent value for a metric.
 
@@ -653,7 +711,7 @@ class TrainingLogger:
         values = self._history.get(key)
         return values[-1] if values else None
 
-    def to_dataframe(self) -> pd.DataFrame:
+    def to_dataframe(self):
         """
         Export training history to a pandas DataFrame.
 
@@ -665,7 +723,7 @@ class TrainingLogger:
         return pd.DataFrame(self._history)
 
     @property
-    def history(self) -> dict:
+    def history(self):
         """
         Access the full training history.
 
@@ -677,12 +735,12 @@ class TrainingLogger:
         return self._history
 
     @property
-    def best_loss(self) -> float:
+    def best_loss(self):
         """Best validation loss observed."""
         return self._best_loss
 
     @property
-    def epochs_without_improvement(self) -> int:
+    def epochs_without_improvement(self):
         """Number of epochs without improvement."""
         return self._epochs_without_improvement
 
@@ -692,10 +750,9 @@ class TrainingLogger:
         val_loss: float,
         lr: float,
         verbose: str = "minimal",
-        update_dashboard: bool = True,
     ):
         """
-        Print a summary of the current epoch and optionally update the dashboard.
+        Print a summary of the current epoch.
 
         Parameters
         ----------
@@ -710,25 +767,20 @@ class TrainingLogger:
             - 'full': Multi-line output with per-output losses and metrics (updates in place)
             - 'minimal': Single-line output with global losses and metrics (updates in place)
             - 'off': No output
-        update_dashboard : bool, default=True
-            Whether to update the Plotly dashboard (if enabled).
 
         Notes
         -----
         - 'full' mode displays training and validation losses/metrics for each model output
         - 'minimal' mode displays only global training/validation losses and metrics
         - Both modes update in place using ANSI escape codes for clean terminal output
-        - Both modes show: epoch, learning rate, epochs without improvement, and early stopping gap
-        - Dashboard is updated every epoch if Plotly is enabled
+        - 'full' mode shows: epoch, learning rate, best loss, epochs without improvement, gap, and elapsed time
+        - 'minimal' mode shows: epoch, training/validation losses, learning rate, gap, and elapsed time
         """
-        # Update dashboard first
-        if update_dashboard and self._enable_plotly:
-            self._update_plotly_dashboard()
-
         if verbose == "off":
             return
 
         gap = self.get_early_stopping_gap()
+        elapsed_time = self.get_elapsed_time()
 
         if verbose == "full":
             # Clear previous output (move cursor up and clear lines)
@@ -740,7 +792,7 @@ class TrainingLogger:
             lines = [
                 f"{'='*80}",
                 f"Epoch {epoch} | LR: {lr:.2e} | Best: {self._best_loss:.6f} | "
-                f"No Improve: {self._epochs_without_improvement} | Gap: {gap}",
+                f"No Improve: {self._epochs_without_improvement} | Gap: {gap} | Time: {elapsed_time}",
                 f"{'-'*80}",
             ]
 
@@ -853,7 +905,7 @@ class TrainingLogger:
             output = f"Epoch {epoch} | {train_str} | val={val_loss:.4f}"
             if metrics_part:
                 output += f" | {metrics_part}"
-            output += f" | lr={lr:.2e} | no_improve={self._epochs_without_improvement} | gap={gap}"
+            output += f" | lr={lr:.2e} | gap={gap} | time={elapsed_time}"
 
             # Clear previous output by overwriting with spaces
             if self._last_minimal_length > 0:
@@ -862,280 +914,6 @@ class TrainingLogger:
             # Print new output and track its length
             print(output, end="\r")
             self._last_minimal_length = len(output)
-
-    def _create_plotly_dashboard(self):
-        """
-        Create the initial Plotly dashboard with subplots for different metrics.
-
-        Returns
-        -------
-        fig : plotly.graph_objects.Figure
-            Configured Plotly figure with subplots.
-        """
-        if not PLOTLY_AVAILABLE:
-            return None
-
-        # Determine the number of unique metrics (excluding epoch and learning_rate)
-        metric_keys = set()
-        output_keys = set()
-
-        for key in self._history.keys():
-            if key in ["epoch", "learning_rate"]:
-                continue
-
-            if "_loss" in key:
-                if key not in ["training_loss", "validation_loss"]:
-                    # Extract output name
-                    parts = key.split("_")
-                    if len(parts) >= 3:
-                        output_name = "_".join(parts[1:-1])
-                        output_keys.add(output_name)
-            elif key.startswith("training_") or key.startswith("validation_"):
-                parts = key.split("_")
-                if len(parts) >= 2:
-                    metric_name = parts[-1]
-                    metric_keys.add(metric_name)
-
-        # Create subplots: 1 for global loss, 1 for LR, 1 for each metric, 1 for per-output losses
-        num_plots = 2 + len(metric_keys) + (1 if output_keys else 0)
-        subplot_titles = ["Global Loss", "Learning Rate"] + [
-            f"{m.upper()}" for m in sorted(metric_keys)
-        ]
-
-        if output_keys:
-            subplot_titles.append("Per-Output Losses")
-
-        fig = make_subplots(
-            rows=num_plots,
-            cols=1,
-            subplot_titles=subplot_titles,
-            vertical_spacing=0.05,
-        )
-
-        # Configure layout
-        fig.update_layout(
-            height=300 * num_plots,
-            showlegend=True,
-            title_text="Training Dashboard - Real-Time Updates",
-            hovermode="x unified",
-        )
-
-        return fig
-
-    def _update_plotly_dashboard(self):
-        """
-        Update the Plotly dashboard with current training history.
-
-        This method recreates all traces with the latest data to ensure
-        real-time visualization of training progress.
-        """
-        if not self._enable_plotly or not PLOTLY_AVAILABLE:
-            return
-
-        # Create figure if it doesn't exist
-        if self._plotly_fig is None:
-            self._plotly_fig = self._create_plotly_dashboard()
-            if self._plotly_fig is None:
-                return
-
-        # Clear existing traces
-        self._plotly_fig.data = []
-
-        epochs = self._history.get("epoch", [])
-        if not epochs:
-            return
-
-        # Determine metric and output keys
-        metric_keys = set()
-        output_keys = set()
-
-        for key in self._history.keys():
-            if key in ["epoch", "learning_rate"]:
-                continue
-
-            if "_loss" in key:
-                if key not in ["training_loss", "validation_loss"]:
-                    parts = key.split("_")
-                    if len(parts) >= 3:
-                        output_name = "_".join(parts[1:-1])
-                        output_keys.add(output_name)
-            elif key.startswith("training_") or key.startswith("validation_"):
-                parts = key.split("_")
-                if len(parts) >= 2:
-                    metric_name = parts[-1]
-                    metric_keys.add(metric_name)
-
-        current_row = 1
-
-        # Plot 1: Global Loss
-        train_loss = self._history.get("training_loss", [])
-        val_loss = self._history.get("validation_loss", [])
-
-        if train_loss:
-            self._plotly_fig.add_trace(
-                go.Scatter(
-                    x=epochs,
-                    y=train_loss,
-                    name="Training Loss",
-                    mode="lines",
-                    line=dict(color="blue"),
-                ),
-                row=current_row,
-                col=1,
-            )
-        if val_loss:
-            self._plotly_fig.add_trace(
-                go.Scatter(
-                    x=epochs,
-                    y=val_loss,
-                    name="Validation Loss",
-                    mode="lines",
-                    line=dict(color="red"),
-                ),
-                row=current_row,
-                col=1,
-            )
-
-        # Add best loss as a trace
-        if self._best_loss != float("inf") and epochs:
-            self._plotly_fig.add_trace(
-                go.Scatter(
-                    x=[epochs[0], epochs[-1]],
-                    y=[self._best_loss, self._best_loss],
-                    name=f"Best Loss: {self._best_loss:.6f}",
-                    mode="lines",
-                    line=dict(color="green", dash="dash"),
-                ),
-                row=current_row,
-                col=1,
-            )
-
-        self._plotly_fig.update_xaxes(title_text="Epoch", row=current_row, col=1)
-        self._plotly_fig.update_yaxes(
-            title_text="Loss", type="log", row=current_row, col=1
-        )
-        current_row += 1
-
-        # Plot 2: Learning Rate
-        lr = self._history.get("learning_rate", [])
-        if lr:
-            self._plotly_fig.add_trace(
-                go.Scatter(
-                    x=epochs,
-                    y=lr,
-                    name="Learning Rate",
-                    mode="lines",
-                    line=dict(color="purple"),
-                ),
-                row=current_row,
-                col=1,
-            )
-        self._plotly_fig.update_xaxes(title_text="Epoch", row=current_row, col=1)
-        self._plotly_fig.update_yaxes(
-            title_text="Learning Rate", type="log", row=current_row, col=1
-        )
-        current_row += 1
-
-        # Plot 3+: Metrics
-        colors = {"training": "blue", "validation": "red"}
-        for metric_name in sorted(metric_keys):
-            for prefix in ["training", "validation"]:
-                metric_key = f"{prefix}_{metric_name}"
-                if metric_key in self._history:
-                    self._plotly_fig.add_trace(
-                        go.Scatter(
-                            x=epochs,
-                            y=self._history[metric_key],
-                            name=f"{prefix.capitalize()} {metric_name.upper()}",
-                            mode="lines",
-                            line=dict(color=colors[prefix]),
-                        ),
-                        row=current_row,
-                        col=1,
-                    )
-
-            self._plotly_fig.update_xaxes(title_text="Epoch", row=current_row, col=1)
-            self._plotly_fig.update_yaxes(
-                title_text=metric_name.upper(), row=current_row, col=1
-            )
-            current_row += 1
-
-        # Plot N: Per-output losses
-        if output_keys:
-            color_palette = [
-                "#1f77b4",
-                "#ff7f0e",
-                "#2ca02c",
-                "#d62728",
-                "#9467bd",
-                "#8c564b",
-                "#e377c2",
-                "#7f7f7f",
-            ]
-            for idx, output_name in enumerate(sorted(output_keys)):
-                color = color_palette[idx % len(color_palette)]
-
-                train_key = f"training_{output_name}_loss"
-                val_key = f"validation_{output_name}_loss"
-
-                if train_key in self._history:
-                    self._plotly_fig.add_trace(
-                        go.Scatter(
-                            x=epochs,
-                            y=self._history[train_key],
-                            name=f"{output_name} (train)",
-                            mode="lines",
-                            line=dict(color=color, dash="solid"),
-                        ),
-                        row=current_row,
-                        col=1,
-                    )
-
-                if val_key in self._history:
-                    self._plotly_fig.add_trace(
-                        go.Scatter(
-                            x=epochs,
-                            y=self._history[val_key],
-                            name=f"{output_name} (val)",
-                            mode="lines",
-                            line=dict(color=color, dash="dash"),
-                        ),
-                        row=current_row,
-                        col=1,
-                    )
-
-            self._plotly_fig.update_xaxes(title_text="Epoch", row=current_row, col=1)
-            self._plotly_fig.update_yaxes(
-                title_text="Per-Output Loss", type="log", row=current_row, col=1
-            )
-
-        # Save to HTML file
-        self._plotly_fig.write_html(
-            self._plotly_output_path,
-            auto_open=False,
-            config={"displayModeBar": True, "responsive": True},
-        )
-
-    def update_dashboard(self):
-        """
-        Manually trigger dashboard update.
-
-        Use this method to update the Plotly dashboard with the latest training data.
-        The dashboard is automatically updated during training, but this method can be
-        called manually if needed.
-        """
-        self._update_plotly_dashboard()
-
-    def get_dashboard_path(self) -> str:
-        """
-        Get the file path of the generated dashboard.
-
-        Returns
-        -------
-        path : str
-            Path to the HTML dashboard file.
-        """
-        return self._plotly_output_path
 
 
 class TorchTrainer:
@@ -1167,6 +945,10 @@ class TorchTrainer:
     optimizer_kwargs : dict, optional
         Additional keyword arguments for optimizer construction.
         Example: {"lr": 1e-3, "weight_decay": 1e-5}
+        The 'lr' parameter can be a single float or a list of floats.
+        If a list is provided, learning rates are applied sequentially:
+        when early_stopping_patience is exceeded, the next learning rate
+        is applied and weights are restored to the best state found so far.
 
     epochs : int, default=100000
         Maximum number of epochs.
@@ -1179,12 +961,6 @@ class TorchTrainer:
 
     early_stopping_patience : int, default=2000
         Max number of epochs without improvement.
-
-    decaying_rate : float or None, default=1e-6
-        Multiplicative LR decay factor. If None → disable decay.
-
-    minimum_learning_rate : float, default=1e-6
-        Lower bound for LR decay.
 
     validation_split : float, default=0.2
         Fraction of data used for validation.
@@ -1201,12 +977,6 @@ class TorchTrainer:
     use_uncertainty_weighting : bool, default=False
         Whether to apply task uncertainty weighting.
 
-    enable_plotly : bool, default=True
-        Enable real-time Plotly dashboard generation.
-
-    plotly_output_path : str, default='training_dashboard.html'
-        Path to save the interactive Plotly dashboard.
-
     Attributes
     ----------
     logger : dict[str, list]
@@ -1220,7 +990,10 @@ class TorchTrainer:
     - Models must return either a dict or a tensor.
     - Extra losses must be functions with no parameters.
     - Multi-output handling is native and automatic.
-    - If Plotly is enabled, a real-time dashboard is generated and updated each epoch.
+    - Learning rate scheduling: If optimizer_kwargs["lr"] is a list, the trainer will
+      automatically switch to the next learning rate when early_stopping_patience is
+      exceeded, restoring the best weights found so far. Training stops when all
+      learning rates have been tried or max epochs is reached.
     """
 
     def __init__(
@@ -1228,20 +1001,16 @@ class TorchTrainer:
         loss=ComboLoss(PinballLoss(0.5), QuantilicRangeLoss(0.99)),
         metrics=[MAEMetric()],
         optimizer_class=torch.optim.Adam,
-        optimizer_kwargs={"lr": 0.001},
+        optimizer_kwargs={"lr": [1e-3, 1e-4, 1e-5]},
         epochs: int = 100000,
         batch_size: int | None = None,
         early_stopping_threshold: float = 1e-5,
-        early_stopping_patience: int = 1000,
-        decaying_rate: float | None = 1e-6,
-        minimum_learning_rate: float = 1e-6,
+        early_stopping_patience: int = 200,
         validation_split: float = 0.2,
         restore_best_weights: bool = True,
         verbose: Literal["full", "minimal", "off"] = "minimal",
         debug: bool = False,
         use_uncertainty_weighting: bool = True,
-        enable_plotly: bool = True,
-        plotly_output_path: str = "training_dashboard.html",
     ):
 
         # ------------ BASIC VALIDATION ------------
@@ -1257,12 +1026,20 @@ class TorchTrainer:
         self._early_stopping_threshold = early_stopping_threshold
         self._early_stopping_patience = early_stopping_patience
 
-        self._decaying_rate = decaying_rate
-        self._minimum_learning_rate = minimum_learning_rate
         self._validation_split = validation_split
         self._restore_best_weights = restore_best_weights
         self._verbose = verbose
         self._debug = debug
+
+        # ------------ LEARNING RATE SCHEDULING ------------
+        # Handle both single lr and list of lrs
+        lr_param = self._optimizer_kwargs.get("lr", 0.001)
+        if isinstance(lr_param, list):
+            self._learning_rates = lr_param.copy()
+            self._current_lr_index = 0
+        else:
+            self._learning_rates = [lr_param]
+            self._current_lr_index = 0
 
         # ------------ METRICS ------------
         if isinstance(metrics, Callable):
@@ -1281,8 +1058,6 @@ class TorchTrainer:
         # ------------ LOGGER ------------
         self._logger = TrainingLogger(
             early_stopping_patience=early_stopping_patience,
-            enable_plotly=enable_plotly,
-            plotly_output_path=plotly_output_path,
         )
 
     # ==================================================================
@@ -1530,8 +1305,12 @@ class TorchTrainer:
         val_loader = DataLoader(CustomDataset(val_x, val_y), batch_size, shuffle=True)
 
         # ---------------- INITIALIZE OPTIMIZER ----------------
+        # Use the first learning rate from the list
+        optimizer_kwargs_copy = self._optimizer_kwargs.copy()
+        optimizer_kwargs_copy["lr"] = self._learning_rates[self._current_lr_index]
+
         self._optimizer = self._optimizer_class(
-            module.parameters(), **self._optimizer_kwargs
+            module.parameters(), **optimizer_kwargs_copy
         )
 
         # ---------------- IF UW → ADD UW PARAMS ----------------
@@ -1544,7 +1323,9 @@ class TorchTrainer:
 
         # ---------------- TRAINING LOOP ----------------
         best_weights = None
-        no_improve_lr = 0
+
+        # Start training timer
+        self._logger.start_timer()
 
         for epoch in range(self._epochs):
 
@@ -1571,31 +1352,41 @@ class TorchTrainer:
             )
 
             if improved:
-                no_improve_lr = 0
                 if self._restore_best_weights:
                     best_weights = module.state_dict().copy()
-            else:
-                no_improve_lr += 1
 
             # Print epoch summary
             self._logger.print_epoch_summary(epoch + 1, val_loss, lr, self._verbose)
 
-            # Learning rate decay
-            if (
-                no_improve_lr >= int(self._early_stopping_patience * 0.33)
-                and self._decaying_rate is not None
-            ):
-                for pg in self._optimizer.param_groups:
-                    pg["lr"] = max(
-                        self._minimum_learning_rate, pg["lr"] * self._decaying_rate
-                    )
-                no_improve_lr = 0
-
-            # Early stopping check
+            # Early stopping check with learning rate scheduling
             if self._logger.epochs_without_improvement >= self._early_stopping_patience:
-                if self._restore_best_weights and best_weights is not None:
-                    module.load_state_dict(best_weights)
-                break
+                # Check if there are more learning rates to try
+                if self._current_lr_index < len(self._learning_rates) - 1:
+                    # Move to next learning rate
+                    self._current_lr_index += 1
+                    next_lr = self._learning_rates[self._current_lr_index]
+
+                    # Restore best weights found so far
+                    if best_weights is not None:
+                        module.load_state_dict(best_weights)
+
+                    # Update optimizer learning rate
+                    for pg in self._optimizer.param_groups:
+                        pg["lr"] = next_lr
+
+                    # Reset early stopping counters
+                    self._logger._epochs_without_improvement = 0
+
+                    if self._verbose == "full":
+                        print(
+                            f"\n[LR Schedule] Switching to learning rate {next_lr:.2e} "
+                            f"({self._current_lr_index + 1}/{len(self._learning_rates)})"
+                        )
+                else:
+                    # No more learning rates to try, stop training
+                    if self._restore_best_weights and best_weights is not None:
+                        module.load_state_dict(best_weights)
+                    break
 
         print("")
         module.eval()

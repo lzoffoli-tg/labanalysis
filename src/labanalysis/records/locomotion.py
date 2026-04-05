@@ -38,6 +38,83 @@ __all__ = [
 
 
 class GaitObject(WholeBody):
+    """
+    Base class for gait analysis with kinetic and kinematic cycle detection.
+
+    GaitObject extends WholeBody to provide specialized functionality for gait
+    analysis, including support for multiple cycle detection algorithms, ground
+    reaction force tracking, and gait-specific anatomical landmarks.
+
+    The class supports two cycle detection algorithms:
+    - 'kinetics': Uses force platform data (ground reaction forces) to detect
+      foot contact events and gait cycles.
+    - 'kinematics': Uses marker trajectories (heel and toe positions) to detect
+      foot contact events and gait cycles based on vertical position thresholds.
+
+    The algorithm selection is automatic based on available data, with fallback
+    logic if the preferred algorithm cannot be used.
+
+    Parameters
+    ----------
+    algorithm : {'kinematics', 'kinetics'}
+        Cycle detection algorithm to use.
+    ground_reaction_force_threshold : float or int, optional
+        Minimum ground reaction force (in Newtons) for contact detection when
+        using kinetics algorithm. Default is DEFAULT_MINIMUM_CONTACT_GRF_N.
+    height_threshold : float or int, optional
+        Maximum vertical height (as percentage) for contact detection when
+        using kinematics algorithm. Default is DEFAULT_MINIMUM_HEIGHT_PERCENTAGE.
+    left_hand_ground_reaction_force : ForcePlatform or None, optional
+        Force platform data for left hand contact.
+    right_hand_ground_reaction_force : ForcePlatform or None, optional
+        Force platform data for right hand contact.
+    left_foot_ground_reaction_force : ForcePlatform or None, optional
+        Force platform data for left foot contact.
+    right_foot_ground_reaction_force : ForcePlatform or None, optional
+        Force platform data for right foot contact.
+    left_heel : Point3D or None, optional
+        Left heel marker trajectory.
+    right_heel : Point3D or None, optional
+        Right heel marker trajectory.
+    left_toe : Point3D or None, optional
+        Left toe marker trajectory.
+    right_toe : Point3D or None, optional
+        Right toe marker trajectory.
+    left_metatarsal_head : Point3D or None, optional
+        Left metatarsal head marker trajectory.
+    right_metatarsal_head : Point3D or None, optional
+        Right metatarsal head marker trajectory.
+    **extra_signals : Signal1D, Signal3D, EMGSignal, Point3D, ForcePlatform
+        Additional signals (e.g., joint angles, EMG channels, other markers).
+
+    Attributes
+    ----------
+    algorithm : str
+        The selected cycle detection algorithm ('kinetics' or 'kinematics').
+    ground_reaction_force_threshold : float
+        Ground reaction force threshold for contact detection (Newtons).
+    height_threshold : float
+        Height threshold for contact detection (percentage).
+
+    Notes
+    -----
+    Algorithm selection follows these rules:
+    1. If 'kinetics' is requested but no force platform data is available,
+       automatically falls back to 'kinematics' (with warning).
+    2. If 'kinematics' is requested but marker data is incomplete,
+       automatically falls back to 'kinetics' (with warning).
+    3. If neither algorithm can be satisfied, raises ValueError.
+
+    The kinematics algorithm requires all four markers: left_heel, right_heel,
+    left_toe, and right_toe. The kinetics algorithm requires at least one
+    ForcePlatform object providing ground reaction force data.
+
+    See Also
+    --------
+    WholeBody : Parent class providing biomechanical body model.
+    GaitCycle : Represents a single gait cycle.
+    GaitExercise : Represents a sequence of gait cycles.
+    """
 
     _algorithm: Literal["kinetics", "kinematics"]
     _grf_threshold: float
@@ -669,7 +746,7 @@ class GaitCycle(GaitObject):
 
         return pd.DataFrame(pd.Series(new)).T
 
-    def _footstrike_kinetics(self) -> float:
+    def _footstrike_kinetics(self):
         """
         Return the foot-strike time in seconds using the kinetics algorithm.
 
@@ -679,7 +756,7 @@ class GaitCycle(GaitObject):
         """
         raise NotImplementedError
 
-    def _footstrike_kinematics(self) -> float:
+    def _footstrike_kinematics(self):
         """
         Return the foot-strike time in seconds using the kinematics algorithm.
 
@@ -689,7 +766,7 @@ class GaitCycle(GaitObject):
         """
         raise NotImplementedError
 
-    def _midstance_kinetics(self) -> float:
+    def _midstance_kinetics(self):
         """
         Return the mid-stance time in seconds using the kinetics algorithm.
 
@@ -699,7 +776,7 @@ class GaitCycle(GaitObject):
         """
         raise NotImplementedError
 
-    def _midstance_kinematics(self) -> float:
+    def _midstance_kinematics(self):
         """
         Return the mid-stance time in seconds using the kinematics algorithm.
 
@@ -725,6 +802,43 @@ class GaitCycle(GaitObject):
 
 
 class GaitExercise(GaitObject):
+    """
+    Represents a complete gait exercise containing multiple gait cycles.
+
+    GaitExercise extends GaitObject to automatically detect and extract
+    individual gait cycles from continuous locomotion data. Subclasses
+    implement specific cycle detection algorithms for different locomotion
+    types (e.g., running, walking).
+
+    The class provides the `cycles` property which returns a list of detected
+    GaitCycle objects. The detection algorithm used depends on the inherited
+    `algorithm` attribute ('kinetics' or 'kinematics').
+
+    Parameters
+    ----------
+    Inherits all parameters from GaitObject.
+
+    Attributes
+    ----------
+    cycles : list of GaitCycle
+        Detected gait cycles extracted from the exercise data.
+
+    Notes
+    -----
+    This is an abstract base class. Subclasses must implement:
+    - _find_cycles_kinetics() : Detect cycles using force platform data
+    - _find_cycles_kinematics() : Detect cycles using marker trajectories
+
+    The cycles property automatically calls the appropriate detection method
+    based on the selected algorithm.
+
+    See Also
+    --------
+    GaitObject : Parent class providing gait analysis infrastructure.
+    RunningExercise : Exercise class for running-specific cycle detection.
+    WalkingExercise : Exercise class for walking-specific cycle detection.
+    GaitCycle : Represents individual gait cycles.
+    """
 
     @property
     def cycles(self):
@@ -742,7 +856,7 @@ class GaitExercise(GaitObject):
         else:
             raise ValueError(f"{self.algorithm} currently not supported.")
 
-    def _find_cycles_kinetics(self) -> list[GaitCycle]:
+    def _find_cycles_kinetics(self):
         """
         Find the gait cycles using the kinetics algorithm.
 
@@ -752,7 +866,7 @@ class GaitExercise(GaitObject):
         """
         raise NotImplementedError()
 
-    def _find_cycles_kinematics(self) -> list[GaitCycle]:
+    def _find_cycles_kinematics(self):
         """
         Find the gait cycles using the kinematics algorithm.
 
@@ -1125,9 +1239,68 @@ class GaitExercise(GaitObject):
 
 
 class RunningStep(GaitCycle):
+    """
+    Represents a single running step (one gait cycle during running).
+
+    RunningStep extends GaitCycle with running-specific phases and metrics.
+    A running step is characterized by a flight phase (no ground contact)
+    followed by a contact phase (ground contact).
+
+    The contact phase is further subdivided into:
+    - Loading response: From footstrike to midstance
+    - Propulsion: From midstance to toe-off
+
+    Parameters
+    ----------
+    Inherits all parameters from GaitCycle.
+
+    Attributes
+    ----------
+    flight_phase : WholeBody
+        Data during the flight phase (toeoff to footstrike).
+    contact_phase : WholeBody
+        Data during the contact phase (footstrike to next toeoff).
+    loading_response_phase : WholeBody
+        Data during loading response (footstrike to midstance).
+    propulsion_phase : WholeBody
+        Data during propulsion (midstance to toeoff).
+    flight_time_s : float
+        Duration of flight phase in seconds.
+    contact_time_s : float
+        Duration of contact phase in seconds.
+    loadingresponse_time_s : float
+        Duration of loading response phase in seconds.
+    propulsion_time_s : float
+        Duration of propulsion phase in seconds.
+
+    Notes
+    -----
+    Unlike walking, running is characterized by a flight phase where
+    neither foot is in contact with the ground. This class provides
+    properties to extract and analyze both the aerial and ground contact
+    phases of the running gait cycle.
+
+    The cycle timing follows the pattern:
+    init_s (toeoff) -> flight -> footstrike_s -> loading response ->
+    midstance_s -> propulsion -> end_s (next toeoff)
+
+    See Also
+    --------
+    GaitCycle : Parent class for general gait cycles.
+    WalkingStride : Gait cycle class for walking.
+    RunningExercise : Exercise class for running analysis.
+    """
 
     @property
     def flight_phase(self):
+        """
+        Extract data during the flight phase.
+
+        Returns
+        -------
+        WholeBody
+            All signals sliced from toeoff (init_s) to footstrike.
+        """
         sliced = self.copy()[self.init_s : self.footstrike_s]
         out = WholeBody()
         if isinstance(sliced, TimeseriesRecord):
@@ -1137,6 +1310,14 @@ class RunningStep(GaitCycle):
 
     @property
     def contact_phase(self):
+        """
+        Extract data during the contact phase.
+
+        Returns
+        -------
+        WholeBody
+            All signals sliced from footstrike to next toeoff (end_s).
+        """
         sliced = self.copy()[self.footstrike_s : self.end_s]
         out = WholeBody()
         if isinstance(sliced, TimeseriesRecord):
@@ -1146,6 +1327,14 @@ class RunningStep(GaitCycle):
 
     @property
     def loading_response_phase(self):
+        """
+        Extract data during the loading response phase.
+
+        Returns
+        -------
+        WholeBody
+            All signals sliced from footstrike to midstance.
+        """
         sliced = self.copy()[self.footstrike_s : self.midstance_s]
         out = WholeBody()
         if isinstance(sliced, TimeseriesRecord):
@@ -1155,6 +1344,14 @@ class RunningStep(GaitCycle):
 
     @property
     def propulsion_phase(self):
+        """
+        Extract data during the propulsion phase.
+
+        Returns
+        -------
+        WholeBody
+            All signals sliced from midstance to toeoff (end_s).
+        """
         sliced = self.copy()[self.midstance_s : self.end_s]
         out = WholeBody()
         if isinstance(sliced, TimeseriesRecord):

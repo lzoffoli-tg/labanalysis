@@ -6,7 +6,7 @@
 #! IMPORTS
 
 
-from typing import Callable, List
+from typing import Callable
 
 import numpy as np
 
@@ -35,24 +35,67 @@ class ProcessingPipeline:
     for each supported object type and apply them to a collection of objects.
     """
 
-    def __init__(self, **callables: Callable | List[Callable]):
+    def __init__(self, **callables: Callable | list[Callable]):
         """
         Initialize a ProcessingPipeline.
         """
         object.__setattr__(self, "_items", {})
         self.add(**callables)
 
-    def add(self, **callables: Callable | List[Callable]):
+    def add(self, **callables: Callable | list[Callable]):
+        """
+        Add processing functions to the pipeline.
+
+        Parameters
+        ----------
+        **callables : Callable or list of Callable
+            Keyword arguments where keys are object type names and values are
+            processing functions or lists of functions.
+        """
         for k, v in callables.items():
             self[k] = v
 
     def remove(self, key: str):
+        """
+        Remove all processing functions for a given object type.
+
+        Parameters
+        ----------
+        key : str
+            Object type name to remove from pipeline.
+        """
         self._items.pop(key)
 
     def pop(self, key: str):
+        """
+        Remove and return processing functions for a given object type.
+
+        Parameters
+        ----------
+        key : str
+            Object type name to pop from pipeline.
+
+        Returns
+        -------
+        Callable or list of Callable
+            Processing function(s) that were removed.
+        """
         return self._items.pop(key)
 
     def get(self, key: str):
+        """
+        Get processing functions for a given object type.
+
+        Parameters
+        ----------
+        key : str
+            Object type name to retrieve.
+
+        Returns
+        -------
+        list of Callable
+            Processing functions for the object type, or empty list if not found.
+        """
         default: list[Callable] = []
         return self._items.get(key, default)
 
@@ -137,6 +180,23 @@ class ProcessingPipeline:
 
 
 def get_default_emgsignal_processing_func(channel: EMGSignal):
+    """
+    Apply default EMG signal processing pipeline.
+
+    Removes mean, applies bandpass filter (20-450 Hz), and calculates RMS envelope.
+
+    Parameters
+    ----------
+    channel : EMGSignal
+        EMG signal to process (modified in-place).
+
+    Notes
+    -----
+    Processing steps:
+    1. Remove DC offset (subtract mean)
+    2. Bandpass filter (20-450 Hz, 4th order Butterworth)
+    3. RMS envelope (200ms window)
+    """
     channel[:, :] -= channel.to_numpy().mean()
     fsamp = 1 / np.mean(np.diff(channel.index))
     channel.apply(
@@ -160,6 +220,22 @@ def get_default_emgsignal_processing_func(channel: EMGSignal):
 
 
 def get_default_point3d_processing_func(point: Point3D):
+    """
+    Apply default 3D point processing pipeline.
+
+    Fills missing values and applies low-pass filter.
+
+    Parameters
+    ----------
+    point : Point3D
+        3D point trajectory to process (modified in-place).
+
+    Notes
+    -----
+    Processing steps:
+    1. Fill missing values (NaN) via cubic spline interpolation
+    2. Low-pass filter (6 Hz cutoff, 4th order Butterworth, phase-corrected)
+    """
     point.fillna(inplace=True)
     fsamp = float(1 / np.mean(np.diff(point.index)))
     point.apply(
@@ -174,6 +250,22 @@ def get_default_point3d_processing_func(point: Point3D):
 
 
 def get_default_signal3d_processing_func(signal: Signal3D):
+    """
+    Apply default 3D signal processing pipeline.
+
+    Fills missing values and applies low-pass filter.
+
+    Parameters
+    ----------
+    signal : Signal3D
+        3D signal to process (modified in-place).
+
+    Notes
+    -----
+    Processing steps:
+    1. Fill missing values (NaN) via cubic spline interpolation
+    2. Low-pass filter (6 Hz cutoff, 4th order Butterworth, phase-corrected)
+    """
     signal.fillna(inplace=True)
     fsamp = 1 / np.mean(np.diff(signal.index))
     signal.apply(
@@ -188,6 +280,22 @@ def get_default_signal3d_processing_func(signal: Signal3D):
 
 
 def get_default_signal1d_processing_func(signal: Signal1D):
+    """
+    Apply default 1D signal processing pipeline.
+
+    Fills missing values and applies low-pass filter.
+
+    Parameters
+    ----------
+    signal : Signal1D
+        1D signal to process (modified in-place).
+
+    Notes
+    -----
+    Processing steps:
+    1. Fill missing values (NaN) via cubic spline interpolation
+    2. Low-pass filter (6 Hz cutoff, 4th order Butterworth, phase-corrected)
+    """
     signal.fillna(inplace=True)
     fsamp = 1 / np.mean(np.diff(signal.index))
     signal.apply(
@@ -202,7 +310,28 @@ def get_default_signal1d_processing_func(signal: Signal1D):
 
 
 def get_default_forceplatform_processing_func(fp: ForcePlatform):
+    """
+    Apply default force platform processing pipeline.
 
+    Comprehensive processing for force platform data including contact detection,
+    gap filling, filtering, and moment updates.
+
+    Parameters
+    ----------
+    fp : ForcePlatform
+        Force platform record to process (modified in-place).
+
+    Notes
+    -----
+    Processing steps:
+    1. Set forces below minimum contact threshold to NaN
+    2. Strip NaN values from beginning and end
+    3. Fill force NaNs with zeros
+    4. Fill position NaNs via cubic spline
+    5. Low-pass filter origin and force (30 Hz, 4th order Butterworth)
+    6. Update torque/moments from filtered data
+    7. Zero out moments during non-contact periods
+    """
     # ensure force below minimum contact are set to NaN
     vals = fp.force.copy().to_numpy()
     module = fp.force.copy().module.to_numpy().flatten()  # type: ignore
@@ -246,6 +375,26 @@ def get_default_forceplatform_processing_func(fp: ForcePlatform):
 
 
 def get_default_metabolicrecord_processing_func(mr: MetabolicRecord):
+    """
+    Apply default metabolic data processing pipeline.
+
+    Smooths breath-by-breath data using moving average filter.
+
+    Parameters
+    ----------
+    mr : MetabolicRecord
+        Metabolic record to process (modified in-place).
+
+    Notes
+    -----
+    For breath-by-breath data, applies 15-point moving average to:
+    - VO2 (oxygen consumption)
+    - VCO2 (carbon dioxide production)
+    - HR (heart rate)
+    - VE (ventilation)
+
+    Based on recommendations from Robergs et al. (2010) Sports Medicine 40:95-111.
+    """
     if mr.breath_by_breath:
         # from:
         #   Robergs RA., Dwyer D., Astorino T.
@@ -259,7 +408,29 @@ def get_default_metabolicrecord_processing_func(mr: MetabolicRecord):
 
 
 def get_default_processing_pipeline():
+    """
+    Create a processing pipeline with default functions for all supported types.
 
+    Returns
+    -------
+    ProcessingPipeline
+        Configured pipeline with default processing functions for:
+        - EMGSignal: bandpass filter + RMS envelope
+        - Point3D: gap filling + 6Hz lowpass
+        - Signal1D: gap filling + 6Hz lowpass
+        - Signal3D: gap filling + 6Hz lowpass
+        - ForcePlatform: contact detection + filtering + moment updates
+        - MetabolicRecord: breath-by-breath smoothing
+
+    See Also
+    --------
+    get_default_emgsignal_processing_func
+    get_default_point3d_processing_func
+    get_default_signal1d_processing_func
+    get_default_signal3d_processing_func
+    get_default_forceplatform_processing_func
+    get_default_metabolicrecord_processing_func
+    """
     return ProcessingPipeline(
         EMGSignal=[get_default_emgsignal_processing_func],
         Point3D=[get_default_point3d_processing_func],

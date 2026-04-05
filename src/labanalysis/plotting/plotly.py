@@ -43,7 +43,57 @@ def plot_comparisons(
     parametric: bool = False,
     color_scale: str = "temps",
 ):
+    """
+    Create comprehensive comparison plots for true vs predicted values.
 
+    Generates an interactive Plotly figure with multiple visualization panels:
+    regression plot, Bland-Altman plot, error distribution, and link plot.
+
+    Parameters
+    ----------
+    data_frame : pd.DataFrame or None
+        DataFrame containing the data. If None, true_data and pred_data must be
+        arrays.
+    true_data : np.ndarray or str
+        True/reference values. If data_frame is provided, this is a column name;
+        otherwise, a numpy array or list.
+    pred_data : np.ndarray or str
+        Predicted values. If data_frame is provided, this is a column name;
+        otherwise, a numpy array or list.
+    color_data : np.ndarray, str, or None, default=None
+        Grouping variable for coloring points. If data_frame is provided, this
+        is a column name; otherwise, a numpy array or list.
+    confidence : float, default=0.95
+        Confidence level for limits of agreement in Bland-Altman plot (0-1).
+    parametric : bool, default=False
+        If True, uses parametric statistics (mean, std); if False, uses
+        non-parametric statistics (median, percentiles).
+    color_scale : str, default='temps'
+        Plotly color scale name for the link plot gradient.
+
+    Returns
+    -------
+    plotly.graph_objects.Figure
+        Interactive figure with 5 subplots:
+        - Summary statistics table
+        - True vs Predicted scatter plot with regression line
+        - Bland-Altman plot with limits of agreement
+        - Error distribution histogram
+        - Link plot showing paired observations
+
+    Raises
+    ------
+    ValueError
+        If inputs are invalid or incompatible.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> import numpy as np
+    >>> df = pd.DataFrame({'true': [1, 2, 3], 'pred': [1.1, 2.2, 2.9]})
+    >>> fig = plot_comparisons(df, 'true', 'pred')
+    >>> fig.show()
+    """
     # * PREPARATION
 
     # check the inputs
