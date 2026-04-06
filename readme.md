@@ -15,6 +15,7 @@
 - [Package Structure](#package-structure)
 - [Usage Examples](#usage-examples)
 - [Module Reference](#module-reference)
+- [Documentation](#documentation)
 - [Development](#development)
 - [License](#license)
 - [Contact](#contact)
@@ -184,6 +185,9 @@ labanalysis/
 ├── messages.py           # Standardized messages and warnings
 ├── signalprocessing.py   # Signal processing utilities
 ├── utils.py              # General utility functions
+├── docs/                 # 📚 Documentation and guides
+│   ├── README.md         # Documentation index
+│   └── CPU_OPTIMIZATION_GUIDE.md  # TorchTrainer CPU optimizations
 ├── equations/            # Predictive equations
 │   ├── strength.py       # Strength prediction models
 │   └── cardio.py         # Cardiovascular prediction models
@@ -463,10 +467,11 @@ Ordinary Least Squares regression and geometric modeling.
 - Geometric fitting utilities
 
 #### `labanalysis.modelling.pytorch`
-PyTorch-based deep learning utilities.
+PyTorch-based deep learning utilities with CPU optimizations.
 
 **Features:**
 - Custom neural network modules
+- `TorchTrainer`: Optimized trainer with 2-3x CPU speedup ([see guide](docs/CPU_OPTIMIZATION_GUIDE.md))
 - Training and evaluation helpers
 - Model validation and visualization
 - Integration with ONNX for model deployment
@@ -505,6 +510,20 @@ Cardiovascular and metabolic prediction equations.
 **Functions:**
 - `estimate_vo2max()`: VO2max prediction from submaximal tests
 - Heart rate and energy expenditure equations
+
+---
+
+## Documentation
+
+Additional documentation and guides are available in the [`docs/`](docs/) directory:
+
+📚 **Available Guides:**
+- **[CPU Optimization Guide](docs/CPU_OPTIMIZATION_GUIDE.md)** - Performance optimization for `TorchTrainer` on CPU
+  - 11 implemented optimizations for 2-3x speedup
+  - Best practices for batch size and multiprocessing
+  - Configuration examples and profiling tips
+
+For a complete list of available documentation, see [`docs/README.md`](docs/README.md).
 
 ---
 
