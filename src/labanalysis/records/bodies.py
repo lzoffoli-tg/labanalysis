@@ -382,7 +382,7 @@ class WholeBody(TimeseriesRecord):
         for prop in self._angular_measures:
             try:
                 df = getattr(self, prop).to_dataframe()
-                df.columns = pd.Index([prop + "_" + i] for i in df.columns)
+                df.columns = pd.Index([prop + "_" + i for i in df.columns])
                 out += [df]
             except Exception as exc:
                 continue
