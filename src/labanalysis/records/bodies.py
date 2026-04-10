@@ -867,7 +867,7 @@ class WholeBody(TimeseriesRecord):
             ankle_med: Point3D = self._get_point("left_ankle_medial")
             new_x = (ankle_lat - ankle_med).to_numpy()
         except Exception as e:
-            new_x = np.array([1, 0, 0])
+            new_x = np.ones(ankle.shape) * np.array([1, 0, 0])
         new_y = (knee - ankle).to_numpy()
         rmat = gram_schmidt(new_x, new_y).transpose((0, 2, 1))
         rmat = np.asarray(rmat, float)
@@ -894,7 +894,7 @@ class WholeBody(TimeseriesRecord):
             ankle_med: Point3D = self._get_point("right_ankle_medial")
             new_x = (ankle_med - ankle_lat).to_numpy()
         except Exception as e:
-            new_x = np.array([1, 0, 0])
+            new_x = np.ones(ankle.shape) * np.array([1, 0, 0])
         new_y = (knee - ankle).to_numpy()
         rmat = gram_schmidt(new_x, new_y).transpose((0, 2, 1))
         rmat = np.asarray(rmat, float)
