@@ -1115,14 +1115,32 @@ class WholeBody(TimeseriesRecord):
     @property
     def pelvis_height(self):
         pelvis_plane = self.pelvis_plane
-        l_troc = self._get_point("left_throcanter")
-        r_troc = self._get_point("right_throcanter")
-        l_dist = self._get_point_to_plane_distance(l_troc, pelvis_plane)
-        r_dist = self._get_point_to_plane_distance(r_troc, pelvis_plane)
-        return Signal1D(
-            data=(l_dist + r_dist).to_numpy() / 2,
-            index=pelvis_plane.index,
-            unit=l_dist.unit,
+        try:
+            l_height = self._get_point_to_plane_distance(
+                self._get_point("left_throcanter"),
+                pelvis_plane,
+            )
+        except Exception as l:
+            l_height = None
+        try:
+            r_height = self._get_point_to_plane_distance(
+                self._get_point("right_throcanter"),
+                pelvis_plane,
+            )
+        except Exception as r:
+            r_height = None
+        if l_height and r_height:
+            return Signal1D(
+                data=(l_height + r_height).to_numpy() / 2,
+                index=pelvis_plane.index,
+                unit=l_height.unit,
+            )
+        if l_height:
+            return l_height
+        if r_height:
+            return r_height
+        raise ValueError(
+            "pelvis height could not be calculated neither from left nor right side."
         )
 
     @property
