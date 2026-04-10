@@ -859,12 +859,15 @@ class WholeBody(TimeseriesRecord):
         the reference frame.
         """
         ankle_lat: Point3D = self._get_point("left_ankle_lateral")
-        ankle_med: Point3D = self._get_point("left_ankle_medial")
         ankle = self.left_ankle
         knee = self.left_knee
 
         # get the rotation matrix
-        new_x = (ankle_lat - ankle_med).to_numpy()
+        try:
+            ankle_med: Point3D = self._get_point("left_ankle_medial")
+            new_x = (ankle_lat - ankle_med).to_numpy()
+        except Exception as e:
+            new_x = np.array([1, 0, 0])
         new_y = (knee - ankle).to_numpy()
         rmat = gram_schmidt(new_x, new_y).transpose((0, 2, 1))
         rmat = np.asarray(rmat, float)
@@ -883,12 +886,15 @@ class WholeBody(TimeseriesRecord):
         the reference frame.
         """
         ankle_lat: Point3D = self._get_point("right_ankle_lateral")
-        ankle_med: Point3D = self._get_point("right_ankle_medial")
         ankle = self.right_ankle
         knee = self.right_knee
 
         # get the rotation matrix
-        new_x = (ankle_med - ankle_lat).to_numpy()
+        try:
+            ankle_med: Point3D = self._get_point("right_ankle_medial")
+            new_x = (ankle_med - ankle_lat).to_numpy()
+        except Exception as e:
+            new_x = np.array([1, 0, 0])
         new_y = (knee - ankle).to_numpy()
         rmat = gram_schmidt(new_x, new_y).transpose((0, 2, 1))
         rmat = np.asarray(rmat, float)
