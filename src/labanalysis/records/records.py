@@ -53,7 +53,7 @@ class Record:
         Reset the time index to start at zero for all contained objects.
     apply(func, axis=0, inplace=False, *args, **kwargs)
         Apply a function or ProcessingPipeline to all contained objects.
-    fillna(value=None, n_regressors=None, inplace=False)
+    fillna(value=None, regressors=None, inplace=False)
         Fill NaNs for all contained objects.
     to_dataframe()
         Convert the record to a pandas DataFrame with MultiIndex columns.
@@ -277,7 +277,7 @@ class Record:
                 v.index = v.index - t0
             return out
 
-    def fillna(self, value=None, n_regressors=None, inplace=False):
+    def fillna(self, value=None, regressors=None, inplace=False):
         """
         Return a copy with NaNs replaced by the specified value or using
         advanced imputation for all contained objects.
@@ -286,15 +286,17 @@ class Record:
         ----------
         value : float or int or None, optional
             Value to use for NaNs. If None, use interpolation or regression.
-        n_regressors : int or None, optional
-            Number of regressors to use for regression-based imputation.
-            If None, use cubic spline interpolation.
+        regressors : np.ndarray or pd.DataFrame or pd.Series or None, optional
+            Independent variables for multiple linear regression imputation.
+            If provided, missing values are predicted using linear regression
+            with these regressors as predictors. If None, cubic spline
+            interpolation is applied to each column independently.
         inplace : bool, optional
             If True, fill in place. If False, return a new object.
 
         Returns
         -------
-        TimeseriesRecord
+        Record
             Filled record.
         """
 
@@ -321,7 +323,7 @@ class Record:
         vals = sp_fillna(
             self.to_dataframe(),
             value,
-            n_regressors,
+            regressors,
             False,
         )
         vals = np.asarray(vals, float)
@@ -862,7 +864,7 @@ class TimeseriesRecord(Record):
         Reset the time index to start at zero for all contained objects.
     apply(func, axis=0, inplace=False, *args, **kwargs)
         Apply a function or ProcessingPipeline to all contained objects.
-    fillna(value=None, n_regressors=None, inplace=False)
+    fillna(value=None, regressors=None, inplace=False)
         Fill NaNs for all contained objects.
     to_dataframe()
         Convert the record to a pandas DataFrame with MultiIndex columns.

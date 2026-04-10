@@ -263,10 +263,18 @@ peaks = laban.find_peaks(
 velocity = laban.winter_derivative1(signal, freq=100)
 acceleration = laban.winter_derivative2(signal, freq=100)
 
-# Fill missing data
-signal_with_gaps = signal.copy()
-signal_with_gaps[100:120] = np.nan
-filled_signal = laban.fillna(signal_with_gaps, method='cubic')
+# Fill missing data with interpolation (cubic spline)
+from labanalysis import Signal1D
+signal_with_gaps = Signal1D(signal.copy(), time, 'V')
+signal_with_gaps._data[100:120] = np.nan
+filled_signal = signal_with_gaps.fillna()  # Default: cubic spline interpolation
+
+# Or fill with constant value
+filled_constant = signal_with_gaps.fillna(value=0.0)
+
+# Or fill with regression using regressors
+regressors = np.column_stack([time, time**2])  # Example regressors
+filled_regression = signal_with_gaps.fillna(regressors=regressors)
 ```
 
 ### Working with Records
@@ -406,7 +414,6 @@ Comprehensive signal processing utilities.
 - `crossings()`: Zero-crossing detection
 - `xcorr()`: Cross-correlation
 - `psd()`: Power spectral density
-- `fillna()`: Missing data interpolation
 - `to_reference_frame()`: 3D coordinate transformations
 
 #### `labanalysis.utils`
@@ -434,7 +441,7 @@ Core data structure classes for representing laboratory measurements.
 - `.from_tdf()`: Load from BTS TDF files
 - `.to_dataframe()`: Convert to pandas DataFrame
 - `.apply()`: Apply functions to all signals
-- `.fillna()`: Handle missing data
+- `.fillna(value=None, regressors=None, inplace=False)`: Handle missing data via constant value, cubic spline interpolation, or multiple linear regression
 - `.strip()`, `.reset_time()`: Data cleaning
 
 ### I/O Operations
@@ -596,6 +603,6 @@ This package integrates and builds upon several excellent open-source libraries:
 
 ---
 
-**Version**: 182  
+**Version**: 187  
 **Python**: ≥ 3.12  
 **Last Updated**: April 2026

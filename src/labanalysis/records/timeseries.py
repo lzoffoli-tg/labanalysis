@@ -281,14 +281,17 @@ class Timeseries:
         ----------
         value : float or int or None, optional
             Value to use for NaNs. If None, use interpolation or regression.
-        n_regressors : int or None, optional
-            Number of regressors to use for regression-based imputation. If None, use cubic spline interpolation.
+        regressors : np.ndarray or pd.DataFrame or pd.Series or None, optional
+            Independent variables for multiple linear regression imputation.
+            If provided, missing values are predicted using linear regression
+            with these regressors as predictors. If None, cubic spline
+            interpolation is applied to each column independently.
         inplace : bool, optional
             If True, fill in place. If False, return a new object.
 
         Returns
         -------
-        LabeledArray
+        Timeseries
             Filled object.
         """
         if not isinstance(inplace, bool):
