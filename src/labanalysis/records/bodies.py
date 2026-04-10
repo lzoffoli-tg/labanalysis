@@ -1024,42 +1024,54 @@ class WholeBody(TimeseriesRecord):
     @property
     def left_ankle(self):
         lat: Point3D = self._get_point("left_ankle_lateral")
-        med: Point3D = self._get_point("left_ankle_medial")
-        return Point3D(
-            data=(lat._data + med._data) / 2,
-            index=np.unique(np.concatenate([lat.index, med.index])),
-            columns=lat.columns,
-        )
+        try:
+            med: Point3D = self._get_point("left_ankle_medial")
+            return Point3D(
+                data=(lat._data + med._data) / 2,
+                index=np.unique(np.concatenate([lat.index, med.index])),
+                columns=lat.columns,
+            )
+        except Exception as e:
+            return lat
 
     @property
     def right_ankle(self):
         lat: Point3D = self._get_point("right_ankle_lateral")
-        med: Point3D = self._get_point("right_ankle_medial")
-        return Point3D(
-            data=(lat._data + med._data) / 2,
-            index=np.unique(np.concatenate([lat.index, med.index])),
-            columns=lat.columns,
-        )
+        try:
+            med: Point3D = self._get_point("right_ankle_medial")
+            return Point3D(
+                data=(lat._data + med._data) / 2,
+                index=np.unique(np.concatenate([lat.index, med.index])),
+                columns=lat.columns,
+            )
+        except Exception as e:
+            return lat
 
     @property
     def left_knee(self):
         lat: Point3D = self._get_point("left_knee_lateral")
-        med: Point3D = self._get_point("left_knee_medial")
-        return Point3D(
-            data=(lat._data + med._data) / 2,
-            index=np.unique(np.concatenate([lat.index, med.index])),
-            columns=lat.columns,
-        )
+        try:
+            med: Point3D = self._get_point("left_knee_medial")
+            return Point3D(
+                data=(lat._data + med._data) / 2,
+                index=np.unique(np.concatenate([lat.index, med.index])),
+                columns=lat.columns,
+            )
+        except Exception as e:
+            return lat
 
     @property
     def right_knee(self):
         lat: Point3D = self._get_point("right_knee_lateral")
-        med: Point3D = self._get_point("right_knee_medial")
-        return Point3D(
-            data=(lat._data + med._data) / 2,
-            index=np.unique(np.concatenate([lat.index, med.index])),
-            columns=lat.columns,
-        )
+        try:
+            med: Point3D = self._get_point("right_knee_medial")
+            return Point3D(
+                data=(lat._data + med._data) / 2,
+                index=np.unique(np.concatenate([lat.index, med.index])),
+                columns=lat.columns,
+            )
+        except Exception as e:
+            return lat
 
     @property
     def pelvis_center(self):
@@ -1174,42 +1186,54 @@ class WholeBody(TimeseriesRecord):
     @property
     def left_elbow(self):
         lat: Point3D = self._get_point("left_elbow_lateral")
-        med: Point3D = self._get_point("left_elbow_medial")
-        return Point3D(
-            (lat + med).to_numpy() / 2,
-            index=np.unique(np.concatenate([lat.index, med.index])).tolist(),
-            columns=lat.columns,
-        )
+        try:
+            med: Point3D = self._get_point("left_elbow_medial")
+            return Point3D(
+                (lat + med).to_numpy() / 2,
+                index=np.unique(np.concatenate([lat.index, med.index])).tolist(),
+                columns=lat.columns,
+            )
+        except Exception as e:
+            return lat
 
     @property
     def right_elbow(self):
         lat: Point3D = self._get_point("right_elbow_lateral")
-        med: Point3D = self._get_point("right_elbow_medial")
-        return Point3D(
-            (lat + med).to_numpy() / 2,
-            index=np.unique(np.concatenate([lat.index, med.index])),
-            columns=lat.columns,
-        )
+        try:
+            med: Point3D = self._get_point("right_elbow_medial")
+            return Point3D(
+                (lat + med).to_numpy() / 2,
+                index=np.unique(np.concatenate([lat.index, med.index])),
+                columns=lat.columns,
+            )
+        except Exception as e:
+            return lat
 
     @property
     def left_wrist(self):
         lat: Point3D = self._get_point("left_wrist_lateral")
-        med: Point3D = self._get_point("left_wrist_medial")
-        return Point3D(
-            (lat + med).to_numpy() / 2,
-            index=np.unique(np.concatenate([lat.index, med.index])),
-            columns=lat.columns,
-        )
+        try:
+            med: Point3D = self._get_point("left_wrist_medial")
+            return Point3D(
+                (lat + med).to_numpy() / 2,
+                index=np.unique(np.concatenate([lat.index, med.index])),
+                columns=lat.columns,
+            )
+        except Exception as e:
+            return lat
 
     @property
     def right_wrist(self):
         lat: Point3D = self._get_point("right_wrist_lateral")
-        med: Point3D = self._get_point("right_wrist_medial")
-        return Point3D(
-            (lat + med).to_numpy() / 2,
-            index=np.unique(np.concatenate([lat.index, med.index])),
-            columns=lat.columns,
-        )
+        try:
+            med: Point3D = self._get_point("right_wrist_medial")
+            return Point3D(
+                (lat + med).to_numpy() / 2,
+                index=np.unique(np.concatenate([lat.index, med.index])),
+                columns=lat.columns,
+            )
+        except Exception as e:
+            return lat
 
     @property
     def left_foot_plane(self):
