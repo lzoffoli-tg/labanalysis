@@ -807,9 +807,15 @@ class Timeseries:
         if isinstance(key, slice):
             return self._view(key, None)
 
-        # single column name
-        if isinstance(key, str) and key in self.columns:
-            return self._view(None, [key])
+        # single string key: check columns first, then attributes
+        if isinstance(key, str):
+            if key in self.columns:
+                return self._view(None, [key])
+            # Altrimenti prova come property/attributo
+            elif hasattr(self, key):
+                return getattr(self, key)
+            else:
+                raise KeyError(f"'{key}' not found in columns or as attribute")
 
         # single row index
         if isinstance(key, (int, float)):

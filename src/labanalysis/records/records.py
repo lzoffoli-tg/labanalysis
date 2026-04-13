@@ -100,11 +100,18 @@ class Record:
         return view_obj
 
     def __getitem__(self, key):
-        if key in self.keys():
-            if hasattr(self, key):
+        # Se è una stringa, controlla sia in _data che come attributo/property
+        if isinstance(key, str):
+            # Prima controlla in _data
+            if key in self.keys():
+                return self._data[key]
+            # Altrimenti prova come property/attributo
+            elif hasattr(self, key):
                 return getattr(self, key)
             else:
-                return self._data[key]
+                raise KeyError(f"'{key}' not found in _data or as attribute")
+        elif key in self.keys():
+            return self._data[key]
         elif isinstance(key, (slice, np.ndarray, list)):
             return self._view(key)
         elif isinstance(key, (int, float)):
