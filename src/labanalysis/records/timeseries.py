@@ -543,7 +543,32 @@ class Timeseries:
                 pass
 
         # Extract data and prepare for view creation
-        view_data = self._data[row_mask, :][:, col_mask]
+        # Convert boolean masks to index arrays to ensure numpy creates a view, not a copy
+        if isinstance(row_mask, np.ndarray) and row_mask.dtype == bool:
+            row_indices = np.where(row_mask)[0]
+        elif isinstance(row_mask, slice):
+            row_indices = row_mask
+        else:
+            row_indices = row_mask
+
+        if isinstance(col_mask, np.ndarray) and col_mask.dtype == bool:
+            col_indices = np.where(col_mask)[0]
+        elif isinstance(col_mask, slice):
+            col_indices = col_mask
+        else:
+            col_indices = col_mask
+
+        # Use np.ix_ for proper view creation when both are arrays
+        if isinstance(row_indices, np.ndarray) and isinstance(col_indices, np.ndarray):
+            view_data = self._data[np.ix_(row_indices, col_indices)]
+        elif isinstance(row_indices, slice) and isinstance(col_indices, np.ndarray):
+            view_data = self._data[row_indices, col_indices]
+        elif isinstance(row_indices, np.ndarray) and isinstance(col_indices, slice):
+            view_data = self._data[row_indices, col_indices]
+        else:
+            # Both are slices
+            view_data = self._data[row_indices, col_indices]
+
         view_index = self.index[row_mask]
         view_columns = self.columns[col_mask]
 
