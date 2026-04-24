@@ -1380,14 +1380,10 @@ def fillna(
         # Handle 1D arrays by reshaping to 2D
         if arr.ndim == 1:
             arr_reshaped = arr.reshape(-1, 1)
-            is_1d = True
         else:
             arr_reshaped = arr
-            is_1d = False
         cols = [f"Y{i}" for i in np.arange(arr_reshaped.shape[1])]
         obj = DataFrame(arr_reshaped, columns=cols, copy=True)
-    else:
-        is_1d = False
     elif isinstance(arr, Series):
         cols = ["Y"]
         obj = DataFrame(arr, columns=cols, copy=True).T
@@ -1409,15 +1405,18 @@ def fillna(
         if isinstance(arr, np.ndarray):
             if inplace:
                 arr[:] = out
+                return None
             else:
                 return out
         if isinstance(arr, Series):
             if inplace:
                 arr.loc[:] = out
+                return None
             else:
                 return obj
         if inplace:
             arr.loc[:, :] = out  # type: ignore
+            return None
         else:
             return obj
 
@@ -1426,13 +1425,13 @@ def fillna(
         if isinstance(regressors, np.ndarray):
             if regressors.ndim == 1:
                 cols = ["X"]
-                regressors = DataFrame(np.at_least2d(regressors).T, columns=cols)
+                regressors = DataFrame(np.atleast_2d(regressors).T, columns=cols)
             else:
                 cols = [f"X{i}" for i in np.arange(regressors.shape[1])]
                 regressors = DataFrame(regressors, columns=cols)
         elif isinstance(regressors, Series):
             cols = ["X"]
-            regressors = DataFrame(np.at_least2d(regressors.values).T, columns=cols)
+            regressors = DataFrame(np.atleast_2d(regressors.values).T, columns=cols)
         xmat = concat([obj, regressors], axis=1)
 
         # predict the missing values via linear regression over each column
@@ -1443,9 +1442,11 @@ def fillna(
             # the regression model and those samples that can be predicted
             # with that model
             to_remove = [k for k in obj.columns if k != ycol]
-            new_mat = xmat.drop(to_remove, axis = 1).copy()
+            new_mat = xmat.drop(to_remove, axis=1).copy()
             i_old = new_mat.dropna().index
-            i_new = new_mat.loc[new_mat[ycol].isna() & new_mat[xcols].notna().all(axis=1)].index
+            i_new = new_mat.loc[
+                new_mat[ycol].isna() & new_mat[xcols].notna().all(axis=1)
+            ].index
 
             # if there are enough valid samples get the predictions and replace
             # the missing data
@@ -1469,15 +1470,18 @@ def fillna(
     if isinstance(arr, np.ndarray):
         if inplace:
             arr[:] = out
+            return None
         else:
             return out
     if isinstance(arr, Series):
         if inplace:
             arr.loc[:] = out
+            return None
         else:
             return obj
     if inplace:
         arr.loc[:, :] = out  # type: ignore
+        return None
     else:
         return obj
 

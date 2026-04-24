@@ -326,7 +326,7 @@ class PolynomialRegression(BaseRegression):
         X = self._simplify(xarr).map(self.transform)
         X = self._adjust_degree(X)
         return pd.DataFrame(
-            data=super().predict(X.values),
+            data=super().predict(X),
             columns=self.get_feature_names_out(),
             index=X.index,
         )
