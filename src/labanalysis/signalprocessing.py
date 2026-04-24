@@ -1372,9 +1372,22 @@ def fillna(
         raise TypeError(
             "'arr' must be a numpy.ndarray a pandas.DataFrame or a pandas.Series."
         )
+
+    # Store original shape for later
+    original_shape = arr.shape
+
     if isinstance(arr, np.ndarray):
-        cols = [f"Y{i}" for i in np.arange(arr.shape[1])]
-        obj = DataFrame(arr, columns=cols, copy=True)
+        # Handle 1D arrays by reshaping to 2D
+        if arr.ndim == 1:
+            arr_reshaped = arr.reshape(-1, 1)
+            is_1d = True
+        else:
+            arr_reshaped = arr
+            is_1d = False
+        cols = [f"Y{i}" for i in np.arange(arr_reshaped.shape[1])]
+        obj = DataFrame(arr_reshaped, columns=cols, copy=True)
+    else:
+        is_1d = False
     elif isinstance(arr, Series):
         cols = ["Y"]
         obj = DataFrame(arr, columns=cols, copy=True).T
@@ -1392,7 +1405,7 @@ def fillna(
     # fill with the given value
     if value is not None:
         obj.iloc[miss] = value
-        out = obj.values.astype(float).reshape(arr.shape)
+        out = obj.values.astype(float).reshape(original_shape)
         if isinstance(arr, np.ndarray):
             if inplace:
                 arr[:] = out
@@ -1452,7 +1465,7 @@ def fillna(
             obj.iloc[x_new, i] = CubicSpline(x_old, y_old)(x_new).astype(float)
 
     # return the filled array
-    out = obj.values.astype(float).reshape(arr.shape)
+    out = obj.values.astype(float).reshape(original_shape)
     if isinstance(arr, np.ndarray):
         if inplace:
             arr[:] = out
