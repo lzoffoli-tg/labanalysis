@@ -662,13 +662,12 @@ def fir_filt(
         pass_zero=ftype,  # type: ignore
         fs=fsamp,
     )
-    val = arr[0] if pstyle == "constant" else 0
-    padded = np.pad(
-        arr,
-        pad_width=(2 * order - 1, 0),
-        mode=pstyle,
-        constant_values=val,
-    )
+    # Prepare padding parameters based on mode
+    pad_kwargs = {"mode": pstyle, "pad_width": (2 * order - 1, 0)}
+    if pstyle == "constant":
+        pad_kwargs["constant_values"] = arr[0]
+
+    padded = np.pad(arr, **pad_kwargs)
     avg = np.mean(padded)
     out = signal.lfilter(coefs, 1.0, padded - avg)[(2 * order - 1) :]
     return np.array(out).flatten().astype(float) + avg
@@ -1002,7 +1001,7 @@ def crossovers(
         xaxis = np.arange(len(arr))
     else:
         xaxis = x
-    xaxis = np.asarray(x)
+    xaxis = np.asarray(xaxis)
 
     # get all the possible combinations of segments
     combs = []
@@ -1386,7 +1385,7 @@ def fillna(
         obj = DataFrame(arr_reshaped, columns=cols, copy=True)
     elif isinstance(arr, Series):
         cols = ["Y"]
-        obj = DataFrame(arr, columns=cols, copy=True).T
+        obj = DataFrame(arr, columns=cols, copy=True)
     else:
         obj = arr if inplace else arr.copy().astype(float)
     miss = np.isnan(obj.values)
@@ -1431,7 +1430,7 @@ def fillna(
                 regressors = DataFrame(regressors, columns=cols)
         elif isinstance(regressors, Series):
             cols = ["X"]
-            regressors = DataFrame(np.atleast_2d(regressors.values).T, columns=cols)
+            regressors = DataFrame(np.atleast_2d(regressors.to_numpy()).T, columns=cols)
         xmat = concat([obj, regressors], axis=1)
 
         # predict the missing values via linear regression over each column
@@ -1561,7 +1560,14 @@ def to_reference_frame(
     ax3 = _validate_array(axis3)
 
     # create the rotation matrix
-    rmat = Rotation.from_matrix(gram_schmidt(ax1, ax2, ax3))
+    # gram_schmidt expects (N, 3) arrays, so reshape 1D axes to (1, 3)
+    rmat_array = gram_schmidt(
+        ax1.reshape(1, 3),
+        ax2.reshape(1, 3),
+        ax3.reshape(1, 3)
+    )
+    # Extract the single rotation matrix from shape (1, 3, 3)
+    rmat = Rotation.from_matrix(rmat_array[0])
 
     # apply
     rotated = rmat.apply(dfr.values - ori).astype(float)
