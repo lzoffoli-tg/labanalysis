@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "labanalysis"
-version = "196"
+version = "197"
 description = "A small package to simplify data processing in python."
 authors = [{ name = "Luca Zoffoli", email = "lzoffoli@technogym.com" }]
 requires-python = ">=3.12"
@@ -30,3 +30,11 @@ readme = "README.md"
 [project.urls]
 "Homepage" = "https://github.com/lzoffoli-tg/labanalysis"
 "Bug Tracker" = "https://github.com/lzoffoli-tg/labanalysis/issues"
+
+[tool.setuptools]
+# Include only src directory in distribution (exclude test, docs, etc.)
+packages = {find = {where = ["src"]}}
+
+[tool.setuptools.package-data]
+# Optionally include specific file patterns if needed
+"*" = ["*.txt", "*.md"]
