@@ -183,15 +183,31 @@ class Timeseries:
         out = self if inplace else self.copy()
         if axis is None or axis == 0:
             index = out.to_dataframe().dropna(how="all", axis=0).index.to_numpy()
-            start = float(np.min(index))
-            stop = float(np.max(index))
-            out = out[start:stop]
+            if len(index) > 0:
+                start = float(np.min(index))
+                stop = float(np.max(index))
+                if inplace:
+                    # For inplace, use loc method which modifies internal state
+                    temp = out.loc(start, stop, False)
+                    out._data = temp._data
+                    out.index = temp.index
+                else:
+                    out = out[start:stop]
+            # If index is empty (all rows are NaN), leave out unchanged
         if axis is None or axis == 1:
             cols = out.columns
             nonan_cols = out.to_dataframe().dropna(how="all", axis=1).columns.to_numpy()
             indices = [i for i, v in enumerate(out.columns) if v in nonan_cols]
-            indices = np.arange(np.min(indices), np.max(indices) + 1)
-            out = out[:, cols[indices]]
+            if len(indices) > 0:
+                indices = np.arange(np.min(indices), np.max(indices) + 1)
+                if inplace:
+                    # For inplace, modify internal attributes
+                    temp = out[:, cols[indices]]
+                    out._data = temp._data
+                    out.columns = temp.columns
+                else:
+                    out = out[:, cols[indices]]
+            # If indices is empty (all columns are NaN), leave out unchanged
         if not inplace:
             return out
 

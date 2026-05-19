@@ -47,8 +47,10 @@ class Record:
     -------
     copy()
         Return a deep copy of the TimeseriesRecord.
-    strip(axis=0, inplace=False)
+    strip(axis=0, inplace=False, independent=False)
         Remove leading/trailing rows or columns that are all NaN from all contained objects.
+        When independent=False (default), all elements share a common timeframe based on
+        the union of non-NaN time points.
     reset_time(inplace=False)
         Reset the time index to start at zero for all contained objects.
     apply(func, axis=0, inplace=False, *args, **kwargs)
@@ -225,29 +227,105 @@ class Record:
         """
         return Record(**{i: v.copy() for i, v in self._data.items()})
 
-    def strip(self, axis: int | None = None, inplace: bool = False):
+    def strip(self, axis: int | None = None, inplace: bool = False, independent: bool = False):
         """
         Remove leading/trailing rows or columns that are all NaN from all
         contained Timeseries-like objects.
 
         Parameters
         ----------
+        axis : int or None, optional
+            If 0, strip rows (time axis). If 1, strip columns. If None, strip both
+            (default None).
         inplace : bool, optional
-            If True, modifies in place. If False, returns a new TimeseriesRecord.
+            If True, modifies in place. If False, returns a new Record (default False).
+        independent : bool, optional
+            Controls whether elements are stripped independently or share a common
+            timeframe (default False).
+
+            - If True: Each element is stripped based on its own non-NaN values,
+              potentially resulting in different timeframes per element (original behavior).
+            - If False: All elements share a common timeframe from the first time index
+              where at least one element has a non-NaN value to the last time index
+              where at least one element has a non-NaN value. This ensures all elements
+              span the same time period after stripping.
+
+            Note: When axis=1 (column stripping), this parameter has no effect as
+            columns are always stripped independently per element.
 
         Returns
         -------
-        TimeseriesRecord or None
-            Stripped TimeseriesRecord if inplace is False, otherwise None.
+        Record or None
+            Stripped Record if inplace is False, otherwise None. When independent=False,
+            all elements will have identical time index ranges after stripping.
+
+        Examples
+        --------
+        >>> import labanalysis as laban
+        >>> import numpy as np
+        >>> # Create two signals with different NaN patterns
+        >>> data_a = np.array([np.nan, 1.0, 2.0, 3.0, np.nan])
+        >>> data_b = np.array([1.0, np.nan, 2.0, np.nan, 3.0])
+        >>> sig_a = laban.Signal1D(data_a, index=[0, 1, 2, 3, 4], unit="m")
+        >>> sig_b = laban.Signal1D(data_b, index=[0, 1, 2, 3, 4], unit="m")
+        >>> rec = laban.Record(signal_a=sig_a, signal_b=sig_b)
+        >>>
+        >>> # Independent stripping (each element has own timeframe)
+        >>> rec_ind = rec.strip(independent=True)
+        >>> rec_ind['signal_a'].index  # [1, 2, 3]
+        >>> rec_ind['signal_b'].index  # [0, 2, 4]
+        >>>
+        >>> # Shared timeframe stripping (all elements share timeframe)
+        >>> rec_shared = rec.strip(independent=False)
+        >>> rec_shared['signal_a'].index  # [0, 1, 2, 3, 4]
+        >>> rec_shared['signal_b'].index  # [0, 1, 2, 3, 4]
         """
         if not isinstance(inplace, bool):
             raise ValueError("inplace must be True or False")
         if axis is not None:
             if not isinstance(axis, int) or axis not in [0, 1]:
                 raise ValueError("axis must be None or 0 or 1")
+        if not isinstance(independent, bool):
+            raise ValueError("independent must be True or False")
+
         out = self if inplace else self.copy()
-        for key in out.keys():
-            out[key].strip(axis=axis, inplace=True)
+
+        # Handle column stripping (axis=1) - always independent
+        if axis == 1:
+            for key in out.keys():
+                out[key].strip(axis=1, inplace=True)
+            if not inplace:
+                return out
+
+        # Handle row/time stripping (axis=0 or axis=None)
+        if independent:
+            # Original behavior: each element stripped independently
+            for key in out.keys():
+                out[key].strip(axis=axis, inplace=True)
+        else:
+            # New behavior: shared timeframe across all elements
+            if len(out._data) > 0:
+                # Combine all elements into single DataFrame
+                combined_df = out.to_dataframe()
+
+                # Find rows where at least one element has non-NaN value
+                non_empty_rows = combined_df.dropna(how="all", axis=0)
+
+                if len(non_empty_rows) > 0:
+                    # Extract shared timeframe boundaries
+                    shared_index = non_empty_rows.index.to_numpy()
+                    start = float(np.min(shared_index))
+                    stop = float(np.max(shared_index))
+
+                    # Apply shared timeframe to each element
+                    for key in out.keys():
+                        out._data[key] = out._data[key].loc(start, stop, False)
+
+                    # Handle column stripping if axis=None
+                    if axis is None:
+                        for key in out.keys():
+                            out[key].strip(axis=1, inplace=True)
+
         if not inplace:
             return out
 
@@ -422,6 +500,10 @@ class ForcePlatform(Record):
     -------
     copy()
         Return a deep copy of the ForcePlatform.
+    strip(axis=0, inplace=False, independent=False)
+        Remove leading/trailing rows or columns that are all NaN from all
+        contained objects. When independent=False (default), all elements share
+        a common timeframe based on the union of non-NaN time points.
     """
 
     @property
@@ -864,9 +946,10 @@ class TimeseriesRecord(Record):
     -------
     copy()
         Return a deep copy of the TimeseriesRecord.
-    strip(axis=0, inplace=False)
+    strip(axis=0, inplace=False, independent=False)
         Remove leading/trailing rows or columns that are all NaN from all
-        contained objects.
+        contained objects. When independent=False (default), all elements share
+        a common timeframe based on the union of non-NaN time points.
     reset_time(inplace=False)
         Reset the time index to start at zero for all contained objects.
     apply(func, axis=0, inplace=False, *args, **kwargs)
