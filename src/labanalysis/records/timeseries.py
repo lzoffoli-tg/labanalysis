@@ -439,7 +439,7 @@ class Timeseries:
             True if all data is NaN, False otherwise.
         """
         return bool(np.all(np.isnan(self._data)) or self._data.size == 0)
-    
+
     def _get_object_args(self, attr_map=None):
         """
         Extracts constructor arguments and internal attributes from the current
@@ -1230,7 +1230,7 @@ class Signal3D(Timeseries):
         if o.shape[0] == 1:
             o = np.ones(self.shape) * o
         rmat = gram_schmidt(i, j, k)
-        # rmat = rmat.transpose([0, 2, 1])
+        rmat = rmat.transpose([0, 2, 1])
         new = np.einsum("nij,nj->ni", rmat, self._data.copy() - o)
         out = self if inplace else self.copy()
         out[:, :] = new
