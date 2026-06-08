@@ -31,6 +31,14 @@ readme = "README.md"
 "Homepage" = "https://github.com/lzoffoli-tg/labanalysis"
 "Bug Tracker" = "https://github.com/lzoffoli-tg/labanalysis/issues"
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "pytest-xdist>=3.0",
+    "pytest-timeout>=2.0",
+]
+
 [tool.setuptools]
 # Include only src directory in distribution (exclude test, docs, etc.)
 packages = {find = {where = ["src"]}}

@@ -162,8 +162,11 @@ cython_debug/
 # vscode
 *.code-workspace
 __pycache__
-.*
 
-# Test folder (too large for GitHub)
-test/
-test/*
+# IDE and editor temp files (keep specific patterns, not .*)
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store

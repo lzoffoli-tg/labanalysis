@@ -1,0 +1,6 @@
+# Ignore large TDF files (GitHub has 100MB limit per file)
+# For running tests locally, place your TDF files here
+*.tdf
+
+# Allow small example files if needed
+# !small_example.tdf

@@ -68,13 +68,23 @@
 pip install git+https://github.com/lzoffoli-tg/labanalysis.git
 ```
 
-### Install in Development Mode
+### Install in Development Mode (with Tests)
+
+For development work or running tests, install with the `[dev]` extra:
 
 ```bash
 git clone https://github.com/lzoffoli-tg/labanalysis.git
 cd labanalysis
-pip install -e .
+pip install -e ".[dev]"
 ```
+
+This installs additional dependencies for testing:
+- `pytest` - Testing framework
+- `pytest-cov` - Coverage reporting
+- `pytest-xdist` - Parallel test execution
+- `pytest-timeout` - Test timeouts
+
+**Note**: The `test/` directory is excluded from standard package installations and is only available when cloning the repository.
 
 ### Dependencies
 
@@ -547,16 +557,33 @@ This is a proprietary package maintained by Technogym Scientific Research. Inter
 
 ### Running Tests
 
+The test suite is comprehensive but **only available in development mode**. Tests are not included when installing the package with `pip install`.
+
 ```bash
-# Install development dependencies
-pip install pytest pytest-cov
+# Install in development mode first
+pip install -e ".[dev]"
 
-# Run tests
-pytest tests/
+# Run all tests
+pytest test/
 
-# Run with coverage
-pytest --cov=labanalysis tests/
+# Run specific test module
+pytest test/test_runningexercise.py -v
+
+# Run tests in parallel (faster)
+pytest test/ -n auto
+
+# Run with coverage report
+pytest test/ --cov=labanalysis --cov-report=html
 ```
+
+For detailed information about the test suite, see [`test/README.md`](test/README.md).
+
+**Key Test Modules:**
+- `test_runningexercise.py` - Comprehensive RunningExercise tests (30+ test cases)
+- `test_jumps.py` - Jump test protocols
+- `test_balance.py` - Balance and posture tests
+- `test_strengthtests.py` - Strength assessment tests
+- And many more...
 
 ### Building Documentation
 
