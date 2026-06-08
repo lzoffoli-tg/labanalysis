@@ -75,10 +75,14 @@ class WholeBody(TimeseriesRecord):
         Left anterior shoulder marker.
     left_shoulder_posterior : Point3D, optional
         Left posterior shoulder marker.
+    left_acromion : Point3D, optional
+        Left acromion.
     right_shoulder_anterior : Point3D, optional
         Right anterior shoulder marker.
     right_shoulder_posterior : Point3D, optional
         Right posterior shoulder marker.
+    right_acromion : Point3D, optional
+        Right acromion.
     left_elbow_medial : Point3D, optional
         Left medial epicondyle marker.
     left_elbow_lateral : Point3D, optional
@@ -113,8 +117,11 @@ class WholeBody(TimeseriesRecord):
 
     Notes
     -----
-    - Joint centers (ankle, knee, hip, shoulder, elbow, wrist) are calculated
+    - Joint centers (ankle, knee, elbow, wrist) are calculated
       as midpoints between medial and lateral markers
+    - Shoulder joint centers are calculated as midpoints between anterior and
+      posterior markers (if available). Otherwise De Leva (1996) regression
+      equations are used (if left and right acromion are available)
     - Hip joint centers use De Leva (1996) regression equations
     - Joint angles follow standard biomechanical conventions (flexion/extension,
       abduction/adduction, internal/external rotation)
@@ -196,8 +203,10 @@ class WholeBody(TimeseriesRecord):
         right_psis: Point3D | None = None,
         left_shoulder_anterior: Point3D | None = None,
         left_shoulder_posterior: Point3D | None = None,
+        left_acromion: Point3D | None = None,
         right_shoulder_anterior: Point3D | None = None,
         right_shoulder_posterior: Point3D | None = None,
+        right_acromion: Point3D | None = None,
         left_elbow_medial: Point3D | None = None,
         left_elbow_lateral: Point3D | None = None,
         right_elbow_medial: Point3D | None = None,
@@ -241,8 +250,10 @@ class WholeBody(TimeseriesRecord):
                 right_psis=right_psis,
                 left_shoulder_anterior=left_shoulder_anterior,
                 left_shoulder_posterior=left_shoulder_posterior,
+                left_acromion=left_acromion,
                 right_shoulder_anterior=right_shoulder_anterior,
                 right_shoulder_posterior=right_shoulder_posterior,
+                right_acromion=right_acromion,
                 left_elbow_medial=left_elbow_medial,
                 left_elbow_lateral=left_elbow_lateral,
                 right_elbow_medial=right_elbow_medial,
@@ -290,8 +301,10 @@ class WholeBody(TimeseriesRecord):
         right_psis: str | None = None,
         left_shoulder_anterior: str | None = None,
         left_shoulder_posterior: str | None = None,
+        left_acromion: str | None = None,
         right_shoulder_anterior: str | None = None,
         right_shoulder_posterior: str | None = None,
+        right_acromion: str | None = None,
         left_elbow_medial: str | None = None,
         left_elbow_lateral: str | None = None,
         right_elbow_medial: str | None = None,
@@ -333,8 +346,10 @@ class WholeBody(TimeseriesRecord):
             "right_psis": right_psis,
             "left_shoulder_anterior": left_shoulder_anterior,
             "left_shoulder_posterior": left_shoulder_posterior,
+            "left_acromion": left_acromion,
             "right_shoulder_anterior": right_shoulder_anterior,
             "right_shoulder_posterior": right_shoulder_posterior,
+            "right_acromion": right_acromion,
             "left_elbow_medial": left_elbow_medial,
             "left_elbow_lateral": left_elbow_lateral,
             "right_elbow_medial": right_elbow_medial,
@@ -795,6 +810,72 @@ class WholeBody(TimeseriesRecord):
             point.columns,
         )
 
+    def _calculate_shoulder_from_acromion(
+        self, acromion: Point3D, side: str
+    ) -> Point3D:
+        """
+        Calculate shoulder joint center using De Leva (1996) regression from acromion.
+
+        Parameters
+        ----------
+        acromion : Point3D
+            Acromion marker position (left or right)
+        side : str
+            "left" or "right" to identify which elbow to use for length estimation
+
+        Returns
+        -------
+        Point3D
+            Estimated shoulder joint center position
+
+        Notes
+        -----
+        Uses De Leva (1996) regression with relative correction:
+        SJC is -12.25% of upper arm length proximal to acromion along
+        upper arm longitudinal axis.
+
+        This percentage is sex-independent and derived from De Leva's original data:
+        - Females: -33.7 mm / 275.1 mm = -12.25%
+        - Males: -34.5 mm / 281.7 mm = -12.25%
+        """
+        # Get reference points for direction calculation
+        c7 = self._get_point("c7")  # Cervical spine marker (trunk reference)
+        # Note: _get_point() will raise ValueError if c7 is missing
+
+        # Estimate upper arm length from acromion to elbow
+        # This approximates the acromion-to-radiale length used by De Leva
+        if side == "left":
+            elbow = self.left_elbow
+        elif side == "right":
+            elbow = self.right_elbow
+        else:
+            raise ValueError(f"Invalid side: {side}. Must be 'left' or 'right'")
+
+        upper_arm_vector = (elbow - acromion).to_numpy()
+        upper_arm_length = np.linalg.norm(upper_arm_vector, axis=1, keepdims=True)
+
+        # Calculate direction vector from acromion toward trunk (proximal direction)
+        direction = (c7 - acromion).to_numpy()
+        direction_normalized = direction / np.linalg.norm(
+            direction, axis=1, keepdims=True
+        )
+
+        # De Leva (1996) relative offset: -12.25% of upper arm length
+        # This is sex-independent when expressed as percentage
+        DELEVA_SHOULDER_COEFFICIENT = -0.1225
+        offset = upper_arm_length * DELEVA_SHOULDER_COEFFICIENT
+
+        # Apply offset along proximal direction
+        # offset is negative, so we move toward trunk
+        sjc_position = acromion.to_numpy() + offset * direction_normalized
+
+        return Point3D(
+            data=sjc_position,
+            index=acromion.index,
+            columns=acromion.columns,
+            unit=acromion.unit,
+        )
+
     def _get_angle_by_point_on_reference_frame_and_plane(
         self,
         point: Point3D,
@@ -1189,23 +1270,44 @@ class WholeBody(TimeseriesRecord):
 
     @property
     def left_shoulder(self):
-        ant: Point3D = self._get_point("left_shoulder_anterior")
-        pos: Point3D = self._get_point("left_shoulder_posterior")
-        return Point3D(
-            (ant + pos).to_numpy() / 2,
-            index=np.unique(np.concatenate([ant.index, pos.index])),
-            columns=ant.columns,
-        )
+        # Try primary method: midpoint of anterior and posterior markers
+        try:
+            ant: Point3D = self._get_point("left_shoulder_anterior")
+            pos: Point3D = self._get_point("left_shoulder_posterior")
+            return Point3D(
+                (ant + pos).to_numpy() / 2,
+                index=np.unique(np.concatenate([ant.index, pos.index])),
+                columns=ant.columns,
+            )
+        except Exception:
+            # Fallback: De Leva regression from acromion
+            try:
+                acr: Point3D = self._get_point("left_acromion")
+                return self._calculate_shoulder_from_acromion(
+                    acr,
+                    side="left",
+                )
+            except Exception:
+                raise ValueError("left_shoulder cannot be obtained")
 
     @property
     def right_shoulder(self):
-        ant: Point3D = self._get_point("right_shoulder_anterior")
-        pos: Point3D = self._get_point("right_shoulder_posterior")
-        return Point3D(
-            (ant + pos).to_numpy() / 2,
-            index=np.unique(np.concatenate([ant.index, pos.index])),
-            columns=ant.columns,
-        )
+        # Try primary method: midpoint of anterior and posterior markers
+        try:
+            ant: Point3D = self._get_point("right_shoulder_anterior")
+            pos: Point3D = self._get_point("right_shoulder_posterior")
+            return Point3D(
+                (ant + pos).to_numpy() / 2,
+                index=np.unique(np.concatenate([ant.index, pos.index])),
+                columns=ant.columns,
+            )
+        except Exception:
+            # Fallback: De Leva regression from acromion
+            try:
+                acr: Point3D = self._get_point("right_acromion")
+                return self._calculate_shoulder_from_acromion(acr, side="right")
+            except Exception:
+                raise ValueError("right_shoulder cannot be obtained")
 
     @property
     def left_elbow(self):
