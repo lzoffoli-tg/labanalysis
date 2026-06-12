@@ -84,8 +84,19 @@ class GaitObject(WholeBody):
         Left metatarsal head marker trajectory.
     right_metatarsal_head : Point3D or None, optional
         Right metatarsal head marker trajectory.
+    left_acromion : Point3D or None, optional
+        Left acromion marker (shoulder tip) trajectory.
+    right_acromion : Point3D or None, optional
+        Right acromion marker (shoulder tip) trajectory.
     **extra_signals : Signal1D, Signal3D, EMGSignal, Point3D, ForcePlatform
         Additional signals (e.g., joint angles, EMG channels, other markers).
+
+    Notes
+    -----
+    This class inherits all 42 anatomical markers from WholeBody (38 markers + 4 force platforms).
+    Only the most commonly used markers for gait analysis are listed above. See WholeBody
+    documentation for the complete list of available anatomical markers including ankle, knee,
+    hip, shoulder, elbow, wrist markers, and spinal markers (s2, l2, c7, sc).
 
     Attributes
     ----------
@@ -153,8 +164,10 @@ class GaitObject(WholeBody):
         right_psis: Point3D | None = None,
         left_shoulder_anterior: Point3D | None = None,
         left_shoulder_posterior: Point3D | None = None,
+        left_acromion: Point3D | None = None,
         right_shoulder_anterior: Point3D | None = None,
         right_shoulder_posterior: Point3D | None = None,
+        right_acromion: Point3D | None = None,
         left_elbow_medial: Point3D | None = None,
         left_elbow_lateral: Point3D | None = None,
         right_elbow_medial: Point3D | None = None,
@@ -230,8 +243,10 @@ class GaitObject(WholeBody):
                 right_psis=right_psis,
                 left_shoulder_anterior=left_shoulder_anterior,
                 left_shoulder_posterior=left_shoulder_posterior,
+                left_acromion=left_acromion,
                 right_shoulder_anterior=right_shoulder_anterior,
                 right_shoulder_posterior=right_shoulder_posterior,
+                right_acromion=right_acromion,
                 left_elbow_medial=left_elbow_medial,
                 left_elbow_lateral=left_elbow_lateral,
                 right_elbow_medial=right_elbow_medial,
@@ -462,8 +477,10 @@ class GaitCycle(GaitObject):
         right_psis: Point3D | None = None,
         left_shoulder_anterior: Point3D | None = None,
         left_shoulder_posterior: Point3D | None = None,
+        left_acromion: Point3D | None = None,
         right_shoulder_anterior: Point3D | None = None,
         right_shoulder_posterior: Point3D | None = None,
+        right_acromion: Point3D | None = None,
         left_elbow_medial: Point3D | None = None,
         left_elbow_lateral: Point3D | None = None,
         right_elbow_medial: Point3D | None = None,
@@ -542,8 +559,10 @@ class GaitCycle(GaitObject):
             right_psis=right_psis,
             left_shoulder_anterior=left_shoulder_anterior,
             left_shoulder_posterior=left_shoulder_posterior,
+            left_acromion=left_acromion,
             right_shoulder_anterior=right_shoulder_anterior,
             right_shoulder_posterior=right_shoulder_posterior,
+            right_acromion=right_acromion,
             left_elbow_medial=left_elbow_medial,
             left_elbow_lateral=left_elbow_lateral,
             right_elbow_medial=right_elbow_medial,
@@ -907,8 +926,10 @@ class GaitExercise(GaitObject):
         right_psis: Point3D | None = None,
         left_shoulder_anterior: Point3D | None = None,
         left_shoulder_posterior: Point3D | None = None,
+        left_acromion: Point3D | None = None,
         right_shoulder_anterior: Point3D | None = None,
         right_shoulder_posterior: Point3D | None = None,
+        right_acromion: Point3D | None = None,
         left_elbow_medial: Point3D | None = None,
         left_elbow_lateral: Point3D | None = None,
         right_elbow_medial: Point3D | None = None,
@@ -988,8 +1009,10 @@ class GaitExercise(GaitObject):
             right_psis=right_psis,
             left_shoulder_anterior=left_shoulder_anterior,
             left_shoulder_posterior=left_shoulder_posterior,
+            left_acromion=left_acromion,
             right_shoulder_anterior=right_shoulder_anterior,
             right_shoulder_posterior=right_shoulder_posterior,
+            right_acromion=right_acromion,
             left_elbow_medial=left_elbow_medial,
             left_elbow_lateral=left_elbow_lateral,
             right_elbow_medial=right_elbow_medial,
@@ -1038,8 +1061,10 @@ class GaitExercise(GaitObject):
         right_psis: str | None = None,
         left_shoulder_anterior: str | None = None,
         left_shoulder_posterior: str | None = None,
+        left_acromion: str | None = None,
         right_shoulder_anterior: str | None = None,
         right_shoulder_posterior: str | None = None,
+        right_acromion: str | None = None,
         left_elbow_medial: str | None = None,
         left_elbow_lateral: str | None = None,
         right_elbow_medial: str | None = None,
@@ -1120,8 +1145,10 @@ class GaitExercise(GaitObject):
             "right_psis": right_psis,
             "left_shoulder_anterior": left_shoulder_anterior,
             "left_shoulder_posterior": left_shoulder_posterior,
+            "left_acromion": left_acromion,
             "right_shoulder_anterior": right_shoulder_anterior,
             "right_shoulder_posterior": right_shoulder_posterior,
+            "right_acromion": right_acromion,
             "left_elbow_medial": left_elbow_medial,
             "left_elbow_lateral": left_elbow_lateral,
             "right_elbow_medial": right_elbow_medial,
@@ -1562,8 +1589,10 @@ class RunningStep(GaitCycle):
         right_psis: Point3D | None = None,
         left_shoulder_anterior: Point3D | None = None,
         left_shoulder_posterior: Point3D | None = None,
+        left_acromion: Point3D | None = None,
         right_shoulder_anterior: Point3D | None = None,
         right_shoulder_posterior: Point3D | None = None,
+        right_acromion: Point3D | None = None,
         left_elbow_medial: Point3D | None = None,
         left_elbow_lateral: Point3D | None = None,
         right_elbow_medial: Point3D | None = None,
@@ -1609,8 +1638,10 @@ class RunningStep(GaitCycle):
             right_psis=right_psis,
             left_shoulder_anterior=left_shoulder_anterior,
             left_shoulder_posterior=left_shoulder_posterior,
+            left_acromion=left_acromion,
             right_shoulder_anterior=right_shoulder_anterior,
             right_shoulder_posterior=right_shoulder_posterior,
+            right_acromion=right_acromion,
             left_elbow_medial=left_elbow_medial,
             left_elbow_lateral=left_elbow_lateral,
             right_elbow_medial=right_elbow_medial,
@@ -1699,9 +1730,7 @@ class RunningExercise(GaitExercise):
             # get the minimum reasonable contact time for each step
             time = obj.index
             fsamp = float(1 / np.mean(np.diff(time)))
-            frq, pwr = psd(arr, fsamp)
-            ffreq = frq[np.argmax(pwr)]
-            dsamples = int(round(fsamp / ffreq * 0.8))
+            dsamples = int(round(fsamp / 4))
 
             # get the peaks at each cycle
             pks = find_peaks(arr, 0.5, dsamples)
@@ -1853,8 +1882,10 @@ class RunningExercise(GaitExercise):
         right_psis: Point3D | None = None,
         left_shoulder_anterior: Point3D | None = None,
         left_shoulder_posterior: Point3D | None = None,
+        left_acromion: Point3D | None = None,
         right_shoulder_anterior: Point3D | None = None,
         right_shoulder_posterior: Point3D | None = None,
+        right_acromion: Point3D | None = None,
         left_elbow_medial: Point3D | None = None,
         left_elbow_lateral: Point3D | None = None,
         right_elbow_medial: Point3D | None = None,
@@ -1927,8 +1958,10 @@ class RunningExercise(GaitExercise):
             right_psis=right_psis,
             left_shoulder_anterior=left_shoulder_anterior,
             left_shoulder_posterior=left_shoulder_posterior,
+            left_acromion=left_acromion,
             right_shoulder_anterior=right_shoulder_anterior,
             right_shoulder_posterior=right_shoulder_posterior,
+            right_acromion=right_acromion,
             left_elbow_medial=left_elbow_medial,
             left_elbow_lateral=left_elbow_lateral,
             right_elbow_medial=right_elbow_medial,
@@ -2397,8 +2430,10 @@ class WalkingStride(GaitCycle):
         right_psis: Point3D | None = None,
         left_shoulder_anterior: Point3D | None = None,
         left_shoulder_posterior: Point3D | None = None,
+        left_acromion: Point3D | None = None,
         right_shoulder_anterior: Point3D | None = None,
         right_shoulder_posterior: Point3D | None = None,
+        right_acromion: Point3D | None = None,
         left_elbow_medial: Point3D | None = None,
         left_elbow_lateral: Point3D | None = None,
         right_elbow_medial: Point3D | None = None,
@@ -2478,8 +2513,10 @@ class WalkingStride(GaitCycle):
             right_psis=right_psis,
             left_shoulder_anterior=left_shoulder_anterior,
             left_shoulder_posterior=left_shoulder_posterior,
+            left_acromion=left_acromion,
             right_shoulder_anterior=right_shoulder_anterior,
             right_shoulder_posterior=right_shoulder_posterior,
+            right_acromion=right_acromion,
             left_elbow_medial=left_elbow_medial,
             left_elbow_lateral=left_elbow_lateral,
             right_elbow_medial=right_elbow_medial,
@@ -2730,8 +2767,10 @@ class WalkingExercise(GaitExercise):
         right_psis: Point3D | None = None,
         left_shoulder_anterior: Point3D | None = None,
         left_shoulder_posterior: Point3D | None = None,
+        left_acromion: Point3D | None = None,
         right_shoulder_anterior: Point3D | None = None,
         right_shoulder_posterior: Point3D | None = None,
+        right_acromion: Point3D | None = None,
         left_elbow_medial: Point3D | None = None,
         left_elbow_lateral: Point3D | None = None,
         right_elbow_medial: Point3D | None = None,
@@ -2811,8 +2850,10 @@ class WalkingExercise(GaitExercise):
             right_psis=right_psis,
             left_shoulder_anterior=left_shoulder_anterior,
             left_shoulder_posterior=left_shoulder_posterior,
+            left_acromion=left_acromion,
             right_shoulder_anterior=right_shoulder_anterior,
             right_shoulder_posterior=right_shoulder_posterior,
+            right_acromion=right_acromion,
             left_elbow_medial=left_elbow_medial,
             left_elbow_lateral=left_elbow_lateral,
             right_elbow_medial=right_elbow_medial,

@@ -31,42 +31,65 @@ __all__ = [
 
 class DefaultFreeWeightObject(WholeBody):
     """
-    Split a repetition into eccentric and concentric phases.
+    Represents a free weight exercise object with barbell or dumbbell tracking.
+
+    This class extends WholeBody to include specific markers for tracking barbells
+    and dumbbells during free weight exercises. It inherits all 42 anatomical markers
+    and force platform parameters from WholeBody, plus adds equipment-specific markers.
 
     Parameters
     ----------
-    time: Iterable[int | float]
-        the array containing the time instant of each repetition in seconds
+    total_load_kg : int or float
+        Total load in kilograms (barbell + plates or dumbbell weight).
+    left_dumbbell_medial : Point3D, optional
+        Medial marker on left dumbbell.
+    left_dumbbell_lateral : Point3D, optional
+        Lateral marker on left dumbbell.
+    right_dumbbell_medial : Point3D, optional
+        Medial marker on right dumbbell.
+    right_dumbbell_lateral : Point3D, optional
+        Lateral marker on right dumbbell.
+    left_barbell : Point3D, optional
+        Left side marker on barbell.
+    right_barbell : Point3D, optional
+        Right side marker on barbell.
+    left_hand_ground_reaction_force : ForcePlatform, optional
+        Left hand force platform data.
+    right_hand_ground_reaction_force : ForcePlatform, optional
+        Right hand force platform data.
+    left_foot_ground_reaction_force : ForcePlatform, optional
+        Left foot force platform data.
+    right_foot_ground_reaction_force : ForcePlatform, optional
+        Right foot force platform data.
+    left_shoulder_anterior : Point3D, optional
+        Anterior left shoulder marker.
+    left_shoulder_posterior : Point3D, optional
+        Posterior left shoulder marker.
+    left_acromion : Point3D, optional
+        Left acromion marker (shoulder tip).
+    right_shoulder_anterior : Point3D, optional
+        Anterior right shoulder marker.
+    right_shoulder_posterior : Point3D, optional
+        Posterior right shoulder marker.
+    right_acromion : Point3D, optional
+        Right acromion marker (shoulder tip).
+    **extra_signals : Signal1D, Signal3D, EMGSignal, Point3D, ForcePlatform
+        Additional signals to include (e.g., anatomical markers, EMG).
 
-    barbell_position: Iterable[int | float]
-        the array containing the displacement (in meters) of the barbell for
-        each repetition (2 markers)
-
-    load: Iterable[int | float]
-        the array containing the load measured at each repetition in kgf
-
-    repetition: int
-        the repetition number
+    Notes
+    -----
+    This class inherits all 42 WholeBody parameters (38 anatomical markers + 4 force platforms).
+    Only the most relevant parameters are listed above. See WholeBody documentation for the
+    complete list of available anatomical markers.
 
     Attributes
     ----------
-    raw: DataFrame
-        a DataFrame containing the input data
-
-    repetitions: list[DataFrame]
-        a list of dataframes each defining one single repetition
-
-    rom_m: float
-        the range of movement amplitude in meters
-
-    results_table: DataFrame
-        a table containing the data obtained during the test
-
-    summary_table: DataFrame
-        a table containing summary statistics about the test
-
-    summary_plot: FigureWidget
-        a figure representing the results of the test.
+    total_load_kg : float
+        The total load in kilograms.
+    barbell_midpoint : Point3D or None
+        Calculated midpoint between left and right barbell markers.
+    tool_position : Point3D or None
+        Position of the exercise tool (barbell or dumbbell center).
     """
 
     _total_load_kg: float  # class-specific variable
@@ -106,8 +129,10 @@ class DefaultFreeWeightObject(WholeBody):
         right_psis: Point3D | None = None,
         left_shoulder_anterior: Point3D | None = None,
         left_shoulder_posterior: Point3D | None = None,
+        left_acromion: Point3D | None = None,
         right_shoulder_anterior: Point3D | None = None,
         right_shoulder_posterior: Point3D | None = None,
+        right_acromion: Point3D | None = None,
         left_elbow_medial: Point3D | None = None,
         left_elbow_lateral: Point3D | None = None,
         right_elbow_medial: Point3D | None = None,
@@ -157,8 +182,10 @@ class DefaultFreeWeightObject(WholeBody):
                 right_psis=right_psis,
                 left_shoulder_anterior=left_shoulder_anterior,
                 left_shoulder_posterior=left_shoulder_posterior,
+                left_acromion=left_acromion,
                 right_shoulder_anterior=right_shoulder_anterior,
                 right_shoulder_posterior=right_shoulder_posterior,
+                right_acromion=right_acromion,
                 left_elbow_medial=left_elbow_medial,
                 left_elbow_lateral=left_elbow_lateral,
                 right_elbow_medial=right_elbow_medial,
@@ -173,10 +200,7 @@ class DefaultFreeWeightObject(WholeBody):
                 l2=l2,
             ),
         }
-        super().__init__()
-        for i, v in signals.items():
-            if v is not None:
-                self[i] = v
+        super().__init__(**{i: v for i, v in signals.items() if v is not None})
 
         self.set_total_load_kg(total_load_kg)
 
@@ -442,8 +466,10 @@ class RepetitionPhase(DefaultFreeWeightObject):
         right_psis: Point3D | None = None,
         left_shoulder_anterior: Point3D | None = None,
         left_shoulder_posterior: Point3D | None = None,
+        left_acromion: Point3D | None = None,
         right_shoulder_anterior: Point3D | None = None,
         right_shoulder_posterior: Point3D | None = None,
+        right_acromion: Point3D | None = None,
         left_elbow_medial: Point3D | None = None,
         left_elbow_lateral: Point3D | None = None,
         right_elbow_medial: Point3D | None = None,
@@ -613,8 +639,10 @@ class FreeWeightRepetition(DefaultFreeWeightObject):
         right_psis: Point3D | None = None,
         left_shoulder_anterior: Point3D | None = None,
         left_shoulder_posterior: Point3D | None = None,
+        left_acromion: Point3D | None = None,
         right_shoulder_anterior: Point3D | None = None,
         right_shoulder_posterior: Point3D | None = None,
+        right_acromion: Point3D | None = None,
         left_elbow_medial: Point3D | None = None,
         left_elbow_lateral: Point3D | None = None,
         right_elbow_medial: Point3D | None = None,
@@ -825,8 +853,10 @@ class FreeWeightExercise(DefaultFreeWeightObject):
         right_psis: Point3D | None = None,
         left_shoulder_anterior: Point3D | None = None,
         left_shoulder_posterior: Point3D | None = None,
+        left_acromion: Point3D | None = None,
         right_shoulder_anterior: Point3D | None = None,
         right_shoulder_posterior: Point3D | None = None,
+        right_acromion: Point3D | None = None,
         left_elbow_medial: Point3D | None = None,
         left_elbow_lateral: Point3D | None = None,
         right_elbow_medial: Point3D | None = None,
@@ -930,8 +960,10 @@ class FreeWeightExercise(DefaultFreeWeightObject):
         right_psis: str | None = None,
         left_shoulder_anterior: str | None = None,
         left_shoulder_posterior: str | None = None,
+        left_acromion: str | None = None,
         right_shoulder_anterior: str | None = None,
         right_shoulder_posterior: str | None = None,
+        right_acromion: str | None = None,
         left_elbow_medial: str | None = None,
         left_elbow_lateral: str | None = None,
         right_elbow_medial: str | None = None,
@@ -987,8 +1019,10 @@ class FreeWeightExercise(DefaultFreeWeightObject):
             "right_psis": right_psis,
             "left_shoulder_anterior": left_shoulder_anterior,
             "left_shoulder_posterior": left_shoulder_posterior,
+            "left_acromion": left_acromion,
             "right_shoulder_anterior": right_shoulder_anterior,
             "right_shoulder_posterior": right_shoulder_posterior,
+            "right_acromion": right_acromion,
             "left_elbow_medial": left_elbow_medial,
             "left_elbow_lateral": left_elbow_lateral,
             "right_elbow_medial": right_elbow_medial,

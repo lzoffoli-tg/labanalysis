@@ -24,17 +24,26 @@ class SingleJump(WholeBody):
     Parameters
     ----------
     bodymass_kg : float
-        The subject's body mass in kilograms.
+        The subject's body mass in kilograms (required).
     left_foot_ground_reaction_force : ForcePlatform, optional
         ForcePlatform object for the left foot.
     right_foot_ground_reaction_force : ForcePlatform, optional
         ForcePlatform object for the right foot.
-    vertical_axis : str, optional
-        Name of the vertical axis in the force data (default "Y").
-    anteroposterior_axis : str, optional
-        Name of the anteroposterior axis in the force data (default "X").
+    left_acromion : Point3D, optional
+        Left acromion marker (shoulder tip).
+    right_acromion : Point3D, optional
+        Right acromion marker (shoulder tip).
+    straight_legs : bool, optional
+        Whether the jump was performed with straight legs (default False).
+    free_hands : bool, optional
+        Whether hands were free during the jump (default False).
     **signals : Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform
-        Additional signals to include in the record.
+        Additional signals (anatomical markers, EMG, etc.).
+
+    Notes
+    -----
+    This class inherits all 42 anatomical markers and force platforms from WholeBody.
+    At least one foot force platform (left or right) must be provided.
 
     Attributes
     ----------
@@ -226,65 +235,107 @@ class SingleJump(WholeBody):
     def __init__(
         self,
         bodymass_kg: float,
+        left_hand_ground_reaction_force: ForcePlatform | None = None,
+        right_hand_ground_reaction_force: ForcePlatform | None = None,
         left_foot_ground_reaction_force: ForcePlatform | None = None,
         right_foot_ground_reaction_force: ForcePlatform | None = None,
+        left_heel: Point3D | None = None,
+        right_heel: Point3D | None = None,
+        left_toe: Point3D | None = None,
+        right_toe: Point3D | None = None,
+        left_metatarsal_head: Point3D | None = None,
+        right_metatarsal_head: Point3D | None = None,
+        left_ankle_medial: Point3D | None = None,
+        left_ankle_lateral: Point3D | None = None,
+        right_ankle_medial: Point3D | None = None,
+        right_ankle_lateral: Point3D | None = None,
+        left_knee_medial: Point3D | None = None,
+        left_knee_lateral: Point3D | None = None,
+        right_knee_medial: Point3D | None = None,
+        right_knee_lateral: Point3D | None = None,
+        right_throcanter: Point3D | None = None,
+        left_throcanter: Point3D | None = None,
+        left_asis: Point3D | None = None,
+        right_asis: Point3D | None = None,
+        left_psis: Point3D | None = None,
+        right_psis: Point3D | None = None,
+        left_shoulder_anterior: Point3D | None = None,
+        left_shoulder_posterior: Point3D | None = None,
+        left_acromion: Point3D | None = None,
+        right_shoulder_anterior: Point3D | None = None,
+        right_shoulder_posterior: Point3D | None = None,
+        right_acromion: Point3D | None = None,
+        left_elbow_medial: Point3D | None = None,
+        left_elbow_lateral: Point3D | None = None,
+        right_elbow_medial: Point3D | None = None,
+        right_elbow_lateral: Point3D | None = None,
+        left_wrist_medial: Point3D | None = None,
+        left_wrist_lateral: Point3D | None = None,
+        right_wrist_medial: Point3D | None = None,
+        right_wrist_lateral: Point3D | None = None,
+        s2: Point3D | None = None,
+        l2: Point3D | None = None,
+        c7: Point3D | None = None,
+        sc: Point3D | None = None,
         straight_legs: bool = False,
         free_hands: bool = False,
         **signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
     ):
-        """
-        Initialize a Jump object.
-
-        Parameters
-        ----------
-        bodymass_kg : float
-            The subject's body mass in kilograms.
-        left_foot_ground_reaction_force : ForcePlatform, optional
-            ForcePlatform object for the left foot.
-        right_foot_ground_reaction_force : ForcePlatform, optional
-            ForcePlatform object for the right foot.
-        vertical_axis : str, optional
-            Name of the vertical axis in the force data (default "Y").
-        anteroposterior_axis : str, optional
-            Name of the anteroposterior axis in the force data (default "X").
-        **signals : Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform
-            Additional signals to include in the record.
-
-        Raises
-        ------
-        TypeError
-            If left_foot or right_foot is not a ForcePlatform.
-        ValueError
-            If axes are not valid or bodymass_kg is not a float or int.
-        """
-
-        # check the inputs
-        forces = {}
-        if left_foot_ground_reaction_force is not None:
-            if not isinstance(left_foot_ground_reaction_force, ForcePlatform):
-                raise ValueError(
-                    "left_foot_ground_reaction_force must be a ForcePlatform"
-                    + " instance or None."
-                )
-            forces["left_foot_ground_reaction_force"] = left_foot_ground_reaction_force
-        if right_foot_ground_reaction_force is not None:
-            if not isinstance(right_foot_ground_reaction_force, ForcePlatform):
-                raise ValueError(
-                    "right_foot_ground_reaction_force must be a ForcePlatform"
-                    + " instance or None."
-                )
-            forces["right_foot_ground_reaction_force"] = (
-                right_foot_ground_reaction_force
-            )
-        if len(forces) == 0:
+        """Initialize a Jump object."""
+        all_signals = {
+            **signals,
+            **dict(
+                left_hand_ground_reaction_force=left_hand_ground_reaction_force,
+                right_hand_ground_reaction_force=right_hand_ground_reaction_force,
+                left_foot_ground_reaction_force=left_foot_ground_reaction_force,
+                right_foot_ground_reaction_force=right_foot_ground_reaction_force,
+                left_heel=left_heel,
+                right_heel=right_heel,
+                left_toe=left_toe,
+                right_toe=right_toe,
+                left_metatarsal_head=left_metatarsal_head,
+                right_metatarsal_head=right_metatarsal_head,
+                left_ankle_medial=left_ankle_medial,
+                left_ankle_lateral=left_ankle_lateral,
+                right_ankle_medial=right_ankle_medial,
+                right_ankle_lateral=right_ankle_lateral,
+                left_knee_medial=left_knee_medial,
+                left_knee_lateral=left_knee_lateral,
+                right_knee_medial=right_knee_medial,
+                right_knee_lateral=right_knee_lateral,
+                left_throcanter=left_throcanter,
+                right_throcanter=right_throcanter,
+                left_asis=left_asis,
+                right_asis=right_asis,
+                left_psis=left_psis,
+                right_psis=right_psis,
+                left_shoulder_anterior=left_shoulder_anterior,
+                left_shoulder_posterior=left_shoulder_posterior,
+                left_acromion=left_acromion,
+                right_shoulder_anterior=right_shoulder_anterior,
+                right_shoulder_posterior=right_shoulder_posterior,
+                right_acromion=right_acromion,
+                left_elbow_medial=left_elbow_medial,
+                left_elbow_lateral=left_elbow_lateral,
+                right_elbow_medial=right_elbow_medial,
+                right_elbow_lateral=right_elbow_lateral,
+                left_wrist_medial=left_wrist_medial,
+                left_wrist_lateral=left_wrist_lateral,
+                right_wrist_medial=right_wrist_medial,
+                right_wrist_lateral=right_wrist_lateral,
+                s2=s2,
+                l2=l2,
+                c7=c7,
+                sc=sc,
+            ),
+        }
+        # Check that at least one foot force platform is provided
+        if left_foot_ground_reaction_force is None and right_foot_ground_reaction_force is None:
             raise ValueError(
-                "at least one of 'left_foot_ground_reaction_force' or"
-                + "'right_foot_ground_reaction_force' must be ForcePlatform"
-                + " instances."
+                "at least one of 'left_foot_ground_reaction_force' or "
+                "'right_foot_ground_reaction_force' must be ForcePlatform instances."
             )
-
-        # build
-        super().__init__(**signals, **forces)
+        super().__init__(**{i: v for i, v in all_signals.items() if v is not None})
         self.set_bodymass_kg(bodymass_kg)
         self.set_straight_legs(straight_legs)
         self.set_free_hands(free_hands)
@@ -294,62 +345,107 @@ class SingleJump(WholeBody):
         cls,
         file: str,
         bodymass_kg: float | int,
+        left_hand_ground_reaction_force: str | None = None,
+        right_hand_ground_reaction_force: str | None = None,
         left_foot_ground_reaction_force: str | None = "left_foot",
         right_foot_ground_reaction_force: str | None = "right_foot",
+        left_heel: str | None = None,
+        right_heel: str | None = None,
+        left_toe: str | None = None,
+        right_toe: str | None = None,
+        left_metatarsal_head: str | None = None,
+        right_metatarsal_head: str | None = None,
+        left_ankle_medial: str | None = None,
+        left_ankle_lateral: str | None = None,
+        right_ankle_medial: str | None = None,
+        right_ankle_lateral: str | None = None,
+        left_knee_medial: str | None = None,
+        left_knee_lateral: str | None = None,
+        right_knee_medial: str | None = None,
+        right_knee_lateral: str | None = None,
+        right_throcanter: str | None = None,
+        left_throcanter: str | None = None,
+        left_asis: str | None = None,
+        right_asis: str | None = None,
+        left_psis: str | None = None,
+        right_psis: str | None = None,
+        left_shoulder_anterior: str | None = None,
+        left_shoulder_posterior: str | None = None,
+        left_acromion: str | None = None,
+        right_shoulder_anterior: str | None = None,
+        right_shoulder_posterior: str | None = None,
+        right_acromion: str | None = None,
+        left_elbow_medial: str | None = None,
+        left_elbow_lateral: str | None = None,
+        right_elbow_medial: str | None = None,
+        right_elbow_lateral: str | None = None,
+        left_wrist_medial: str | None = None,
+        left_wrist_lateral: str | None = None,
+        right_wrist_medial: str | None = None,
+        right_wrist_lateral: str | None = None,
+        s2: str | None = None,
+        l2: str | None = None,
+        c7: str | None = None,
+        sc: str | None = None,
         straight_legs: bool = False,
         free_hands: bool = False,
     ):
-        """
-        Create a Jump object from a TDF file.
-
-        Parameters
-        ----------
-        file : str
-            Path to the TDF file.
-        bodymass_kg : float or int
-            The subject's body mass in kilograms.
-        vertical_axis : str, optional
-            Name of the vertical axis in the force data.
-        anteroposterior_axis : str, optional
-            Name of the anteroposterior axis in the force data.
-        left_foot_ground_reaction_force : str or None, optional
-            Key for left foot force data.
-        right_foot_ground_reaction_force : str or None, optional
-            Key for right foot force data.
-
-        Returns
-        -------
-        Jump
-            A Jump object created from the TDF file.
-        """
-        mandatory_labels = {
-            "left_foot_ground_reaction_force": left_foot_ground_reaction_force,
-            "right_foot_ground_reaction_force": right_foot_ground_reaction_force,
-        }
-        if all([i is None for i in mandatory_labels.values()]):
+        """Create a Jump object from a TDF file."""
+        if left_foot_ground_reaction_force is None and right_foot_ground_reaction_force is None:
             raise ValueError(
-                f"at least one of left_ground_reaction_force or"
-                + " right_ground_reaction_force must be provided."
+                "at least one of left_foot_ground_reaction_force or "
+                "right_foot_ground_reaction_force must be provided."
             )
-        record = TimeseriesRecord.from_tdf(file)
-        mandatory = {}
-        for key, lbl in mandatory_labels.items():
-            if lbl is not None:
-                mandatory[key] = record.get(lbl)
-        if len(mandatory) == 0:
-            raise ValueError(
-                "at least one foot ground reaction force must be "
-                "found on the provided file."
-            )
-        signals = {
-            i: v for i, v in record.items() if i not in list(mandatory_labels.values())
-        }
+        record = WholeBody.from_tdf(
+            file,
+            left_hand_ground_reaction_force=left_hand_ground_reaction_force,
+            right_hand_ground_reaction_force=right_hand_ground_reaction_force,
+            left_foot_ground_reaction_force=left_foot_ground_reaction_force,
+            right_foot_ground_reaction_force=right_foot_ground_reaction_force,
+            left_heel=left_heel,
+            right_heel=right_heel,
+            left_toe=left_toe,
+            right_toe=right_toe,
+            left_metatarsal_head=left_metatarsal_head,
+            right_metatarsal_head=right_metatarsal_head,
+            left_ankle_medial=left_ankle_medial,
+            left_ankle_lateral=left_ankle_lateral,
+            right_ankle_medial=right_ankle_medial,
+            right_ankle_lateral=right_ankle_lateral,
+            left_knee_medial=left_knee_medial,
+            left_knee_lateral=left_knee_lateral,
+            right_knee_medial=right_knee_medial,
+            right_knee_lateral=right_knee_lateral,
+            left_throcanter=left_throcanter,
+            right_throcanter=right_throcanter,
+            left_asis=left_asis,
+            right_asis=right_asis,
+            left_psis=left_psis,
+            right_psis=right_psis,
+            left_shoulder_anterior=left_shoulder_anterior,
+            left_shoulder_posterior=left_shoulder_posterior,
+            left_acromion=left_acromion,
+            right_shoulder_anterior=right_shoulder_anterior,
+            right_shoulder_posterior=right_shoulder_posterior,
+            right_acromion=right_acromion,
+            left_elbow_medial=left_elbow_medial,
+            left_elbow_lateral=left_elbow_lateral,
+            right_elbow_medial=right_elbow_medial,
+            right_elbow_lateral=right_elbow_lateral,
+            left_wrist_medial=left_wrist_medial,
+            left_wrist_lateral=left_wrist_lateral,
+            right_wrist_medial=right_wrist_medial,
+            right_wrist_lateral=right_wrist_lateral,
+            s2=s2,
+            l2=l2,
+            c7=c7,
+            sc=sc,
+        )
         return cls(
             bodymass_kg=bodymass_kg,
             straight_legs=straight_legs,
             free_hands=free_hands,
-            **signals,  # type: ignore
-            **mandatory,  # type: ignore
+            **record._data,  # type: ignore
         )
 
     def copy(self):
@@ -504,47 +600,97 @@ class DropJump(SingleJump):
         box_height_cm: float,
         bodymass_kg: float,
         free_hands: bool = False,
+        left_hand_ground_reaction_force: ForcePlatform | None = None,
+        right_hand_ground_reaction_force: ForcePlatform | None = None,
         left_foot_ground_reaction_force: ForcePlatform | None = None,
         right_foot_ground_reaction_force: ForcePlatform | None = None,
+        left_heel: Point3D | None = None,
+        right_heel: Point3D | None = None,
+        left_toe: Point3D | None = None,
+        right_toe: Point3D | None = None,
+        left_metatarsal_head: Point3D | None = None,
+        right_metatarsal_head: Point3D | None = None,
+        left_ankle_medial: Point3D | None = None,
+        left_ankle_lateral: Point3D | None = None,
+        right_ankle_medial: Point3D | None = None,
+        right_ankle_lateral: Point3D | None = None,
+        left_knee_medial: Point3D | None = None,
+        left_knee_lateral: Point3D | None = None,
+        right_knee_medial: Point3D | None = None,
+        right_knee_lateral: Point3D | None = None,
+        right_throcanter: Point3D | None = None,
+        left_throcanter: Point3D | None = None,
+        left_asis: Point3D | None = None,
+        right_asis: Point3D | None = None,
+        left_psis: Point3D | None = None,
+        right_psis: Point3D | None = None,
+        left_shoulder_anterior: Point3D | None = None,
+        left_shoulder_posterior: Point3D | None = None,
+        left_acromion: Point3D | None = None,
+        right_shoulder_anterior: Point3D | None = None,
+        right_shoulder_posterior: Point3D | None = None,
+        right_acromion: Point3D | None = None,
+        left_elbow_medial: Point3D | None = None,
+        left_elbow_lateral: Point3D | None = None,
+        right_elbow_medial: Point3D | None = None,
+        right_elbow_lateral: Point3D | None = None,
+        left_wrist_medial: Point3D | None = None,
+        left_wrist_lateral: Point3D | None = None,
+        right_wrist_medial: Point3D | None = None,
+        right_wrist_lateral: Point3D | None = None,
+        s2: Point3D | None = None,
+        l2: Point3D | None = None,
+        c7: Point3D | None = None,
+        sc: Point3D | None = None,
         **signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
     ):
-        """
-        Initialize a Jump object.
-
-        Parameters
-        ----------
-        box_height_cm : float
-            The height of the box from which the drop jump is performed, in cm.
-        bodymass_kg : float
-            The subject's body mass in kilograms.
-        left_foot_ground_reaction_force : ForcePlatform, optional
-            ForcePlatform object for the left foot.
-        right_foot_ground_reaction_force : ForcePlatform, optional
-            ForcePlatform object for the right foot.
-        vertical_axis : str, optional
-            Name of the vertical axis in the force data (default "Y").
-        anteroposterior_axis : str, optional
-            Name of the anteroposterior axis in the force data (default "X").
-        muscle_activation_threshold : dict[str, float], optional
-            Dictionary with muscle names as keys and activation thresholds as values.
-            These thresholds are used to determine muscle activation timing.
-        **signals : Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform
-            Additional signals to include in the record.
-
-        Raises
-        ------
-        TypeError
-            If left_foot or right_foot is not a ForcePlatform.
-        ValueError
-            If axes are not valid or bodymass_kg is not a float or int.
-        """
-
+        """Initialize a DropJump object."""
         super().__init__(
             bodymass_kg=bodymass_kg,
             free_hands=free_hands,
             straight_legs=False,
+            left_hand_ground_reaction_force=left_hand_ground_reaction_force,
+            right_hand_ground_reaction_force=right_hand_ground_reaction_force,
             left_foot_ground_reaction_force=left_foot_ground_reaction_force,
             right_foot_ground_reaction_force=right_foot_ground_reaction_force,
+            left_heel=left_heel,
+            right_heel=right_heel,
+            left_toe=left_toe,
+            right_toe=right_toe,
+            left_metatarsal_head=left_metatarsal_head,
+            right_metatarsal_head=right_metatarsal_head,
+            left_ankle_medial=left_ankle_medial,
+            left_ankle_lateral=left_ankle_lateral,
+            right_ankle_medial=right_ankle_medial,
+            right_ankle_lateral=right_ankle_lateral,
+            left_knee_medial=left_knee_medial,
+            left_knee_lateral=left_knee_lateral,
+            right_knee_medial=right_knee_medial,
+            right_knee_lateral=right_knee_lateral,
+            left_throcanter=left_throcanter,
+            right_throcanter=right_throcanter,
+            left_asis=left_asis,
+            right_asis=right_asis,
+            left_psis=left_psis,
+            right_psis=right_psis,
+            left_shoulder_anterior=left_shoulder_anterior,
+            left_shoulder_posterior=left_shoulder_posterior,
+            left_acromion=left_acromion,
+            right_shoulder_anterior=right_shoulder_anterior,
+            right_shoulder_posterior=right_shoulder_posterior,
+            right_acromion=right_acromion,
+            left_elbow_medial=left_elbow_medial,
+            left_elbow_lateral=left_elbow_lateral,
+            right_elbow_medial=right_elbow_medial,
+            right_elbow_lateral=right_elbow_lateral,
+            left_wrist_medial=left_wrist_medial,
+            left_wrist_lateral=left_wrist_lateral,
+            right_wrist_medial=right_wrist_medial,
+            right_wrist_lateral=right_wrist_lateral,
+            s2=s2,
+            l2=l2,
+            c7=c7,
+            sc=sc,
             **signals,  # type: ignore
         )
         self.set_box_height_cm(box_height_cm)
@@ -572,65 +718,105 @@ class DropJump(SingleJump):
         box_height_cm: float,
         bodymass_kg: float | int,
         free_hands: bool = False,
+        left_hand_ground_reaction_force: str | None = None,
+        right_hand_ground_reaction_force: str | None = None,
         left_foot_ground_reaction_force: str | None = "left_foot",
         right_foot_ground_reaction_force: str | None = "right_foot",
+        left_heel: str | None = None,
+        right_heel: str | None = None,
+        left_toe: str | None = None,
+        right_toe: str | None = None,
+        left_metatarsal_head: str | None = None,
+        right_metatarsal_head: str | None = None,
+        left_ankle_medial: str | None = None,
+        left_ankle_lateral: str | None = None,
+        right_ankle_medial: str | None = None,
+        right_ankle_lateral: str | None = None,
+        left_knee_medial: str | None = None,
+        left_knee_lateral: str | None = None,
+        right_knee_medial: str | None = None,
+        right_knee_lateral: str | None = None,
+        right_throcanter: str | None = None,
+        left_throcanter: str | None = None,
+        left_asis: str | None = None,
+        right_asis: str | None = None,
+        left_psis: str | None = None,
+        right_psis: str | None = None,
+        left_shoulder_anterior: str | None = None,
+        left_shoulder_posterior: str | None = None,
+        left_acromion: str | None = None,
+        right_shoulder_anterior: str | None = None,
+        right_shoulder_posterior: str | None = None,
+        right_acromion: str | None = None,
+        left_elbow_medial: str | None = None,
+        left_elbow_lateral: str | None = None,
+        right_elbow_medial: str | None = None,
+        right_elbow_lateral: str | None = None,
+        left_wrist_medial: str | None = None,
+        left_wrist_lateral: str | None = None,
+        right_wrist_medial: str | None = None,
+        right_wrist_lateral: str | None = None,
+        s2: str | None = None,
+        l2: str | None = None,
+        c7: str | None = None,
+        sc: str | None = None,
     ):
-        """
-        Create a Jump object from a TDF file.
-
-        Parameters
-        ----------
-        file : str
-            Path to the TDF file.
-        box_height_cm : float
-            The height of the box from which the drop jump is performed, in cm.
-        bodymass_kg : float or int
-            The subject's body mass in kilograms.
-        vertical_axis : str, optional
-            Name of the vertical axis in the force data.
-        anteroposterior_axis : str, optional
-            Name of the anteroposterior axis in the force data.
-        left_foot_ground_reaction_force : str or None, optional
-            Key for left foot force data.
-        right_foot_ground_reaction_force : str or None, optional
-            Key for right foot force data.
-        muscle_activation_thresholds : dict[str, float], optional
-            Dictionary with muscle names as keys and activation thresholds as values.
-            These thresholds are used to determine muscle activation timing.
-
-        Returns
-        -------
-        Jump
-            A Jump object created from the TDF file.
-        """
-        mandatory_labels = {
-            "left_foot_ground_reaction_force": left_foot_ground_reaction_force,
-            "right_foot_ground_reaction_force": right_foot_ground_reaction_force,
-        }
-        if all([i is None for i in mandatory_labels.values()]):
+        """Create a DropJump object from a TDF file."""
+        if left_foot_ground_reaction_force is None and right_foot_ground_reaction_force is None:
             raise ValueError(
-                f"at least one of left_ground_reaction_force or"
-                + " right_ground_reaction_force must be provided."
+                "at least one of left_foot_ground_reaction_force or "
+                "right_foot_ground_reaction_force must be provided."
             )
-        record = TimeseriesRecord.from_tdf(file)
-        mandatory = {}
-        for key, lbl in mandatory_labels.items():
-            if lbl is not None:
-                mandatory[key] = record.get(lbl)
-        if len(mandatory) == 0:
-            raise ValueError(
-                "at least one foot ground reaction force must be "
-                "found on the provided file."
-            )
-        signals = {
-            i: v for i, v in record.items() if i not in list(mandatory_labels.values())
-        }
+        record = WholeBody.from_tdf(
+            file,
+            left_hand_ground_reaction_force=left_hand_ground_reaction_force,
+            right_hand_ground_reaction_force=right_hand_ground_reaction_force,
+            left_foot_ground_reaction_force=left_foot_ground_reaction_force,
+            right_foot_ground_reaction_force=right_foot_ground_reaction_force,
+            left_heel=left_heel,
+            right_heel=right_heel,
+            left_toe=left_toe,
+            right_toe=right_toe,
+            left_metatarsal_head=left_metatarsal_head,
+            right_metatarsal_head=right_metatarsal_head,
+            left_ankle_medial=left_ankle_medial,
+            left_ankle_lateral=left_ankle_lateral,
+            right_ankle_medial=right_ankle_medial,
+            right_ankle_lateral=right_ankle_lateral,
+            left_knee_medial=left_knee_medial,
+            left_knee_lateral=left_knee_lateral,
+            right_knee_medial=right_knee_medial,
+            right_knee_lateral=right_knee_lateral,
+            left_throcanter=left_throcanter,
+            right_throcanter=right_throcanter,
+            left_asis=left_asis,
+            right_asis=right_asis,
+            left_psis=left_psis,
+            right_psis=right_psis,
+            left_shoulder_anterior=left_shoulder_anterior,
+            left_shoulder_posterior=left_shoulder_posterior,
+            left_acromion=left_acromion,
+            right_shoulder_anterior=right_shoulder_anterior,
+            right_shoulder_posterior=right_shoulder_posterior,
+            right_acromion=right_acromion,
+            left_elbow_medial=left_elbow_medial,
+            left_elbow_lateral=left_elbow_lateral,
+            right_elbow_medial=right_elbow_medial,
+            right_elbow_lateral=right_elbow_lateral,
+            left_wrist_medial=left_wrist_medial,
+            left_wrist_lateral=left_wrist_lateral,
+            right_wrist_medial=right_wrist_medial,
+            right_wrist_lateral=right_wrist_lateral,
+            s2=s2,
+            l2=l2,
+            c7=c7,
+            sc=sc,
+        )
         return cls(
             box_height_cm=box_height_cm,
             bodymass_kg=bodymass_kg,
             free_hands=free_hands,
-            **signals,  # type: ignore
-            **mandatory,  # type: ignore
+            **record._data,  # type: ignore
         )
 
     def copy(self):
@@ -691,69 +877,107 @@ class RepeatedJumps(WholeBody):
     def __init__(
         self,
         bodymass_kg: float,
+        left_hand_ground_reaction_force: ForcePlatform | None = None,
+        right_hand_ground_reaction_force: ForcePlatform | None = None,
         left_foot_ground_reaction_force: ForcePlatform | None = None,
         right_foot_ground_reaction_force: ForcePlatform | None = None,
+        left_heel: Point3D | None = None,
+        right_heel: Point3D | None = None,
+        left_toe: Point3D | None = None,
+        right_toe: Point3D | None = None,
+        left_metatarsal_head: Point3D | None = None,
+        right_metatarsal_head: Point3D | None = None,
+        left_ankle_medial: Point3D | None = None,
+        left_ankle_lateral: Point3D | None = None,
+        right_ankle_medial: Point3D | None = None,
+        right_ankle_lateral: Point3D | None = None,
+        left_knee_medial: Point3D | None = None,
+        left_knee_lateral: Point3D | None = None,
+        right_knee_medial: Point3D | None = None,
+        right_knee_lateral: Point3D | None = None,
+        right_throcanter: Point3D | None = None,
+        left_throcanter: Point3D | None = None,
+        left_asis: Point3D | None = None,
+        right_asis: Point3D | None = None,
+        left_psis: Point3D | None = None,
+        right_psis: Point3D | None = None,
+        left_shoulder_anterior: Point3D | None = None,
+        left_shoulder_posterior: Point3D | None = None,
+        left_acromion: Point3D | None = None,
+        right_shoulder_anterior: Point3D | None = None,
+        right_shoulder_posterior: Point3D | None = None,
+        right_acromion: Point3D | None = None,
+        left_elbow_medial: Point3D | None = None,
+        left_elbow_lateral: Point3D | None = None,
+        right_elbow_medial: Point3D | None = None,
+        right_elbow_lateral: Point3D | None = None,
+        left_wrist_medial: Point3D | None = None,
+        left_wrist_lateral: Point3D | None = None,
+        right_wrist_medial: Point3D | None = None,
+        right_wrist_lateral: Point3D | None = None,
+        s2: Point3D | None = None,
+        l2: Point3D | None = None,
+        c7: Point3D | None = None,
+        sc: Point3D | None = None,
         exclude_jumps: list[int] = [0, -1],
         straight_legs: bool = False,
         free_hands: bool = False,
         **signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
     ):
-        """
-        Initialize a Jump object.
-
-        Parameters
-        ----------
-        bodymass_kg : float
-            The subject's body mass in kilograms.
-        left_foot_ground_reaction_force : ForcePlatform, optional
-            ForcePlatform object for the left foot.
-        right_foot_ground_reaction_force : ForcePlatform, optional
-            ForcePlatform object for the right foot.
-        vertical_axis : str, optional
-            Name of the vertical axis in the force data (default "Y").
-        anteroposterior_axis : str, optional
-            Name of the anteroposterior axis in the force data (default "X").
-        **signals : Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform
-            Additional signals to include in the record.
-
-        Raises
-        ------
-        TypeError
-            If left_foot or right_foot is not a ForcePlatform.
-        ValueError
-            If axes are not valid or bodymass_kg is not a float or int.
-        """
-
-        # check the inputs
-        forces = {}
-        if left_foot_ground_reaction_force is not None:
-            if not isinstance(left_foot_ground_reaction_force, ForcePlatform):
-                raise ValueError(
-                    "left_foot_ground_reaction_force must be a ForcePlatform"
-                    + " instance or None."
-                )
-            forces["left_foot_ground_reaction_force"] = left_foot_ground_reaction_force
-        if right_foot_ground_reaction_force is not None:
-            if not isinstance(right_foot_ground_reaction_force, ForcePlatform):
-                raise ValueError(
-                    "right_foot_ground_reaction_force must be a ForcePlatform"
-                    + " instance or None."
-                )
-            forces["right_foot_ground_reaction_force"] = (
-                right_foot_ground_reaction_force
-            )
-        if len(forces) == 0:
-            raise ValueError(
-                "at least one of 'left_foot_ground_reaction_force' or"
-                + "'right_foot_ground_reaction_force' must be ForcePlatform"
-                + " instances."
-            )
-
-        # build the object
-        super().__init__(
+        """Initialize a RepeatedJumps object."""
+        all_signals = {
             **signals,
-            **forces,
-        )
+            **dict(
+                left_hand_ground_reaction_force=left_hand_ground_reaction_force,
+                right_hand_ground_reaction_force=right_hand_ground_reaction_force,
+                left_foot_ground_reaction_force=left_foot_ground_reaction_force,
+                right_foot_ground_reaction_force=right_foot_ground_reaction_force,
+                left_heel=left_heel,
+                right_heel=right_heel,
+                left_toe=left_toe,
+                right_toe=right_toe,
+                left_metatarsal_head=left_metatarsal_head,
+                right_metatarsal_head=right_metatarsal_head,
+                left_ankle_medial=left_ankle_medial,
+                left_ankle_lateral=left_ankle_lateral,
+                right_ankle_medial=right_ankle_medial,
+                right_ankle_lateral=right_ankle_lateral,
+                left_knee_medial=left_knee_medial,
+                left_knee_lateral=left_knee_lateral,
+                right_knee_medial=right_knee_medial,
+                right_knee_lateral=right_knee_lateral,
+                left_throcanter=left_throcanter,
+                right_throcanter=right_throcanter,
+                left_asis=left_asis,
+                right_asis=right_asis,
+                left_psis=left_psis,
+                right_psis=right_psis,
+                left_shoulder_anterior=left_shoulder_anterior,
+                left_shoulder_posterior=left_shoulder_posterior,
+                left_acromion=left_acromion,
+                right_shoulder_anterior=right_shoulder_anterior,
+                right_shoulder_posterior=right_shoulder_posterior,
+                right_acromion=right_acromion,
+                left_elbow_medial=left_elbow_medial,
+                left_elbow_lateral=left_elbow_lateral,
+                right_elbow_medial=right_elbow_medial,
+                right_elbow_lateral=right_elbow_lateral,
+                left_wrist_medial=left_wrist_medial,
+                left_wrist_lateral=left_wrist_lateral,
+                right_wrist_medial=right_wrist_medial,
+                right_wrist_lateral=right_wrist_lateral,
+                s2=s2,
+                l2=l2,
+                c7=c7,
+                sc=sc,
+            ),
+        }
+        if left_foot_ground_reaction_force is None and right_foot_ground_reaction_force is None:
+            raise ValueError(
+                "at least one of 'left_foot_ground_reaction_force' or "
+                "'right_foot_ground_reaction_force' must be ForcePlatform instances."
+            )
+        super().__init__(**{i: v for i, v in all_signals.items() if v is not None})
         self.set_bodymass_kg(bodymass_kg)
         self.set_excluded_jumps(exclude_jumps)
         self.set_straight_legs(straight_legs)
@@ -764,62 +988,109 @@ class RepeatedJumps(WholeBody):
         cls,
         file: str,
         bodymass_kg: float | int,
+        left_hand_ground_reaction_force: str | None = None,
+        right_hand_ground_reaction_force: str | None = None,
         left_foot_ground_reaction_force: str | None = "left_foot",
         right_foot_ground_reaction_force: str | None = "right_foot",
+        left_heel: str | None = None,
+        right_heel: str | None = None,
+        left_toe: str | None = None,
+        right_toe: str | None = None,
+        left_metatarsal_head: str | None = None,
+        right_metatarsal_head: str | None = None,
+        left_ankle_medial: str | None = None,
+        left_ankle_lateral: str | None = None,
+        right_ankle_medial: str | None = None,
+        right_ankle_lateral: str | None = None,
+        left_knee_medial: str | None = None,
+        left_knee_lateral: str | None = None,
+        right_knee_medial: str | None = None,
+        right_knee_lateral: str | None = None,
+        right_throcanter: str | None = None,
+        left_throcanter: str | None = None,
+        left_asis: str | None = None,
+        right_asis: str | None = None,
+        left_psis: str | None = None,
+        right_psis: str | None = None,
+        left_shoulder_anterior: str | None = None,
+        left_shoulder_posterior: str | None = None,
+        left_acromion: str | None = None,
+        right_shoulder_anterior: str | None = None,
+        right_shoulder_posterior: str | None = None,
+        right_acromion: str | None = None,
+        left_elbow_medial: str | None = None,
+        left_elbow_lateral: str | None = None,
+        right_elbow_medial: str | None = None,
+        right_elbow_lateral: str | None = None,
+        left_wrist_medial: str | None = None,
+        left_wrist_lateral: str | None = None,
+        right_wrist_medial: str | None = None,
+        right_wrist_lateral: str | None = None,
+        s2: str | None = None,
+        l2: str | None = None,
+        c7: str | None = None,
+        sc: str | None = None,
         exclude_jumps: list[int] = [],
         straight_legs: bool = False,
         free_hands: bool = False,
     ):
-        """
-        Create a Jump object from a TDF file.
-
-        Parameters
-        ----------
-        file : str
-            Path to the TDF file.
-        bodymass_kg : float or int
-            The subject's body mass in kilograms.
-        vertical_axis : str, optional
-            Name of the vertical axis in the force data.
-        anteroposterior_axis : str, optional
-            Name of the anteroposterior axis in the force data.
-        left_foot_ground_reaction_force : str or None, optional
-            Key for left foot force data.
-        right_foot_ground_reaction_force : str or None, optional
-            Key for right foot force data.
-
-        Returns
-        -------
-        Jump
-            A Jump object created from the TDF file.
-        """
-        mandatory_labels = {
-            "left_foot_ground_reaction_force": left_foot_ground_reaction_force,
-            "right_foot_ground_reaction_force": right_foot_ground_reaction_force,
-        }
-        if all([i is None for i in mandatory_labels.values()]):
+        """Create a RepeatedJumps object from a TDF file."""
+        if left_foot_ground_reaction_force is None and right_foot_ground_reaction_force is None:
             raise ValueError(
-                f"at least one of left_ground_reaction_force or"
-                + " right_ground_reaction_force must be provided."
+                "at least one of left_foot_ground_reaction_force or "
+                "right_foot_ground_reaction_force must be provided."
             )
-        record = TimeseriesRecord.from_tdf(file)
-        mandatory = {}
-        for key, lbl in mandatory_labels.items():
-            if lbl is not None:
-                mandatory[key] = record.get(lbl)
-        if len(mandatory) == 0:
-            raise ValueError(
-                "at least one foot ground reaction force must be "
-                "found on the provided file."
-            )
-        signals = {i: v for i, v in record.items() if i not in list(mandatory.keys())}
+        record = WholeBody.from_tdf(
+            file,
+            left_hand_ground_reaction_force=left_hand_ground_reaction_force,
+            right_hand_ground_reaction_force=right_hand_ground_reaction_force,
+            left_foot_ground_reaction_force=left_foot_ground_reaction_force,
+            right_foot_ground_reaction_force=right_foot_ground_reaction_force,
+            left_heel=left_heel,
+            right_heel=right_heel,
+            left_toe=left_toe,
+            right_toe=right_toe,
+            left_metatarsal_head=left_metatarsal_head,
+            right_metatarsal_head=right_metatarsal_head,
+            left_ankle_medial=left_ankle_medial,
+            left_ankle_lateral=left_ankle_lateral,
+            right_ankle_medial=right_ankle_medial,
+            right_ankle_lateral=right_ankle_lateral,
+            left_knee_medial=left_knee_medial,
+            left_knee_lateral=left_knee_lateral,
+            right_knee_medial=right_knee_medial,
+            right_knee_lateral=right_knee_lateral,
+            left_throcanter=left_throcanter,
+            right_throcanter=right_throcanter,
+            left_asis=left_asis,
+            right_asis=right_asis,
+            left_psis=left_psis,
+            right_psis=right_psis,
+            left_shoulder_anterior=left_shoulder_anterior,
+            left_shoulder_posterior=left_shoulder_posterior,
+            left_acromion=left_acromion,
+            right_shoulder_anterior=right_shoulder_anterior,
+            right_shoulder_posterior=right_shoulder_posterior,
+            right_acromion=right_acromion,
+            left_elbow_medial=left_elbow_medial,
+            left_elbow_lateral=left_elbow_lateral,
+            right_elbow_medial=right_elbow_medial,
+            right_elbow_lateral=right_elbow_lateral,
+            left_wrist_medial=left_wrist_medial,
+            left_wrist_lateral=left_wrist_lateral,
+            right_wrist_medial=right_wrist_medial,
+            right_wrist_lateral=right_wrist_lateral,
+            s2=s2,
+            l2=l2,
+            c7=c7,
+            sc=sc,
+        )
         return cls(
             bodymass_kg=bodymass_kg,
             exclude_jumps=exclude_jumps,
             straight_legs=straight_legs,
             free_hands=free_hands,
-            **mandatory,  # type: ignore
-            **signals,  # type: ignore
+            **record._data,  # type: ignore
         )
 
     def copy(self):

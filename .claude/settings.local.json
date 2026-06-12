@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import sys; sys.path.insert\\(0, 'src'\\); from labanalysis.modelling.pytorch.utils import TrainingLogger; logger = TrainingLogger\\(100\\); print\\('✓ TrainingLogger created successfully'\\); print\\(f'✓ Initial early stopping gap: {logger.get_early_stopping_gap\\(\\)}'\\)\")",
+      "Bash(python -m py_compile test/test_pytorch_utils.py)",
+      "Bash(python -m py_compile src/labanalysis/modelling/pytorch/utils.py test/test_pytorch_utils.py)",
+      "Bash(python test/test_bodies.py)",
+      "Bash(python -m pytest test/test_signalprocessing.py::TestNextpow::test_very_small_value -v)"
+    ]
+  }
+}

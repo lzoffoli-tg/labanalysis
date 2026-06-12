@@ -1,2 +1,2 @@
 ,type,eyes,side,bodymass_kg,area_of_stability_mm2,region,force_left_%,force_right_%
-0,UprightBalanceTest,open,bilateral,75.99105591570908,15.545801583623035,lower_limbs,49.962072808022064,50.037927191977936
+0,UprightBalanceTest,open,bilateral,75.9910548542971,15.545797825408734,lower_limbs,49.962075956193495,50.037924043806505
