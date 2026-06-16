@@ -80,7 +80,13 @@ class GaitObject(WholeBody):
         Left toe marker trajectory.
     right_toe : Point3D or None, optional
         Right toe marker trajectory.
-    left_metatarsal_head : Point3D or None, optional
+    left_first_metatarsal_head : Point3D or None
+        Left first metatarsal head marker.
+    left_fifth_metatarsal_head : Point3D or None
+        Left fifth metatarsal head marker.
+    right_first_metatarsal_head : Point3D or None
+        Right first metatarsal head marker.
+    right_fifth_metatarsal_head : Point3D or None, optional
         Left metatarsal head marker trajectory.
     right_metatarsal_head : Point3D or None, optional
         Right metatarsal head marker trajectory.
@@ -146,8 +152,10 @@ class GaitObject(WholeBody):
         right_heel: Point3D | None = None,
         left_toe: Point3D | None = None,
         right_toe: Point3D | None = None,
-        left_metatarsal_head: Point3D | None = None,
-        right_metatarsal_head: Point3D | None = None,
+        left_first_metatarsal_head: Point3D | None = None,
+        left_fifth_metatarsal_head: Point3D | None = None,
+        right_first_metatarsal_head: Point3D | None = None,
+        right_fifth_metatarsal_head: Point3D | None = None,
         left_ankle_medial: Point3D | None = None,
         left_ankle_lateral: Point3D | None = None,
         right_ankle_medial: Point3D | None = None,
@@ -179,7 +187,12 @@ class GaitObject(WholeBody):
         s2: Point3D | None = None,
         l2: Point3D | None = None,
         c7: Point3D | None = None,
+        t5: Point3D | None = None,
         sc: Point3D | None = None,  # sternoclavicular joint
+        head_anterior: Point3D | None = None,
+        head_posterior: Point3D | None = None,
+        head_left: Point3D | None = None,
+        head_right: Point3D | None = None,
         **extra_signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
     ):
         """
@@ -197,7 +210,13 @@ class GaitObject(WholeBody):
             Left toe marker data.
         right_toe : Point3D or None, optional
             Right toe marker data.
-        left_metatarsal_head : Point3D or None, optional
+        left_first_metatarsal_head : Point3D or None
+        Left first metatarsal head marker.
+    left_fifth_metatarsal_head : Point3D or None
+        Left fifth metatarsal head marker.
+    right_first_metatarsal_head : Point3D or None
+        Right first metatarsal head marker.
+    right_fifth_metatarsal_head : Point3D or None, optional
             Left metatarsal head marker data.
         right_metatarsal_head : Point3D or None, optional
             Right metatarsal head marker data.
@@ -225,8 +244,10 @@ class GaitObject(WholeBody):
                 right_heel=right_heel,
                 left_toe=left_toe,
                 right_toe=right_toe,
-                left_metatarsal_head=left_metatarsal_head,
-                right_metatarsal_head=right_metatarsal_head,
+                left_first_metatarsal_head=left_first_metatarsal_head,
+                left_fifth_metatarsal_head=left_fifth_metatarsal_head,
+                right_first_metatarsal_head=right_first_metatarsal_head,
+                right_fifth_metatarsal_head=right_fifth_metatarsal_head,
                 left_ankle_medial=left_ankle_medial,
                 left_ankle_lateral=left_ankle_lateral,
                 right_ankle_medial=right_ankle_medial,
@@ -257,8 +278,13 @@ class GaitObject(WholeBody):
                 right_wrist_lateral=right_wrist_lateral,
                 s2=s2,
                 c7=c7,
+                t5=t5,
                 sc=sc,
                 l2=l2,
+                head_anterior=head_anterior,
+                head_posterior=head_posterior,
+                head_left=head_left,
+                head_right=head_right,
             ),
         }
         super().__init__(**{i: v for i, v in signals.items() if v is not None})  # type: ignore
@@ -411,7 +437,13 @@ class GaitCycle(GaitObject):
         Marker data for the left toe.
     right_toe : Point3D or None
         Marker data for the right toe.
-    left_metatarsal_head : Point3D or None
+    left_first_metatarsal_head : Point3D or None
+        Left first metatarsal head marker.
+    left_fifth_metatarsal_head : Point3D or None
+        Left fifth metatarsal head marker.
+    right_first_metatarsal_head : Point3D or None
+        Right first metatarsal head marker.
+    right_fifth_metatarsal_head : Point3D or None
         Marker data for the left metatarsal head.
     right_metatarsal_head : Point3D or None
         Marker data for the right metatarsal head.
@@ -459,8 +491,10 @@ class GaitCycle(GaitObject):
         right_heel: Point3D | None = None,
         left_toe: Point3D | None = None,
         right_toe: Point3D | None = None,
-        left_metatarsal_head: Point3D | None = None,
-        right_metatarsal_head: Point3D | None = None,
+        left_first_metatarsal_head: Point3D | None = None,
+        left_fifth_metatarsal_head: Point3D | None = None,
+        right_first_metatarsal_head: Point3D | None = None,
+        right_fifth_metatarsal_head: Point3D | None = None,
         left_ankle_medial: Point3D | None = None,
         left_ankle_lateral: Point3D | None = None,
         right_ankle_medial: Point3D | None = None,
@@ -492,7 +526,12 @@ class GaitCycle(GaitObject):
         s2: Point3D | None = None,
         l2: Point3D | None = None,
         c7: Point3D | None = None,
+        t5: Point3D | None = None,
         sc: Point3D | None = None,  # sternoclavicular joint
+        head_anterior: Point3D | None = None,
+        head_posterior: Point3D | None = None,
+        head_left: Point3D | None = None,
+        head_right: Point3D | None = None,
         **extra_signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
     ):
         """
@@ -512,7 +551,13 @@ class GaitCycle(GaitObject):
             Marker data for the left toe.
         right_toe : Point3D or None
             Marker data for the right toe.
-        left_metatarsal_head : Point3D or None
+        left_first_metatarsal_head : Point3D or None
+        Left first metatarsal head marker.
+    left_fifth_metatarsal_head : Point3D or None
+        Left fifth metatarsal head marker.
+    right_first_metatarsal_head : Point3D or None
+        Right first metatarsal head marker.
+    right_fifth_metatarsal_head : Point3D or None
             Marker data for the left metatarsal head.
         right_metatarsal_head : Point3D or None
             Marker data for the right metatarsal head.
@@ -541,8 +586,10 @@ class GaitCycle(GaitObject):
             right_heel=right_heel,
             left_toe=left_toe,
             right_toe=right_toe,
-            left_metatarsal_head=left_metatarsal_head,
-            right_metatarsal_head=right_metatarsal_head,
+            left_first_metatarsal_head=left_first_metatarsal_head,
+            left_fifth_metatarsal_head=left_fifth_metatarsal_head,
+            right_first_metatarsal_head=right_first_metatarsal_head,
+            right_fifth_metatarsal_head=right_fifth_metatarsal_head,
             left_ankle_medial=left_ankle_medial,
             left_ankle_lateral=left_ankle_lateral,
             right_ankle_medial=right_ankle_medial,
@@ -573,8 +620,13 @@ class GaitCycle(GaitObject):
             right_wrist_lateral=right_wrist_lateral,
             s2=s2,
             c7=c7,
+            t5=t5,
             sc=sc,
             l2=l2,
+            head_anterior=head_anterior,
+            head_posterior=head_posterior,
+            head_left=head_left,
+            head_right=head_right,
             **extra_signals,
         )
         self.set_side(side)
@@ -908,8 +960,10 @@ class GaitExercise(GaitObject):
         right_heel: Point3D | None = None,
         left_toe: Point3D | None = None,
         right_toe: Point3D | None = None,
-        left_metatarsal_head: Point3D | None = None,
-        right_metatarsal_head: Point3D | None = None,
+        left_first_metatarsal_head: Point3D | None = None,
+        left_fifth_metatarsal_head: Point3D | None = None,
+        right_first_metatarsal_head: Point3D | None = None,
+        right_fifth_metatarsal_head: Point3D | None = None,
         left_ankle_medial: Point3D | None = None,
         left_ankle_lateral: Point3D | None = None,
         right_ankle_medial: Point3D | None = None,
@@ -941,7 +995,12 @@ class GaitExercise(GaitObject):
         s2: Point3D | None = None,
         l2: Point3D | None = None,
         c7: Point3D | None = None,
+        t5: Point3D | None = None,
         sc: Point3D | None = None,  # sternoclavicular joint
+        head_anterior: Point3D | None = None,
+        head_posterior: Point3D | None = None,
+        head_left: Point3D | None = None,
+        head_right: Point3D | None = None,
         **extra_signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
     ):
         """
@@ -959,7 +1018,13 @@ class GaitExercise(GaitObject):
             Marker data for the left toe.
         right_toe : Point3D or None
             Marker data for the right toe.
-        left_metatarsal_head : Point3D or None
+        left_first_metatarsal_head : Point3D or None
+        Left first metatarsal head marker.
+    left_fifth_metatarsal_head : Point3D or None
+        Left fifth metatarsal head marker.
+    right_first_metatarsal_head : Point3D or None
+        Right first metatarsal head marker.
+    right_fifth_metatarsal_head : Point3D or None
             Marker data for the left metatarsal head.
         right_metatarsal_head : Point3D or None
             Marker data for the right metatarsal head.
@@ -991,8 +1056,10 @@ class GaitExercise(GaitObject):
             right_heel=right_heel,
             left_toe=left_toe,
             right_toe=right_toe,
-            left_metatarsal_head=left_metatarsal_head,
-            right_metatarsal_head=right_metatarsal_head,
+            left_first_metatarsal_head=left_first_metatarsal_head,
+            left_fifth_metatarsal_head=left_fifth_metatarsal_head,
+            right_first_metatarsal_head=right_first_metatarsal_head,
+            right_fifth_metatarsal_head=right_fifth_metatarsal_head,
             left_ankle_medial=left_ankle_medial,
             left_ankle_lateral=left_ankle_lateral,
             right_ankle_medial=right_ankle_medial,
@@ -1023,8 +1090,13 @@ class GaitExercise(GaitObject):
             right_wrist_lateral=right_wrist_lateral,
             s2=s2,
             c7=c7,
+            t5=t5,
             sc=sc,
             l2=l2,
+            head_anterior=head_anterior,
+            head_posterior=head_posterior,
+            head_left=head_left,
+            head_right=head_right,
             **extra_signals,
         )
 
@@ -1043,8 +1115,10 @@ class GaitExercise(GaitObject):
         right_heel: str | None = None,
         left_toe: str | None = None,
         right_toe: str | None = None,
-        left_metatarsal_head: str | None = None,
-        right_metatarsal_head: str | None = None,
+        left_first_metatarsal_head: str | None = None,
+        left_fifth_metatarsal_head: str | None = None,
+        right_first_metatarsal_head: str | None = None,
+        right_fifth_metatarsal_head: str | None = None,
         left_ankle_medial: str | None = None,
         left_ankle_lateral: str | None = None,
         right_ankle_medial: str | None = None,
@@ -1076,7 +1150,12 @@ class GaitExercise(GaitObject):
         s2: str | None = None,
         l2: str | None = None,
         c7: str | None = None,
+        t5: str | None = None,
         sc: str | None = None,  # sternoclavicular joint
+        head_anterior: str | None = None,
+        head_posterior: str | None = None,
+        head_left: str | None = None,
+        head_right: str | None = None,
     ):
         """
         Generate a GaitTest object directly from a .tdf file.
@@ -1095,10 +1174,14 @@ class GaitExercise(GaitObject):
             Name of the left toe marker in the tdf file.
         right_toe : str or None, optional
             Name of the right toe marker in the tdf file.
-        left_metatarsal_head : str or None, optional
-            Name of the left metatarsal head marker in the tdf file.
-        right_metatarsal_head : str or None, optional
-            Name of the right metatarsal head marker in the tdf file.
+        left_first_metatarsal_head : str or None, optional
+            Name of the left first metatarsal head marker in the tdf file.
+        left_fifth_metatarsal_head : str or None, optional
+            Name of the left fifth metatarsal head marker in the tdf file.
+        right_first_metatarsal_head : str or None, optional
+            Name of the right first metatarsal head marker in the tdf file.
+        right_fifth_metatarsal_head : str or None, optional
+            Name of the right fifth metatarsal head marker in the tdf file.
         ground_reaction_force : str or None, optional
             Name of the ground reaction force data in the tdf file.
         ground_reaction_force_threshold : float or int, optional
@@ -1127,8 +1210,10 @@ class GaitExercise(GaitObject):
             "right_heel": right_heel,
             "left_toe": left_toe,
             "right_toe": right_toe,
-            "left_metatarsal_head": left_metatarsal_head,
-            "right_metatarsal_head": right_metatarsal_head,
+            "left_first_metatarsal_head": left_first_metatarsal_head,
+            "left_fifth_metatarsal_head": left_fifth_metatarsal_head,
+            "right_first_metatarsal_head": right_first_metatarsal_head,
+            "right_fifth_metatarsal_head": right_fifth_metatarsal_head,
             "left_ankle_medial": left_ankle_medial,
             "left_ankle_lateral": left_ankle_lateral,
             "right_ankle_medial": right_ankle_medial,
@@ -1159,8 +1244,13 @@ class GaitExercise(GaitObject):
             "right_wrist_lateral": right_wrist_lateral,
             "s2": s2,
             "c7": c7,
+            "t5": t5,
             "sc": sc,
             "l2": l2,
+            "head_anterior": head_anterior,
+            "head_posterior": head_posterior,
+            "head_left": head_left,
+            "head_right": head_right,
         }
         objects = {}
         for key, val in labels.items():
@@ -1187,8 +1277,8 @@ class GaitExercise(GaitObject):
             data["GRF"] = res["force"].copy()[self.vertical_axis]
             data["COP<sub>ML</sub>"] = res["origin"].copy()[self.lateral_axis]
             data["COP<sub>AP</sub>"] = res["origin"].copy()[self.anteroposterior_axis]
-        markers = ["left_heel", "left_metatarsal_head", "left_toe"]
-        markers += ["right_heel", "right_metatarsal_head", "right_toe"]
+        markers = ["left_heel", "left_first_metatarsal_head", "left_fifth_metatarsal_head", "left_toe"]
+        markers += ["right_heel", "right_first_metatarsal_head", "right_fifth_metatarsal_head", "right_toe"]
         for marker in markers:
             obj = self.get(marker)
             if obj is not None:
@@ -1571,8 +1661,10 @@ class RunningStep(GaitCycle):
         right_heel: Point3D | None = None,
         left_toe: Point3D | None = None,
         right_toe: Point3D | None = None,
-        left_metatarsal_head: Point3D | None = None,
-        right_metatarsal_head: Point3D | None = None,
+        left_first_metatarsal_head: Point3D | None = None,
+        left_fifth_metatarsal_head: Point3D | None = None,
+        right_first_metatarsal_head: Point3D | None = None,
+        right_fifth_metatarsal_head: Point3D | None = None,
         left_ankle_medial: Point3D | None = None,
         left_ankle_lateral: Point3D | None = None,
         right_ankle_medial: Point3D | None = None,
@@ -1604,7 +1696,12 @@ class RunningStep(GaitCycle):
         s2: Point3D | None = None,
         l2: Point3D | None = None,
         c7: Point3D | None = None,
+        t5: Point3D | None = None,
         sc: Point3D | None = None,  # sternoclavicular joint
+        head_anterior: Point3D | None = None,
+        head_posterior: Point3D | None = None,
+        head_left: Point3D | None = None,
+        head_right: Point3D | None = None,
         **extra_signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
     ):
         super().__init__(
@@ -1620,8 +1717,10 @@ class RunningStep(GaitCycle):
             right_heel=right_heel,
             left_toe=left_toe,
             right_toe=right_toe,
-            left_metatarsal_head=left_metatarsal_head,
-            right_metatarsal_head=right_metatarsal_head,
+            left_first_metatarsal_head=left_first_metatarsal_head,
+            left_fifth_metatarsal_head=left_fifth_metatarsal_head,
+            right_first_metatarsal_head=right_first_metatarsal_head,
+            right_fifth_metatarsal_head=right_fifth_metatarsal_head,
             left_ankle_medial=left_ankle_medial,
             left_ankle_lateral=left_ankle_lateral,
             right_ankle_medial=right_ankle_medial,
@@ -1652,8 +1751,13 @@ class RunningStep(GaitCycle):
             right_wrist_lateral=right_wrist_lateral,
             s2=s2,
             c7=c7,
+            t5=t5,
             sc=sc,
             l2=l2,
+            head_anterior=head_anterior,
+            head_posterior=head_posterior,
+            head_left=head_left,
+            head_right=head_right,
             **extra_signals,
         )
 
@@ -1678,7 +1782,13 @@ class RunningExercise(GaitExercise):
         The left toe marker data.
     right_toe : Point3D or None, optional
         The right toe marker data.
-    left_metatarsal_head : Point3D or None, optional
+    left_first_metatarsal_head : Point3D or None
+        Left first metatarsal head marker.
+    left_fifth_metatarsal_head : Point3D or None
+        Left fifth metatarsal head marker.
+    right_first_metatarsal_head : Point3D or None
+        Right first metatarsal head marker.
+    right_fifth_metatarsal_head : Point3D or None, optional
         The left metatarsal head marker data.
     right_metatarsal_head : Point3D or None, optional
         The right metatarsal head marker data.
@@ -1864,8 +1974,10 @@ class RunningExercise(GaitExercise):
         right_heel: Point3D | None = None,
         left_toe: Point3D | None = None,
         right_toe: Point3D | None = None,
-        left_metatarsal_head: Point3D | None = None,
-        right_metatarsal_head: Point3D | None = None,
+        left_first_metatarsal_head: Point3D | None = None,
+        left_fifth_metatarsal_head: Point3D | None = None,
+        right_first_metatarsal_head: Point3D | None = None,
+        right_fifth_metatarsal_head: Point3D | None = None,
         left_ankle_medial: Point3D | None = None,
         left_ankle_lateral: Point3D | None = None,
         right_ankle_medial: Point3D | None = None,
@@ -1897,7 +2009,12 @@ class RunningExercise(GaitExercise):
         s2: Point3D | None = None,
         l2: Point3D | None = None,
         c7: Point3D | None = None,
+        t5: Point3D | None = None,
         sc: Point3D | None = None,  # sternoclavicular joint
+        head_anterior: Point3D | None = None,
+        head_posterior: Point3D | None = None,
+        head_left: Point3D | None = None,
+        head_right: Point3D | None = None,
         **extra_signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
     ):
         """
@@ -1909,7 +2026,13 @@ class RunningExercise(GaitExercise):
             Algorithm used for gait cycle detection. 'kinematics' uses marker data, 'kinetics' uses force platform data.
         left_heel, right_heel, left_toe, right_toe : Point3D or None, optional
             Marker data for the respective anatomical points.
-        left_metatarsal_head : Point3D or None, optional
+        left_first_metatarsal_head : Point3D or None
+        Left first metatarsal head marker.
+    left_fifth_metatarsal_head : Point3D or None
+        Left fifth metatarsal head marker.
+    right_first_metatarsal_head : Point3D or None
+        Right first metatarsal head marker.
+    right_fifth_metatarsal_head : Point3D or None, optional
             Marker data for the left metatarsal head.
         right_metatarsal_head : Point3D or None, optional
             Marker data for the right metatarsal head.
@@ -1940,8 +2063,10 @@ class RunningExercise(GaitExercise):
             right_heel=right_heel,
             left_toe=left_toe,
             right_toe=right_toe,
-            left_metatarsal_head=left_metatarsal_head,
-            right_metatarsal_head=right_metatarsal_head,
+            left_first_metatarsal_head=left_first_metatarsal_head,
+            left_fifth_metatarsal_head=left_fifth_metatarsal_head,
+            right_first_metatarsal_head=right_first_metatarsal_head,
+            right_fifth_metatarsal_head=right_fifth_metatarsal_head,
             left_ankle_medial=left_ankle_medial,
             left_ankle_lateral=left_ankle_lateral,
             right_ankle_medial=right_ankle_medial,
@@ -1972,8 +2097,13 @@ class RunningExercise(GaitExercise):
             right_wrist_lateral=right_wrist_lateral,
             s2=s2,
             c7=c7,
+            t5=t5,
             sc=sc,
             l2=l2,
+            head_anterior=head_anterior,
+            head_posterior=head_posterior,
+            head_left=head_left,
+            head_right=head_right,
             **extra_signals,
         )
 
@@ -1998,7 +2128,13 @@ class WalkingStride(GaitCycle):
         The left toe marker data.
     right_toe : Point3D or None, optional
         The right toe marker data.
-    left_metatarsal_head : Point3D or None, optional
+    left_first_metatarsal_head : Point3D or None
+        Left first metatarsal head marker.
+    left_fifth_metatarsal_head : Point3D or None
+        Left fifth metatarsal head marker.
+    right_first_metatarsal_head : Point3D or None
+        Right first metatarsal head marker.
+    right_fifth_metatarsal_head : Point3D or None, optional
         The left metatarsal head marker data.
     right_metatarsal_head : Point3D or None, optional
         The right metatarsal head marker data.
@@ -2412,8 +2548,10 @@ class WalkingStride(GaitCycle):
         right_heel: Point3D | None = None,
         left_toe: Point3D | None = None,
         right_toe: Point3D | None = None,
-        left_metatarsal_head: Point3D | None = None,
-        right_metatarsal_head: Point3D | None = None,
+        left_first_metatarsal_head: Point3D | None = None,
+        left_fifth_metatarsal_head: Point3D | None = None,
+        right_first_metatarsal_head: Point3D | None = None,
+        right_fifth_metatarsal_head: Point3D | None = None,
         left_ankle_medial: Point3D | None = None,
         left_ankle_lateral: Point3D | None = None,
         right_ankle_medial: Point3D | None = None,
@@ -2445,7 +2583,12 @@ class WalkingStride(GaitCycle):
         s2: Point3D | None = None,
         l2: Point3D | None = None,
         c7: Point3D | None = None,
+        t5: Point3D | None = None,
         sc: Point3D | None = None,  # sternoclavicular joint
+        head_anterior: Point3D | None = None,
+        head_posterior: Point3D | None = None,
+        head_left: Point3D | None = None,
+        head_right: Point3D | None = None,
         **extra_signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
     ):
         """
@@ -2465,7 +2608,13 @@ class WalkingStride(GaitCycle):
             Marker data for the left toe.
         right_toe : Point3D or None, optional
             Marker data for the right toe.
-        left_metatarsal_head : Point3D or None, optional
+        left_first_metatarsal_head : Point3D or None
+        Left first metatarsal head marker.
+    left_fifth_metatarsal_head : Point3D or None
+        Left fifth metatarsal head marker.
+    right_first_metatarsal_head : Point3D or None
+        Right first metatarsal head marker.
+    right_fifth_metatarsal_head : Point3D or None, optional
             Marker data for the left metatarsal head.
         right_metatarsal_head : Point3D or None, optional
             Marker data for the right metatarsal head.
@@ -2495,8 +2644,10 @@ class WalkingStride(GaitCycle):
             right_heel=right_heel,
             left_toe=left_toe,
             right_toe=right_toe,
-            left_metatarsal_head=left_metatarsal_head,
-            right_metatarsal_head=right_metatarsal_head,
+            left_first_metatarsal_head=left_first_metatarsal_head,
+            left_fifth_metatarsal_head=left_fifth_metatarsal_head,
+            right_first_metatarsal_head=right_first_metatarsal_head,
+            right_fifth_metatarsal_head=right_fifth_metatarsal_head,
             left_ankle_medial=left_ankle_medial,
             left_ankle_lateral=left_ankle_lateral,
             right_ankle_medial=right_ankle_medial,
@@ -2527,8 +2678,13 @@ class WalkingStride(GaitCycle):
             right_wrist_lateral=right_wrist_lateral,
             s2=s2,
             c7=c7,
+            t5=t5,
             sc=sc,
             l2=l2,
+            head_anterior=head_anterior,
+            head_posterior=head_posterior,
+            head_left=head_left,
+            head_right=head_right,
             **extra_signals,
         )
 
@@ -2553,7 +2709,13 @@ class WalkingExercise(GaitExercise):
         The left toe marker data.
     right_toe : Point3D or None, optional
         The right toe marker data.
-    left_metatarsal_head : Point3D or None, optional
+    left_first_metatarsal_head : Point3D or None
+        Left first metatarsal head marker.
+    left_fifth_metatarsal_head : Point3D or None
+        Left fifth metatarsal head marker.
+    right_first_metatarsal_head : Point3D or None
+        Right first metatarsal head marker.
+    right_fifth_metatarsal_head : Point3D or None, optional
         The left metatarsal head marker data.
     right_metatarsal_head : Point3D or None, optional
         The right metatarsal head marker data.
@@ -2749,8 +2911,10 @@ class WalkingExercise(GaitExercise):
         right_heel: Point3D | None = None,
         left_toe: Point3D | None = None,
         right_toe: Point3D | None = None,
-        left_metatarsal_head: Point3D | None = None,
-        right_metatarsal_head: Point3D | None = None,
+        left_first_metatarsal_head: Point3D | None = None,
+        left_fifth_metatarsal_head: Point3D | None = None,
+        right_first_metatarsal_head: Point3D | None = None,
+        right_fifth_metatarsal_head: Point3D | None = None,
         left_ankle_medial: Point3D | None = None,
         left_ankle_lateral: Point3D | None = None,
         right_ankle_medial: Point3D | None = None,
@@ -2782,7 +2946,12 @@ class WalkingExercise(GaitExercise):
         s2: Point3D | None = None,
         l2: Point3D | None = None,
         c7: Point3D | None = None,
+        t5: Point3D | None = None,
         sc: Point3D | None = None,  # sternoclavicular joint
+        head_anterior: Point3D | None = None,
+        head_posterior: Point3D | None = None,
+        head_left: Point3D | None = None,
+        head_right: Point3D | None = None,
         **extra_signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
     ):
         """
@@ -2801,7 +2970,13 @@ class WalkingExercise(GaitExercise):
             Marker data for the left toe.
         right_toe : Point3D or None, optional
             Marker data for the right toe.
-        left_metatarsal_head : Point3D or None, optional
+        left_first_metatarsal_head : Point3D or None
+        Left first metatarsal head marker.
+    left_fifth_metatarsal_head : Point3D or None
+        Left fifth metatarsal head marker.
+    right_first_metatarsal_head : Point3D or None
+        Right first metatarsal head marker.
+    right_fifth_metatarsal_head : Point3D or None, optional
             Marker data for the left metatarsal head.
         right_metatarsal_head : Point3D or None, optional
             Marker data for the right metatarsal head.
@@ -2832,8 +3007,10 @@ class WalkingExercise(GaitExercise):
             right_heel=right_heel,
             left_toe=left_toe,
             right_toe=right_toe,
-            left_metatarsal_head=left_metatarsal_head,
-            right_metatarsal_head=right_metatarsal_head,
+            left_first_metatarsal_head=left_first_metatarsal_head,
+            left_fifth_metatarsal_head=left_fifth_metatarsal_head,
+            right_first_metatarsal_head=right_first_metatarsal_head,
+            right_fifth_metatarsal_head=right_fifth_metatarsal_head,
             left_ankle_medial=left_ankle_medial,
             left_ankle_lateral=left_ankle_lateral,
             right_ankle_medial=right_ankle_medial,
@@ -2864,7 +3041,12 @@ class WalkingExercise(GaitExercise):
             right_wrist_lateral=right_wrist_lateral,
             s2=s2,
             c7=c7,
+            t5=t5,
             sc=sc,
             l2=l2,
+            head_anterior=head_anterior,
+            head_posterior=head_posterior,
+            head_left=head_left,
+            head_right=head_right,
             **extra_signals,
         )

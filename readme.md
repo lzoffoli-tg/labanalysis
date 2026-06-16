@@ -185,6 +185,48 @@ print(f"Walking Speed: {results['speed']:.2f} m/s")
 gait_cycles = walking_test.gait_cycles
 ```
 
+### Example: Full Body Biomechanical Analysis
+
+```python
+import labanalysis as laban
+
+# Load motion capture data with anatomical markers
+body = laban.WholeBody.from_tdf(
+    "path/to/mocap.tdf",
+    # Foot markers (new: first/fifth metatarsal for accurate foot plane)
+    left_first_metatarsal_head="LFM1",
+    left_fifth_metatarsal_head="LFM5",
+    right_first_metatarsal_head="RFM1",
+    right_fifth_metatarsal_head="RFM5",
+    left_heel="LHEE",
+    right_heel="RHEE",
+    # Spine markers (new: T5 for enhanced thoracic modeling)
+    c7="C7",
+    t5="T5",
+    sc="SC",
+    # Head markers (new: 4 cranial markers for head center calculation)
+    head_anterior="HANT",
+    head_posterior="HPOST",
+    head_left="HLEFT",
+    head_right="HRIGHT",
+    # ... additional markers
+)
+
+# Access computed properties
+head_center = body.head_center          # Centroid of 4 cranial markers
+neck_base = body.neck_base              # Midpoint between SC and C7
+left_foot_plane = body.left_foot_plane  # Plane from 4 foot markers
+
+# Access joint angles (36 available)
+knee_flexion = body.left_knee_flexionextension
+neck_tilt = body.neck_lateral_tilt
+neck_flex = body.neck_flexionextension_global
+
+# Access all available angular measures
+all_angles = body._angular_measures
+print(f"Available angles: {len(all_angles)}")  # 36 joint angles
+```
+
 ---
 
 ## Package Structure
@@ -212,7 +254,7 @@ labanalysis/
 ├── records/              # Data structure classes
 │   ├── records.py        # Base record classes
 │   ├── timeseries.py     # Time series data structures
-│   ├── bodies.py         # Participant and body segment classes
+│   ├── bodies.py         # Full body biomechanical model with 42+ anatomical markers
 │   ├── jumping.py        # Jump-specific records
 │   ├── locomotion.py     # Locomotion-specific records
 │   ├── strength/         # Strength assessment records
@@ -441,6 +483,11 @@ Core data structure classes for representing laboratory measurements.
 **Main Classes:**
 - `Record`: Dictionary-like container for timeseries data
 - `TimeseriesRecord`: Specialized record for time-indexed data
+- `WholeBody`: Full body biomechanical model with 42+ anatomical landmarks
+  - Supports 4 metatarsal markers (first/fifth bilateral) for precise foot plane calculation
+  - Includes thoracic vertebra T5 marker for enhanced spine modeling
+  - Features 4 cranial markers (anterior/posterior/left/right) for head center and neck analysis
+  - Computes 36 joint angles, reference frames, and derived properties
 - `ForcePlatform`: Force platform data representation
 - `Participant`: Subject/participant information
 - `Signal1D`, `Signal3D`: 1D and 3D signal representations
@@ -579,6 +626,10 @@ pytest test/ --cov=labanalysis --cov-report=html
 For detailed information about the test suite, see [`test/README.md`](test/README.md).
 
 **Key Test Modules:**
+- `test_bodies.py` - WholeBody biomechanical model tests (15 test cases)
+  - New anatomical markers (metatarsals, T5, cranial markers)
+  - Computed properties (head_center, neck_base, foot_plane)
+  - Derived angles (neck angles, foot height, ankle angles)
 - `test_runningexercise.py` - Comprehensive RunningExercise tests (30+ test cases)
 - `test_jumps.py` - Jump test protocols
 - `test_balance.py` - Balance and posture tests
@@ -630,6 +681,6 @@ This package integrates and builds upon several excellent open-source libraries:
 
 ---
 
-**Version**: 187  
+**Version**: 202  
 **Python**: ≥ 3.12  
-**Last Updated**: April 2026
+**Last Updated**: June 2026

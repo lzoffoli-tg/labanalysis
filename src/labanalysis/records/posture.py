@@ -73,8 +73,10 @@ class UprightPosture(WholeBody):
         right_heel: Point3D | None = None,
         left_toe: Point3D | None = None,
         right_toe: Point3D | None = None,
-        left_metatarsal_head: Point3D | None = None,
-        right_metatarsal_head: Point3D | None = None,
+        left_first_metatarsal_head: Point3D | None = None,
+        left_fifth_metatarsal_head: Point3D | None = None,
+        right_first_metatarsal_head: Point3D | None = None,
+        right_fifth_metatarsal_head: Point3D | None = None,
         left_ankle_medial: Point3D | None = None,
         left_ankle_lateral: Point3D | None = None,
         right_ankle_medial: Point3D | None = None,
@@ -106,7 +108,12 @@ class UprightPosture(WholeBody):
         s2: Point3D | None = None,
         l2: Point3D | None = None,
         c7: Point3D | None = None,
+        t5: Point3D | None = None,
         sc: Point3D | None = None,
+        head_anterior: Point3D | None = None,
+        head_posterior: Point3D | None = None,
+        head_left: Point3D | None = None,
+        head_right: Point3D | None = None,
         **signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
     ):
         all_signals = {
@@ -120,8 +127,10 @@ class UprightPosture(WholeBody):
                 right_heel=right_heel,
                 left_toe=left_toe,
                 right_toe=right_toe,
-                left_metatarsal_head=left_metatarsal_head,
-                right_metatarsal_head=right_metatarsal_head,
+                left_first_metatarsal_head=left_first_metatarsal_head,
+                left_fifth_metatarsal_head=left_fifth_metatarsal_head,
+                right_first_metatarsal_head=right_first_metatarsal_head,
+                right_fifth_metatarsal_head=right_fifth_metatarsal_head,
                 left_ankle_medial=left_ankle_medial,
                 left_ankle_lateral=left_ankle_lateral,
                 right_ankle_medial=right_ankle_medial,
@@ -153,7 +162,12 @@ class UprightPosture(WholeBody):
                 s2=s2,
                 l2=l2,
                 c7=c7,
+                t5=t5,
                 sc=sc,
+                head_anterior=head_anterior,
+                head_posterior=head_posterior,
+                head_left=head_left,
+                head_right=head_right,
             ),
         }
         # Check that at least one foot force platform is provided
@@ -176,8 +190,10 @@ class UprightPosture(WholeBody):
         right_heel: str | None = None,
         left_toe: str | None = None,
         right_toe: str | None = None,
-        left_metatarsal_head: str | None = None,
-        right_metatarsal_head: str | None = None,
+        left_first_metatarsal_head: str | None = None,
+        left_fifth_metatarsal_head: str | None = None,
+        right_first_metatarsal_head: str | None = None,
+        right_fifth_metatarsal_head: str | None = None,
         left_ankle_medial: str | None = None,
         left_ankle_lateral: str | None = None,
         right_ankle_medial: str | None = None,
@@ -209,30 +225,32 @@ class UprightPosture(WholeBody):
         s2: str | None = None,
         l2: str | None = None,
         c7: str | None = None,
+        t5: str | None = None,
         sc: str | None = None,
+        head_anterior: str | None = None,
+        head_posterior: str | None = None,
+        head_left: str | None = None,
+        head_right: str | None = None,
     ):
         """
-        Create a Jump object from a TDF file.
+        Create an UprightPosture object from a TDF file.
 
         Parameters
         ----------
-        file : str
-            Path to the TDF file.
-        bodymass_kg : float or int
-            The subject's body mass in kilograms.
-        vertical_axis : str, optional
-            Name of the vertical axis in the force data.
-        anteroposterior_axis : str, optional
-            Name of the anteroposterior axis in the force data.
-        left_foot_ground_reaction_force : str or None, optional
-            Key for left foot force data.
-        right_foot_ground_reaction_force : str or None, optional
-            Key for right foot force data.
+        file : str or Path
+            Path to TDF file containing marker and force platform data.
+        left_foot_ground_reaction_force : str, optional
+            Label for left foot force platform signal in TDF file.
+        right_foot_ground_reaction_force : str, optional
+            Label for right foot force platform signal in TDF file.
+        **kwargs
+            Additional marker label mappings passed to WholeBody.from_tdf().
+            See WholeBody.from_tdf() for complete list of anatomical markers.
 
         Returns
         -------
-        Jump
-            A Jump object created from the TDF file.
+        UprightPosture
+            Instance with loaded marker trajectories and computed properties.
         """
         if left_foot_ground_reaction_force is None and right_foot_ground_reaction_force is None:
             raise ValueError(
@@ -249,8 +267,10 @@ class UprightPosture(WholeBody):
             right_heel=right_heel,
             left_toe=left_toe,
             right_toe=right_toe,
-            left_metatarsal_head=left_metatarsal_head,
-            right_metatarsal_head=right_metatarsal_head,
+            left_first_metatarsal_head=left_first_metatarsal_head,
+            left_fifth_metatarsal_head=left_fifth_metatarsal_head,
+            right_first_metatarsal_head=right_first_metatarsal_head,
+            right_fifth_metatarsal_head=right_fifth_metatarsal_head,
             left_ankle_medial=left_ankle_medial,
             left_ankle_lateral=left_ankle_lateral,
             right_ankle_medial=right_ankle_medial,
@@ -282,7 +302,12 @@ class UprightPosture(WholeBody):
             s2=s2,
             l2=l2,
             c7=c7,
+            t5=t5,
             sc=sc,
+            head_anterior=head_anterior,
+            head_posterior=head_posterior,
+            head_left=head_left,
+            head_right=head_right,
         )
         return cls(**record._data)  # type: ignore
 
@@ -335,8 +360,10 @@ class PronePosture(WholeBody):
         right_heel: Point3D | None = None,
         left_toe: Point3D | None = None,
         right_toe: Point3D | None = None,
-        left_metatarsal_head: Point3D | None = None,
-        right_metatarsal_head: Point3D | None = None,
+        left_first_metatarsal_head: Point3D | None = None,
+        left_fifth_metatarsal_head: Point3D | None = None,
+        right_first_metatarsal_head: Point3D | None = None,
+        right_fifth_metatarsal_head: Point3D | None = None,
         left_ankle_medial: Point3D | None = None,
         left_ankle_lateral: Point3D | None = None,
         right_ankle_medial: Point3D | None = None,
@@ -368,7 +395,12 @@ class PronePosture(WholeBody):
         s2: Point3D | None = None,
         l2: Point3D | None = None,
         c7: Point3D | None = None,
+        t5: Point3D | None = None,
         sc: Point3D | None = None,
+        head_anterior: Point3D | None = None,
+        head_posterior: Point3D | None = None,
+        head_left: Point3D | None = None,
+        head_right: Point3D | None = None,
         **signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
     ):
         # Validate required force platforms
@@ -392,8 +424,10 @@ class PronePosture(WholeBody):
                 right_heel=right_heel,
                 left_toe=left_toe,
                 right_toe=right_toe,
-                left_metatarsal_head=left_metatarsal_head,
-                right_metatarsal_head=right_metatarsal_head,
+                left_first_metatarsal_head=left_first_metatarsal_head,
+                left_fifth_metatarsal_head=left_fifth_metatarsal_head,
+                right_first_metatarsal_head=right_first_metatarsal_head,
+                right_fifth_metatarsal_head=right_fifth_metatarsal_head,
                 left_ankle_medial=left_ankle_medial,
                 left_ankle_lateral=left_ankle_lateral,
                 right_ankle_medial=right_ankle_medial,
@@ -425,7 +459,12 @@ class PronePosture(WholeBody):
                 s2=s2,
                 l2=l2,
                 c7=c7,
+                t5=t5,
                 sc=sc,
+                head_anterior=head_anterior,
+                head_posterior=head_posterior,
+                head_left=head_left,
+                head_right=head_right,
             ),
         }
         super().__init__(**{i: v for i, v in all_signals.items() if v is not None})
@@ -442,8 +481,10 @@ class PronePosture(WholeBody):
         right_heel: str | None = None,
         left_toe: str | None = None,
         right_toe: str | None = None,
-        left_metatarsal_head: str | None = None,
-        right_metatarsal_head: str | None = None,
+        left_first_metatarsal_head: str | None = None,
+        left_fifth_metatarsal_head: str | None = None,
+        right_first_metatarsal_head: str | None = None,
+        right_fifth_metatarsal_head: str | None = None,
         left_ankle_medial: str | None = None,
         left_ankle_lateral: str | None = None,
         right_ankle_medial: str | None = None,
@@ -477,7 +518,30 @@ class PronePosture(WholeBody):
         c7: str | None = None,
         sc: str | None = None,
     ):
-        """read from file"""
+        """
+        Create a PronePosture object from a TDF file.
+
+        Parameters
+        ----------
+        file : str or Path
+            Path to TDF file containing marker and force platform data.
+        left_foot_ground_reaction_force : str, optional
+            Label for left foot force platform signal in TDF file.
+        right_foot_ground_reaction_force : str, optional
+            Label for right foot force platform signal in TDF file.
+        left_hand_ground_reaction_force : str, optional
+            Label for left hand force platform signal in TDF file.
+        right_hand_ground_reaction_force : str, optional
+            Label for right hand force platform signal in TDF file.
+        **kwargs
+            Additional marker label mappings passed to WholeBody.from_tdf().
+            See WholeBody.from_tdf() for complete list of anatomical markers.
+
+        Returns
+        -------
+        PronePosture
+            Instance with loaded marker trajectories and computed properties.
+        """
         record = WholeBody.from_tdf(
             file,
             left_hand_ground_reaction_force=left_hand_ground_reaction_force,
@@ -488,8 +552,10 @@ class PronePosture(WholeBody):
             right_heel=right_heel,
             left_toe=left_toe,
             right_toe=right_toe,
-            left_metatarsal_head=left_metatarsal_head,
-            right_metatarsal_head=right_metatarsal_head,
+            left_first_metatarsal_head=left_first_metatarsal_head,
+            left_fifth_metatarsal_head=left_fifth_metatarsal_head,
+            right_first_metatarsal_head=right_first_metatarsal_head,
+            right_fifth_metatarsal_head=right_fifth_metatarsal_head,
             left_ankle_medial=left_ankle_medial,
             left_ankle_lateral=left_ankle_lateral,
             right_ankle_medial=right_ankle_medial,
