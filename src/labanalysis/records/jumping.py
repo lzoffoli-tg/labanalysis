@@ -186,7 +186,7 @@ class SingleJump(WholeBody):
         start = grft[batch[0]]
         stop = grft[batch[-1]]
 
-        signals = {k: v.copy().loc(start, stop) for k, v in self.items()}
+        signals = {k: v.copy().loc[start:stop, :] for k, v in self.items()}
         return WholeBody(**signals)  # type: ignore
 
     @property
@@ -229,7 +229,7 @@ class SingleJump(WholeBody):
         stop = float(np.round(grft[batch[-1]], 3))
 
         # return a slice of the available data
-        signals = {k: v.copy().loc(start, stop) for k, v in self.items()}
+        signals = {k: v.copy().loc[start:stop, :] for k, v in self.items()}
         return WholeBody(**signals)  # type: ignore
 
     def __init__(
@@ -566,7 +566,7 @@ class DropJump(SingleJump):
         )
 
         # return the landing phase
-        signals = {k: v.copy().loc(start, stop) for k, v in self.items()}
+        signals = {k: v.copy().loc[start:stop, :] for k, v in self.items()}
         return WholeBody(**signals)  # type: ignore
 
     @property
@@ -610,7 +610,7 @@ class DropJump(SingleJump):
         stop = float(round(grft[contact_batches[1][0] - 1], 3))
 
         # return the landing phase
-        signals = {k: v.copy().loc(start, stop) for k, v in self.items()}
+        signals = {k: v.copy().loc[start:stop, :] for k, v in self.items()}
         return WholeBody(**signals)  # type: ignore
 
     def __init__(
@@ -1227,7 +1227,7 @@ class RepeatedJumps(WholeBody):
                     bodymass_kg=self.bodymass_kg,
                     straight_legs=self.straight_legs,
                     free_hands=self.free_hands,
-                    **{i: v.copy().loc(start, stop) for i, v in self.items()},  # type: ignore
+                    **{i: v.copy().loc[start:stop, :] for i, v in self.items()},  # type: ignore
                 )
             )
 

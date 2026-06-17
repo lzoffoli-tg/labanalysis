@@ -4,9 +4,8 @@
 
 import numpy as np
 
-from ..records import EMGSignal, Signal1D, Signal3D, Point3D, ForcePlatform, TimeseriesRecord
-
-
+from .timeseries import EMGSignal, Signal1D, Signal3D, Point3D
+from .records import ForcePlatform, TimeseriesRecord
 from .bodies import WholeBody
 
 __all__ = ["ChangeOfDirectionExercise"]
@@ -99,7 +98,7 @@ class ChangeOfDirectionExercise(WholeBody):
         start = rf.index[0]
         stop = rf.index[-1]
 
-        signals = {k: v.copy().loc(start, stop) for k, v in self.items()}
+        signals = {k: v.copy().loc[start:stop, :] for k, v in self.items()}
         return WholeBody(**signals)  # type: ignore
 
     @property

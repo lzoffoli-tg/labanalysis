@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 
 from ..signalprocessing import gram_schmidt
-from .timeseries import *
 from .records import *
+from .timeseries import *
 
 __all__ = ["WholeBody"]
 
@@ -187,6 +187,8 @@ class WholeBody(TimeseriesRecord):
         "right_shoulder_flexionextension",
         "left_shoulder_internalexternalrotation",
         "right_shoulder_internalexternalrotation",
+        "left_scapular_protractionretraction",
+        "right_scapular_protractionretraction",
         "left_elbow_flexionextension",
         "right_elbow_flexionextension",
         "neck_lateral_tilt",
@@ -653,7 +655,7 @@ class WholeBody(TimeseriesRecord):
         4. Translations in local frame are rotated to global frame
         """
         # Extract plane normal coefficients a, b, c
-        normals = plane.ix[:, :3].to_numpy()
+        normals = plane.iloc[:, :3].to_numpy()
         norm_normals = np.linalg.norm(normals, axis=1, keepdims=True)
         normals_unit = normals / norm_normals  # normalize
 
@@ -980,13 +982,33 @@ class WholeBody(TimeseriesRecord):
     @property
     def left_ankle_referenceframe(self):
         """
-        return the left ankle reference frame origin and rotation matrix.
+        Calculate left ankle anatomical reference frame.
 
-        A point can be aligned to this reference frame by:
-            new = np.einsum("nij,nj->ni", R, old - O)
+        The reference frame is centered at the left ankle joint center with
+        axes aligned to anatomical directions.
 
-        Where R is the rotation matrix (N, 3, 3) and O (N, 3) is the origin of
-        the reference frame.
+        Calculation Method
+        ------------------
+        - **Origin**: Left ankle joint center (midpoint of medial/lateral malleoli)
+        - **X-axis**: Points laterally (from medial to lateral malleolus)
+        - **Y-axis**: Points superiorly (from ankle to knee)
+        - **Z-axis**: Points anteriorly (cross product of X and Y)
+
+        The rotation matrix is computed using Gram-Schmidt orthonormalization
+        to ensure orthogonal axes.
+
+        Returns
+        -------
+        tuple[Point3D, np.ndarray]
+            Origin point (N, 3) and rotation matrix (N, 3, 3).
+            Transform points to this reference frame via:
+            `new = np.einsum("nij,nj->ni", R, old - O)`
+
+        See Also
+        --------
+        right_ankle_referenceframe : Right ankle reference frame
+        left_ankle_flexionextension : Ankle angle calculated in this frame
+        left_ankle_inversioneversion : Ankle angle calculated in this frame
         """
         ankle_lat: Point3D = self._get_point("left_ankle_lateral")
         ankle = self.left_ankle
@@ -1007,13 +1029,33 @@ class WholeBody(TimeseriesRecord):
     @property
     def right_ankle_referenceframe(self):
         """
-        return the right ankle reference frame origin and rotation matrix.
+        Calculate right ankle anatomical reference frame.
 
-        A point can be aligned to this reference frame by:
-            new = np.einsum("nij,nj->ni", R, old - O)
+        The reference frame is centered at the right ankle joint center with
+        axes aligned to anatomical directions.
 
-        Where R is the rotation matrix (N, 3, 3) and O (N, 3) is the origin of
-        the reference frame.
+        Calculation Method
+        ------------------
+        - **Origin**: Right ankle joint center (midpoint of medial/lateral malleoli)
+        - **X-axis**: Points laterally (from lateral to medial malleolus)
+        - **Y-axis**: Points superiorly (from ankle to knee)
+        - **Z-axis**: Points anteriorly (cross product of X and Y)
+
+        The rotation matrix is computed using Gram-Schmidt orthonormalization
+        to ensure orthogonal axes.
+
+        Returns
+        -------
+        tuple[Point3D, np.ndarray]
+            Origin point (N, 3) and rotation matrix (N, 3, 3).
+            Transform points to this reference frame via:
+            `new = np.einsum("nij,nj->ni", R, old - O)`
+
+        See Also
+        --------
+        left_ankle_referenceframe : Left ankle reference frame
+        right_ankle_flexionextension : Ankle angle calculated in this frame
+        right_ankle_inversioneversion : Ankle angle calculated in this frame
         """
         ankle_lat: Point3D = self._get_point("right_ankle_lateral")
         ankle = self.right_ankle
@@ -1034,39 +1076,90 @@ class WholeBody(TimeseriesRecord):
     @property
     def left_hip_referenceframe(self):
         """
-        return the left hip reference frame origin and rotation matrix.
+        Calculate left hip anatomical reference frame.
 
-        A point can be aligned to this reference frame by:
-            new = np.einsum("nij,nj->ni", R, old - O)
+        The reference frame is centered at the left hip joint center with
+        axes aligned to the pelvis reference frame.
 
-        Where R is the rotation matrix (N, 3, 3) and O (N, 3) is the origin of
-        the reference frame.
+        Calculation Method
+        ------------------
+        - **Origin**: Left hip joint center (estimated using De Leva 1996)
+        - **Axes**: Aligned with pelvis reference frame (shared rotation matrix)
+
+        Returns
+        -------
+        tuple[Point3D, np.ndarray]
+            Origin point (N, 3) and rotation matrix (N, 3, 3).
+            Transform points to this reference frame via:
+            `new = np.einsum("nij,nj->ni", R, old - O)`
+
+        See Also
+        --------
+        right_hip_referenceframe : Right hip reference frame
+        pelvis_referenceframe : Pelvis reference frame (shared rotation)
+        left_hip_flexionextension : Hip angle calculated in this frame
         """
         return self.left_hip, self.pelvis_referenceframe[1]
 
     @property
     def right_hip_referenceframe(self):
         """
-        return the right hip reference frame origin and rotation matrix.
+        Calculate right hip anatomical reference frame.
 
-        A point can be aligned to this reference frame by:
-            new = np.einsum("nij,nj->ni", R, old - O)
+        The reference frame is centered at the right hip joint center with
+        axes aligned to the pelvis reference frame.
 
-        Where R is the rotation matrix (N, 3, 3) and O (N, 3) is the origin of
-        the reference frame.
+        Calculation Method
+        ------------------
+        - **Origin**: Right hip joint center (estimated using De Leva 1996)
+        - **Axes**: Aligned with pelvis reference frame (shared rotation matrix)
+
+        Returns
+        -------
+        tuple[Point3D, np.ndarray]
+            Origin point (N, 3) and rotation matrix (N, 3, 3).
+            Transform points to this reference frame via:
+            `new = np.einsum("nij,nj->ni", R, old - O)`
+
+        See Also
+        --------
+        left_hip_referenceframe : Left hip reference frame
+        pelvis_referenceframe : Pelvis reference frame (shared rotation)
+        right_hip_flexionextension : Hip angle calculated in this frame
         """
         return self.right_hip, self.pelvis_referenceframe[1]
 
     @property
     def pelvis_referenceframe(self):
         """
-        return the pelvis reference frame origin and rotation matrix.
+        Calculate pelvis anatomical reference frame.
 
-        A point can be aligned to this reference frame by:
-            new = np.einsum("nij,nj->ni", R, old - O)
+        The reference frame is centered at the pelvis centroid with axes
+        aligned to the pelvis anatomical landmarks.
 
-        Where R is the rotation matrix (N, 3, 3) and O (N, 3) is the origin of
-        the reference frame.
+        Calculation Method
+        ------------------
+        - **Origin**: Centroid of four pelvis landmarks (ASIS and PSIS, left and right)
+        - **X-axis (i)**: Points laterally (from pelvis center to left side midpoint)
+        - **Y-axis (j)**: Points superiorly (perpendicular to pelvis plane)
+        - **Z-axis (k)**: Points anteriorly (from pelvis center to ASIS midpoint)
+
+        All points are first projected onto the pelvis least-squares plane
+        to ensure planar calculation. The rotation matrix is computed using
+        Gram-Schmidt orthonormalization.
+
+        Returns
+        -------
+        tuple[Point3D, np.ndarray]
+            Origin point (N, 3) and rotation matrix (N, 3, 3).
+            Transform points to this reference frame via:
+            `new = np.einsum("nij,nj->ni", R, old - O)`
+
+        See Also
+        --------
+        left_hip_referenceframe : Left hip reference frame (uses this rotation)
+        right_hip_referenceframe : Right hip reference frame (uses this rotation)
+        pelvis_anteroposteriortilt_global : Pelvis tilt calculated using this frame
         """
 
         # get the pelvis points projected into its least squares plane
@@ -1088,13 +1181,35 @@ class WholeBody(TimeseriesRecord):
     @property
     def left_shoulder_referenceframe(self):
         """
-        Return the left shoulder reference frame origin and rotation matrix.
+        Calculate left shoulder anatomical reference frame.
 
-        A point can be aligned to this reference frame by:
-            new = np.einsum("nij,nj->ni", R, old - O)
+        The reference frame is centered at the left shoulder joint center with
+        axes aligned to trunk orientation.
 
-        Where R is the rotation matrix (N, 3, 3) and O (N, 3) is the origin of
-        the reference frame.
+        Calculation Method
+        ------------------
+        - **Origin**: Left shoulder joint center
+        - **X-axis (i)**: Points laterally (from trunk axis to shoulder)
+        - **Y-axis (j)**: Points superiorly (from pelvis base to C7)
+        - **Z-axis**: Points anteriorly (cross product of X and Y)
+
+        The shoulder is projected onto the vertical trunk axis (pelvis center
+        to C7), and the lateral axis is defined as the vector from this
+        projection to the shoulder. The rotation matrix is computed using
+        Gram-Schmidt orthonormalization.
+
+        Returns
+        -------
+        tuple[Point3D, np.ndarray]
+            Origin point (N, 3) and rotation matrix (N, 3, 3).
+            Transform points to this reference frame via:
+            `new = np.einsum("nij,nj->ni", R, old - O)`
+
+        See Also
+        --------
+        right_shoulder_referenceframe : Right shoulder reference frame
+        left_shoulder_flexionextension : Shoulder angle calculated in this frame
+        left_shoulder_abductionadduction : Shoulder angle calculated in this frame
         """
         l_asis, r_asis, l_psis, r_psis = self._get_projected_pelvis_points()
         base = (r_psis + l_psis) / 2
@@ -1124,13 +1239,35 @@ class WholeBody(TimeseriesRecord):
     @property
     def right_shoulder_referenceframe(self):
         """
-        Return the right shoulder reference frame origin and rotation matrix.
+        Calculate right shoulder anatomical reference frame.
 
-        A point can be aligned to this reference frame by:
-            new = np.einsum("nij,nj->ni", R, old - O)
+        The reference frame is centered at the right shoulder joint center with
+        axes aligned to trunk orientation.
 
-        Where R is the rotation matrix (N, 3, 3) and O (N, 3) is the origin of
-        the reference frame.
+        Calculation Method
+        ------------------
+        - **Origin**: Right shoulder joint center
+        - **X-axis (i)**: Points laterally (from shoulder to trunk axis)
+        - **Y-axis (j)**: Points superiorly (from pelvis base to C7)
+        - **Z-axis**: Points anteriorly (cross product of X and Y)
+
+        The shoulder is projected onto the vertical trunk axis (pelvis center
+        to C7), and the lateral axis is defined as the vector from the shoulder
+        to this projection. The rotation matrix is computed using Gram-Schmidt
+        orthonormalization.
+
+        Returns
+        -------
+        tuple[Point3D, np.ndarray]
+            Origin point (N, 3) and rotation matrix (N, 3, 3).
+            Transform points to this reference frame via:
+            `new = np.einsum("nij,nj->ni", R, old - O)`
+
+        See Also
+        --------
+        left_shoulder_referenceframe : Left shoulder reference frame
+        right_shoulder_flexionextension : Shoulder angle calculated in this frame
+        right_shoulder_abductionadduction : Shoulder angle calculated in this frame
         """
         l_asis, r_asis, l_psis, r_psis = self._get_projected_pelvis_points()
         base = (r_psis + l_psis) / 2
@@ -1229,13 +1366,17 @@ class WholeBody(TimeseriesRecord):
         h_right = self._get_point("head_right")
 
         # Calculate centroid
-        data = (h_ant.to_numpy() + h_post.to_numpy() +
-                h_left.to_numpy() + h_right.to_numpy()) / 4
+        data = (
+            h_ant.to_numpy()
+            + h_post.to_numpy()
+            + h_left.to_numpy()
+            + h_right.to_numpy()
+        ) / 4
 
         # Merge indices from all markers
-        index = np.unique(np.concatenate([
-            h_ant.index, h_post.index, h_left.index, h_right.index
-        ])).tolist()
+        index = np.unique(
+            np.concatenate([h_ant.index, h_post.index, h_left.index, h_right.index])
+        ).tolist()
 
         return Point3D(
             data=data,
@@ -1260,9 +1401,7 @@ class WholeBody(TimeseriesRecord):
         data = (sc.to_numpy() + c7.to_numpy()) / 2
 
         # Merge indices
-        index = np.unique(np.concatenate([
-            sc.index, c7.index
-        ])).tolist()
+        index = np.unique(np.concatenate([sc.index, c7.index])).tolist()
 
         return Point3D(
             data=data,
@@ -1338,7 +1477,7 @@ class WholeBody(TimeseriesRecord):
         Returns
         -------
         Signal1D
-            Distance in millimeters from ankle joint to foot plane.
+            Distance in meters from ankle joint to foot plane.
         """
         ankle = self.left_ankle
         foot_plane = self.left_foot_plane
@@ -1352,7 +1491,7 @@ class WholeBody(TimeseriesRecord):
         Returns
         -------
         Signal1D
-            Distance in millimeters from ankle joint to foot plane.
+            Distance in meters from ankle joint to foot plane.
         """
         ankle = self.right_ankle
         foot_plane = self.right_foot_plane
@@ -1366,7 +1505,7 @@ class WholeBody(TimeseriesRecord):
         Returns
         -------
         Signal1D
-            Distance in millimeters from heel to toe marker.
+            Distance in meters from heel to toe marker.
         """
         heel = self._get_point("left_heel")
         toe = self._get_point("left_toe")
@@ -1383,7 +1522,7 @@ class WholeBody(TimeseriesRecord):
         Returns
         -------
         Signal1D
-            Distance in millimeters from heel to toe marker.
+            Distance in meters from heel to toe marker.
         """
         heel = self._get_point("right_heel")
         toe = self._get_point("right_toe")
@@ -1400,7 +1539,7 @@ class WholeBody(TimeseriesRecord):
         Returns
         -------
         Signal1D
-            Distance in millimeters from ankle to knee joint center.
+            Distance in meters from ankle to knee joint center.
         """
         ankle = self.left_ankle
         knee = self.left_knee
@@ -1417,7 +1556,7 @@ class WholeBody(TimeseriesRecord):
         Returns
         -------
         Signal1D
-            Distance in millimeters from ankle to knee joint center.
+            Distance in meters from ankle to knee joint center.
         """
         ankle = self.right_ankle
         knee = self.right_knee
@@ -1434,7 +1573,7 @@ class WholeBody(TimeseriesRecord):
         Returns
         -------
         Signal1D
-            Distance in millimeters from knee to hip joint center.
+            Distance in meters from knee to hip joint center.
         """
         knee = self.left_knee
         hip = self.left_hip
@@ -1451,7 +1590,7 @@ class WholeBody(TimeseriesRecord):
         Returns
         -------
         Signal1D
-            Distance in millimeters from knee to hip joint center.
+            Distance in meters from knee to hip joint center.
         """
         knee = self.right_knee
         hip = self.right_hip
@@ -1468,7 +1607,7 @@ class WholeBody(TimeseriesRecord):
         Returns
         -------
         Signal1D
-            Distance in millimeters from shoulder to elbow joint center.
+            Distance in meters from shoulder to elbow joint center.
         """
         shoulder = self.left_shoulder
         elbow = self.left_elbow
@@ -1485,7 +1624,7 @@ class WholeBody(TimeseriesRecord):
         Returns
         -------
         Signal1D
-            Distance in millimeters from shoulder to elbow joint center.
+            Distance in meters from shoulder to elbow joint center.
         """
         shoulder = self.right_shoulder
         elbow = self.right_elbow
@@ -1502,7 +1641,7 @@ class WholeBody(TimeseriesRecord):
         Returns
         -------
         Signal1D
-            Distance in millimeters from elbow to wrist joint center.
+            Distance in meters from elbow to wrist joint center.
         """
         elbow = self.left_elbow
         wrist = self.left_wrist
@@ -1519,7 +1658,7 @@ class WholeBody(TimeseriesRecord):
         Returns
         -------
         Signal1D
-            Distance in millimeters from elbow to wrist joint center.
+            Distance in meters from elbow to wrist joint center.
         """
         elbow = self.right_elbow
         wrist = self.right_wrist
@@ -1536,7 +1675,7 @@ class WholeBody(TimeseriesRecord):
         Returns
         -------
         Signal1D
-            Distance in millimeters from pelvis center to neck base.
+            Distance in meters from pelvis center to neck base.
         """
         pelvis = self.pelvis_center
         neck = self.neck_base
@@ -1553,7 +1692,7 @@ class WholeBody(TimeseriesRecord):
         Returns
         -------
         Signal1D
-            Distance in millimeters between shoulder joint centers.
+            Distance in meters between shoulder joint centers.
         """
         l_shoulder = self.left_shoulder
         r_shoulder = self.right_shoulder
@@ -1570,7 +1709,7 @@ class WholeBody(TimeseriesRecord):
         Returns
         -------
         Signal1D
-            Distance in millimeters between greater trochanter markers.
+            Distance in meters between greater trochanter markers.
         """
         l_troch = self._get_point("left_throcanter")
         r_troch = self._get_point("right_throcanter")
@@ -1587,7 +1726,7 @@ class WholeBody(TimeseriesRecord):
         Returns
         -------
         Signal1D
-            Distance in millimeters between first and fifth metatarsal heads.
+            Distance in meters between first and fifth metatarsal heads.
         """
         first = self._get_point("left_first_metatarsal_head")
         fifth = self._get_point("left_fifth_metatarsal_head")
@@ -1604,7 +1743,7 @@ class WholeBody(TimeseriesRecord):
         Returns
         -------
         Signal1D
-            Distance in millimeters between first and fifth metatarsal heads.
+            Distance in meters between first and fifth metatarsal heads.
         """
         first = self._get_point("right_first_metatarsal_head")
         fifth = self._get_point("right_fifth_metatarsal_head")
@@ -1621,7 +1760,7 @@ class WholeBody(TimeseriesRecord):
         Returns
         -------
         Signal1D
-            Distance in millimeters between medial and lateral ankle malleoli.
+            Distance in meters between medial and lateral ankle malleoli.
         """
         medial = self._get_point("left_ankle_medial")
         lateral = self._get_point("left_ankle_lateral")
@@ -1638,7 +1777,7 @@ class WholeBody(TimeseriesRecord):
         Returns
         -------
         Signal1D
-            Distance in millimeters between medial and lateral ankle malleoli.
+            Distance in meters between medial and lateral ankle malleoli.
         """
         medial = self._get_point("right_ankle_medial")
         lateral = self._get_point("right_ankle_lateral")
@@ -1655,7 +1794,7 @@ class WholeBody(TimeseriesRecord):
         Returns
         -------
         Signal1D
-            Distance in millimeters between medial and lateral femoral epicondyles.
+            Distance in meters between medial and lateral femoral epicondyles.
         """
         medial = self._get_point("left_knee_medial")
         lateral = self._get_point("left_knee_lateral")
@@ -1672,7 +1811,7 @@ class WholeBody(TimeseriesRecord):
         Returns
         -------
         Signal1D
-            Distance in millimeters between medial and lateral femoral epicondyles.
+            Distance in meters between medial and lateral femoral epicondyles.
         """
         medial = self._get_point("right_knee_medial")
         lateral = self._get_point("right_knee_lateral")
@@ -1689,7 +1828,7 @@ class WholeBody(TimeseriesRecord):
         Returns
         -------
         Signal1D
-            Distance in millimeters between medial and lateral elbow epicondyles.
+            Distance in meters between medial and lateral elbow epicondyles.
         """
         medial = self._get_point("left_elbow_medial")
         lateral = self._get_point("left_elbow_lateral")
@@ -1706,7 +1845,7 @@ class WholeBody(TimeseriesRecord):
         Returns
         -------
         Signal1D
-            Distance in millimeters between medial and lateral elbow epicondyles.
+            Distance in meters between medial and lateral elbow epicondyles.
         """
         medial = self._get_point("right_elbow_medial")
         lateral = self._get_point("right_elbow_lateral")
@@ -1875,8 +2014,17 @@ class WholeBody(TimeseriesRecord):
         first_meta = self._get_point("left_first_metatarsal_head")
         fifth_meta = self._get_point("left_fifth_metatarsal_head")
         heel = self._get_point("left_heel")
+        points = [toe, heel]
+        if first_meta is not None:
+            points.append(first_meta)
+        if fifth_meta is not None:
+            points.append(fifth_meta)
+        if len(points) < 3:
+            raise ValueError(
+                "there are not enough Point3D to define the left foot plane."
+            )
         return Timeseries(
-            data=self._get_least_squares_plane_coefs(toe, first_meta, fifth_meta, heel),
+            data=self._get_least_squares_plane_coefs(*points),
             index=toe.index,
             columns=["a", "b", "c", "d"],
             unit="a.u.",
@@ -1905,8 +2053,17 @@ class WholeBody(TimeseriesRecord):
         first_meta = self._get_point("right_first_metatarsal_head")
         fifth_meta = self._get_point("right_fifth_metatarsal_head")
         heel = self._get_point("right_heel")
+        points = [toe, heel]
+        if first_meta is not None:
+            points.append(first_meta)
+        if fifth_meta is not None:
+            points.append(fifth_meta)
+        if len(points) < 3:
+            raise ValueError(
+                "there are not enough Point3D to define the left foot plane."
+            )
         return Timeseries(
-            data=self._get_least_squares_plane_coefs(toe, first_meta, fifth_meta, heel),
+            data=self._get_least_squares_plane_coefs(*points),
             index=toe.index,
             columns=["a", "b", "c", "d"],
             unit="a.u.",
@@ -1915,8 +2072,51 @@ class WholeBody(TimeseriesRecord):
     @property
     def left_ankle_flexionextension(self):
         """
-        the the dorsal (positive) or plantar (negative) flexion of the
-        left ankle with respect to he shin in degrees
+        Calculate left ankle dorsiflexion/plantarflexion angle in sagittal plane.
+
+        The angle represents the orientation of the foot relative to the shank,
+        indicating dorsiflexion (toe up) or plantarflexion (toe down).
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Dorsiflexion (flessione dorsale)
+          The foot is angled upward relative to the shin.
+          Common in landing, deceleration, squatting.
+        - **Negative (-)**: Plantarflexion (flessione plantare)
+          The foot is angled downward relative to the shin.
+          Common in toe-off, jumping, pointing.
+        - **0°**: Neutral position (foot perpendicular to shin at 90°)
+
+        Calculation Method
+        ------------------
+        Measured as the angle between the shank (knee-to-ankle) and foot
+        (ankle-to-toe) vectors in the sagittal plane. The foot plane is
+        defined by heel, toe, and metatarsal markers. The ankle reference
+        frame is used to project the foot orientation onto the sagittal plane.
+
+        Clinical Relevance
+        ------------------
+        - Limited dorsiflexion (< 10°): Associated with:
+          * Tight gastrocnemius/soleus
+          * Compensatory knee valgus
+          * Increased fall risk in elderly
+        - Excessive plantarflexion (> 50° at toe-off): Associated with:
+          * Forefoot running pattern
+          * Calf dominance
+          * Achilles tendon stress
+
+        Returns
+        -------
+        Signal1D
+            Ankle flexion/extension angle in degrees.
+            Positive = dorsiflexion (foot up)
+            Negative = plantarflexion (foot down)
+
+        See Also
+        --------
+        right_ankle_flexionextension : Right ankle dorsiflexion/plantarflexion
+        left_ankle_inversioneversion : Left ankle frontal plane motion
+        left_knee_flexionextension : Left knee flexion angle
         """
         # get points and reference frame
         ankle, rmat = self.left_ankle_referenceframe
@@ -1938,8 +2138,51 @@ class WholeBody(TimeseriesRecord):
     @property
     def right_ankle_flexionextension(self):
         """
-        the the dorsal (negative) or plantar (positive) flexion of the
-        right ankle with respect to he shin in degrees
+        Calculate right ankle dorsiflexion/plantarflexion angle in sagittal plane.
+
+        The angle represents the orientation of the foot relative to the shank,
+        indicating dorsiflexion (toe up) or plantarflexion (toe down).
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Dorsiflexion (flessione dorsale)
+          The foot is angled upward relative to the shin.
+          Common in landing, deceleration, squatting.
+        - **Negative (-)**: Plantarflexion (flessione plantare)
+          The foot is angled downward relative to the shin.
+          Common in toe-off, jumping, pointing.
+        - **0°**: Neutral position (foot perpendicular to shin at 90°)
+
+        Calculation Method
+        ------------------
+        Measured as the angle between the shank (knee-to-ankle) and foot
+        (ankle-to-toe) vectors in the sagittal plane. The foot plane is
+        defined by heel, toe, and metatarsal markers. The ankle reference
+        frame is used to project the foot orientation onto the sagittal plane.
+
+        Clinical Relevance
+        ------------------
+        - Limited dorsiflexion (< 10°): Associated with:
+          * Tight gastrocnemius/soleus
+          * Compensatory knee valgus
+          * Increased fall risk in elderly
+        - Excessive plantarflexion (> 50° at toe-off): Associated with:
+          * Forefoot running pattern
+          * Calf dominance
+          * Achilles tendon stress
+
+        Returns
+        -------
+        Signal1D
+            Ankle flexion/extension angle in degrees.
+            Positive = dorsiflexion (foot up)
+            Negative = plantarflexion (foot down)
+
+        See Also
+        --------
+        left_ankle_flexionextension : Left ankle dorsiflexion/plantarflexion
+        right_ankle_inversioneversion : Right ankle frontal plane motion
+        right_knee_flexionextension : Right knee flexion angle
         """
         ankle, rmat = self.right_ankle_referenceframe
         proj = self._get_projection_point_on_plane(
@@ -1959,8 +2202,52 @@ class WholeBody(TimeseriesRecord):
     @property
     def left_ankle_inversioneversion(self):
         """
-        the inversion (negative) or eversion (positive) angle of the
-        left ankle with respect to he shin in degrees
+        Calculate left ankle inversion/eversion angle in frontal plane.
+
+        The angle represents the tilting of the foot relative to the shank
+        in the frontal (coronal) plane, indicating inversion (sole inward)
+        or eversion (sole outward).
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Eversion (eversione)
+          The sole of the foot is tilted outward (away from midline).
+          Common in overpronation, pes planus (flat feet).
+        - **Negative (-)**: Inversion (inversione)
+          The sole of the foot is tilted inward (toward midline).
+          Common in supination, ankle sprains (lateral).
+        - **0°**: Neutral position (foot aligned with shin in frontal plane)
+
+        Calculation Method
+        ------------------
+        Measured as the angle between the shank and foot vectors projected
+        onto the frontal plane. The foot plane is defined by heel, toe, and
+        metatarsal markers. The ankle reference frame is used to isolate
+        frontal plane motion using the lateral and vertical axes.
+
+        Clinical Relevance
+        ------------------
+        - Excessive inversion (< -10°): Associated with:
+          * Lateral ankle instability
+          * Increased lateral ankle sprain risk
+          * Pes cavus (high arches)
+        - Excessive eversion (> +10°): Associated with:
+          * Medial tibial stress syndrome
+          * Achilles tendinopathy
+          * Pes planus (flat feet)
+
+        Returns
+        -------
+        Signal1D
+            Ankle inversion/eversion angle in degrees.
+            Positive = eversion (sole out)
+            Negative = inversion (sole in)
+
+        See Also
+        --------
+        right_ankle_inversioneversion : Right ankle frontal plane motion
+        left_ankle_flexionextension : Left ankle sagittal plane motion
+        left_knee_varusvalgus : Left knee frontal plane alignment
         """
         ankle, rmat = self.left_ankle_referenceframe
         proj = self._get_projection_point_on_plane(
@@ -1980,8 +2267,52 @@ class WholeBody(TimeseriesRecord):
     @property
     def right_ankle_inversioneversion(self):
         """
-        the inversion (negative) or eversion (positive) angle of the
-        left ankle with respect to he shin in degrees
+        Calculate right ankle inversion/eversion angle in frontal plane.
+
+        The angle represents the tilting of the foot relative to the shank
+        in the frontal (coronal) plane, indicating inversion (sole inward)
+        or eversion (sole outward).
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Eversion (eversione)
+          The sole of the foot is tilted outward (away from midline).
+          Common in overpronation, pes planus (flat feet).
+        - **Negative (-)**: Inversion (inversione)
+          The sole of the foot is tilted inward (toward midline).
+          Common in supination, ankle sprains (lateral).
+        - **0°**: Neutral position (foot aligned with shin in frontal plane)
+
+        Calculation Method
+        ------------------
+        Measured as the angle between the shank and foot vectors projected
+        onto the frontal plane. The foot plane is defined by heel, toe, and
+        metatarsal markers. The ankle reference frame is used to isolate
+        frontal plane motion using the lateral and vertical axes.
+
+        Clinical Relevance
+        ------------------
+        - Excessive inversion (< -10°): Associated with:
+          * Lateral ankle instability
+          * Increased lateral ankle sprain risk
+          * Pes cavus (high arches)
+        - Excessive eversion (> +10°): Associated with:
+          * Medial tibial stress syndrome
+          * Achilles tendinopathy
+          * Pes planus (flat feet)
+
+        Returns
+        -------
+        Signal1D
+            Ankle inversion/eversion angle in degrees.
+            Positive = eversion (sole out)
+            Negative = inversion (sole in)
+
+        See Also
+        --------
+        left_ankle_inversioneversion : Left ankle frontal plane motion
+        right_ankle_flexionextension : Right ankle sagittal plane motion
+        right_knee_varusvalgus : Right knee frontal plane alignment
         """
         ankle, rmat = self.right_ankle_referenceframe
         proj = self._get_projection_point_on_plane(
@@ -2001,8 +2332,51 @@ class WholeBody(TimeseriesRecord):
     @property
     def left_knee_flexionextension(self):
         """
-        return the left knee flexion in degrees.
-        Extension will be negative
+        Calculate left knee flexion/extension angle in sagittal plane.
+
+        The angle represents the bending or straightening of the knee joint,
+        indicating flexion (bent knee) or extension (straight knee).
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Flexion (flessione)
+          The knee is bent, bringing the heel toward the buttock.
+          Common in squatting, running, jumping preparation.
+        - **Negative (-)**: Extension (estensione)
+          The knee is straightened beyond neutral.
+          Rare; indicates hyperextension.
+        - **0°**: Neutral position (fully straight knee)
+
+        Calculation Method
+        ------------------
+        Measured as the angle between the thigh (hip-to-knee) and shank
+        (knee-to-ankle) vectors. Calculated as 180° minus the angle formed
+        by the three points (hip, knee, ankle), so that flexion is positive
+        and full extension is zero.
+
+        Clinical Relevance
+        ------------------
+        - Limited flexion (< 120°): Associated with:
+          * Knee joint stiffness
+          * Quadriceps or hamstring tightness
+          * Difficulty in squatting or climbing stairs
+        - Hyperextension (negative values): Associated with:
+          * Genu recurvatum
+          * Posterior knee instability
+          * Increased ACL injury risk
+
+        Returns
+        -------
+        Signal1D
+            Knee flexion/extension angle in degrees.
+            Positive = flexion (bent knee)
+            Negative = extension (hyperextension)
+
+        See Also
+        --------
+        right_knee_flexionextension : Right knee flexion angle
+        left_knee_varusvalgus : Left knee frontal plane alignment
+        left_hip_flexionextension : Left hip flexion angle
         """
         p1 = self.left_hip
         p2 = self.left_knee
@@ -2012,7 +2386,53 @@ class WholeBody(TimeseriesRecord):
 
     @property
     def right_knee_flexionextension(self):
-        """return the left knee flexion in degrees. Extension will be negative"""
+        """
+        Calculate right knee flexion/extension angle in sagittal plane.
+
+        The angle represents the bending or straightening of the knee joint,
+        indicating flexion (bent knee) or extension (straight knee).
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Flexion (flessione)
+          The knee is bent, bringing the heel toward the buttock.
+          Common in squatting, running, jumping preparation.
+        - **Negative (-)**: Extension (estensione)
+          The knee is straightened beyond neutral.
+          Rare; indicates hyperextension.
+        - **0°**: Neutral position (fully straight knee)
+
+        Calculation Method
+        ------------------
+        Measured as the angle between the thigh (hip-to-knee) and shank
+        (knee-to-ankle) vectors. Calculated as 180° minus the angle formed
+        by the three points (hip, knee, ankle), so that flexion is positive
+        and full extension is zero.
+
+        Clinical Relevance
+        ------------------
+        - Limited flexion (< 120°): Associated with:
+          * Knee joint stiffness
+          * Quadriceps or hamstring tightness
+          * Difficulty in squatting or climbing stairs
+        - Hyperextension (negative values): Associated with:
+          * Genu recurvatum
+          * Posterior knee instability
+          * Increased ACL injury risk
+
+        Returns
+        -------
+        Signal1D
+            Knee flexion/extension angle in degrees.
+            Positive = flexion (bent knee)
+            Negative = extension (hyperextension)
+
+        See Also
+        --------
+        left_knee_flexionextension : Left knee flexion angle
+        right_knee_varusvalgus : Right knee frontal plane alignment
+        right_hip_flexionextension : Right hip flexion angle
+        """
         p1 = self.right_hip
         p2 = self.right_knee
         p3 = self.right_ankle
@@ -2140,8 +2560,50 @@ class WholeBody(TimeseriesRecord):
     @property
     def left_hip_flexionextension(self):
         """
-        return the left hip flexion/extension in degrees.
-        extension will be negative
+        Calculate left hip flexion/extension angle in sagittal plane.
+
+        The angle represents the forward (flexion) or backward (extension)
+        movement of the thigh relative to the pelvis in the sagittal plane.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Flexion (flessione)
+          The thigh is brought forward (anteriorly) toward the torso.
+          Common in running, climbing, sitting.
+        - **Negative (-)**: Extension (estensione)
+          The thigh is moved backward (posteriorly) behind the body.
+          Common in push-off phase of gait, sprinting.
+        - **0°**: Neutral position (standing upright, thigh vertical)
+
+        Calculation Method
+        ------------------
+        Measured as the angle between the thigh (hip-to-knee vector) and
+        the vertical axis in the hip reference frame, projected onto the
+        sagittal plane (anteroposterior and vertical axes).
+
+        Clinical Relevance
+        ------------------
+        - Limited flexion (< 90°): Associated with:
+          * Hip flexor weakness (iliopsoas)
+          * Hip joint stiffness or arthritis
+          * Difficulty in stair climbing
+        - Limited extension (unable to reach negative values): Associated with:
+          * Hip flexor tightness (iliopsoas, rectus femoris)
+          * Anterior pelvic tilt compensation
+          * Reduced stride length in gait
+
+        Returns
+        -------
+        Signal1D
+            Hip flexion/extension angle in degrees.
+            Positive = flexion (thigh forward)
+            Negative = extension (thigh backward)
+
+        See Also
+        --------
+        right_hip_flexionextension : Right hip flexion angle
+        left_hip_abductionadduction : Left hip frontal plane motion
+        left_knee_flexionextension : Left knee flexion angle
         """
         # get points and reference frame
         hip, rmat = self.left_hip_referenceframe
@@ -2159,8 +2621,51 @@ class WholeBody(TimeseriesRecord):
     @property
     def right_hip_flexionextension(self):
         """
-        return the right hip flexion/extension in degrees.
-        Extension will be negative"""
+        Calculate right hip flexion/extension angle in sagittal plane.
+
+        The angle represents the forward (flexion) or backward (extension)
+        movement of the thigh relative to the pelvis in the sagittal plane.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Flexion (flessione)
+          The thigh is brought forward (anteriorly) toward the torso.
+          Common in running, climbing, sitting.
+        - **Negative (-)**: Extension (estensione)
+          The thigh is moved backward (posteriorly) behind the body.
+          Common in push-off phase of gait, sprinting.
+        - **0°**: Neutral position (standing upright, thigh vertical)
+
+        Calculation Method
+        ------------------
+        Measured as the angle between the thigh (hip-to-knee vector) and
+        the vertical axis in the hip reference frame, projected onto the
+        sagittal plane (anteroposterior and vertical axes).
+
+        Clinical Relevance
+        ------------------
+        - Limited flexion (< 90°): Associated with:
+          * Hip flexor weakness (iliopsoas)
+          * Hip joint stiffness or arthritis
+          * Difficulty in stair climbing
+        - Limited extension (unable to reach negative values): Associated with:
+          * Hip flexor tightness (iliopsoas, rectus femoris)
+          * Anterior pelvic tilt compensation
+          * Reduced stride length in gait
+
+        Returns
+        -------
+        Signal1D
+            Hip flexion/extension angle in degrees.
+            Positive = flexion (thigh forward)
+            Negative = extension (thigh backward)
+
+        See Also
+        --------
+        left_hip_flexionextension : Left hip flexion angle
+        right_hip_abductionadduction : Right hip frontal plane motion
+        right_knee_flexionextension : Right knee flexion angle
+        """
         # get points and reference frame
         hip, rmat = self.right_hip_referenceframe
         knee = self.right_knee
@@ -2177,8 +2682,50 @@ class WholeBody(TimeseriesRecord):
     @property
     def left_hip_abductionadduction(self):
         """
-        Return the left hip abduction/adduction in degrees.
-        Abduction will be positive, adduction negative.
+        Calculate left hip abduction/adduction angle in frontal plane.
+
+        The angle represents the lateral (outward) or medial (inward)
+        movement of the thigh relative to the pelvis in the frontal plane.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Abduction (abduzione)
+          The thigh is moved laterally away from the body midline.
+          Common in side-stepping, lateral movements.
+        - **Negative (-)**: Adduction (adduzione)
+          The thigh is moved medially toward or across the body midline.
+          Common in crossover movements, cutting.
+        - **0°**: Neutral position (thigh vertical, aligned with hip)
+
+        Calculation Method
+        ------------------
+        Measured as the angle between the thigh (hip-to-knee vector) and
+        the vertical axis in the hip reference frame, projected onto the
+        frontal plane (lateral and vertical axes).
+
+        Clinical Relevance
+        ------------------
+        - Excessive abduction (> 15°): Associated with:
+          * Trendelenburg gait pattern
+          * Hip abductor weakness (gluteus medius)
+          * Increased lateral hip stress
+        - Excessive adduction (< -10°): Associated with:
+          * Dynamic knee valgus (knee collapse)
+          * Increased ACL injury risk
+          * IT band syndrome
+
+        Returns
+        -------
+        Signal1D
+            Hip abduction/adduction angle in degrees.
+            Positive = abduction (thigh outward)
+            Negative = adduction (thigh inward)
+
+        See Also
+        --------
+        right_hip_abductionadduction : Right hip frontal plane motion
+        left_hip_flexionextension : Left hip sagittal plane motion
+        left_knee_varusvalgus : Left knee frontal plane alignment
         """
         # get points and reference frame
         hip, rmat = self.left_hip_referenceframe
@@ -2196,8 +2743,50 @@ class WholeBody(TimeseriesRecord):
     @property
     def right_hip_abductionadduction(self):
         """
-        Return the right hip abduction/adduction in degrees.
-        Abduction will be positive, adduction negative.
+        Calculate right hip abduction/adduction angle in frontal plane.
+
+        The angle represents the lateral (outward) or medial (inward)
+        movement of the thigh relative to the pelvis in the frontal plane.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Abduction (abduzione)
+          The thigh is moved laterally away from the body midline.
+          Common in side-stepping, lateral movements.
+        - **Negative (-)**: Adduction (adduzione)
+          The thigh is moved medially toward or across the body midline.
+          Common in crossover movements, cutting.
+        - **0°**: Neutral position (thigh vertical, aligned with hip)
+
+        Calculation Method
+        ------------------
+        Measured as the angle between the thigh (hip-to-knee vector) and
+        the vertical axis in the hip reference frame, projected onto the
+        frontal plane (lateral and vertical axes).
+
+        Clinical Relevance
+        ------------------
+        - Excessive abduction (> 15°): Associated with:
+          * Trendelenburg gait pattern
+          * Hip abductor weakness (gluteus medius)
+          * Increased lateral hip stress
+        - Excessive adduction (< -10°): Associated with:
+          * Dynamic knee valgus (knee collapse)
+          * Increased ACL injury risk
+          * IT band syndrome
+
+        Returns
+        -------
+        Signal1D
+            Hip abduction/adduction angle in degrees.
+            Positive = abduction (thigh outward)
+            Negative = adduction (thigh inward)
+
+        See Also
+        --------
+        left_hip_abductionadduction : Left hip frontal plane motion
+        right_hip_flexionextension : Right hip sagittal plane motion
+        right_knee_varusvalgus : Right knee frontal plane alignment
         """
         hip, rmat = self.right_hip_referenceframe
         knee = self.right_knee
@@ -2215,8 +2804,53 @@ class WholeBody(TimeseriesRecord):
     @property
     def left_hip_internalexternalrotation(self):
         """
-        Return the left hip internal/external rotation in degrees.
-        Internal rotation is positive, external rotation is negative.
+        Calculate left hip internal/external rotation angle in transverse plane.
+
+        The angle represents the rotational orientation of the thigh around
+        its longitudinal axis, indicating internal (medial) or external
+        (lateral) rotation.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Internal rotation (rotazione interna)
+          The thigh rotates medially, turning the knee and foot inward.
+          Common in cutting maneuvers, toe-in gait.
+        - **Negative (-)**: External rotation (rotazione esterna)
+          The thigh rotates laterally, turning the knee and foot outward.
+          Common in toe-out gait, dance movements.
+        - **0°**: Neutral position (knee pointing straight ahead)
+
+        Calculation Method
+        ------------------
+        Measured using the orientation of the thigh's frontal plane
+        (defined by medial-lateral knee and ankle markers) relative to
+        the hip reference frame. The average vector from knee and ankle
+        medial-lateral markers is projected onto the transverse plane
+        fixed to the thigh reference frame.
+
+        Clinical Relevance
+        ------------------
+        - Excessive internal rotation (> 10°): Associated with:
+          * Femoral anteversion
+          * Dynamic knee valgus
+          * Patellofemoral pain syndrome
+        - Excessive external rotation (< -15°): Associated with:
+          * Femoral retroversion
+          * Hip joint impingement
+          * Piriformis syndrome
+
+        Returns
+        -------
+        Signal1D
+            Hip rotation angle in degrees.
+            Positive = internal rotation (knee/foot inward)
+            Negative = external rotation (knee/foot outward)
+
+        See Also
+        --------
+        right_hip_internalexternalrotation : Right hip rotation angle
+        left_hip_flexionextension : Left hip sagittal plane motion
+        left_knee_varusvalgus : Left knee frontal plane alignment
         """
 
         # Get necessary parameters
@@ -2258,8 +2892,53 @@ class WholeBody(TimeseriesRecord):
     @property
     def right_hip_internalexternalrotation(self):
         """
-        Return the right hip internal/external rotation in degrees.
-        Internal rotation is positive, external rotation is negative.
+        Calculate right hip internal/external rotation angle in transverse plane.
+
+        The angle represents the rotational orientation of the thigh around
+        its longitudinal axis, indicating internal (medial) or external
+        (lateral) rotation.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Internal rotation (rotazione interna)
+          The thigh rotates medially, turning the knee and foot inward.
+          Common in cutting maneuvers, toe-in gait.
+        - **Negative (-)**: External rotation (rotazione esterna)
+          The thigh rotates laterally, turning the knee and foot outward.
+          Common in toe-out gait, dance movements.
+        - **0°**: Neutral position (knee pointing straight ahead)
+
+        Calculation Method
+        ------------------
+        Measured using the orientation of the thigh's frontal plane
+        (defined by medial-lateral knee and ankle markers) relative to
+        the hip reference frame. The average vector from knee and ankle
+        medial-lateral markers is projected onto the transverse plane
+        fixed to the thigh reference frame.
+
+        Clinical Relevance
+        ------------------
+        - Excessive internal rotation (> 10°): Associated with:
+          * Femoral anteversion
+          * Dynamic knee valgus
+          * Patellofemoral pain syndrome
+        - Excessive external rotation (< -15°): Associated with:
+          * Femoral retroversion
+          * Hip joint impingement
+          * Piriformis syndrome
+
+        Returns
+        -------
+        Signal1D
+            Hip rotation angle in degrees.
+            Positive = internal rotation (knee/foot inward)
+            Negative = external rotation (knee/foot outward)
+
+        See Also
+        --------
+        left_hip_internalexternalrotation : Left hip rotation angle
+        right_hip_flexionextension : Right hip sagittal plane motion
+        right_knee_varusvalgus : Right knee frontal plane alignment
         """
         # Get necessary parameters
         rmat = self.right_hip_referenceframe[1]
@@ -2304,9 +2983,52 @@ class WholeBody(TimeseriesRecord):
     @property
     def pelvis_anteroposteriortilt_global(self):
         """
-        Return the pelvis pitch (sagittal tilt) in degrees with respect to
-        the global reference frame.
-        Anterior tilt is negative, posterior tilt is positive.
+        Calculate pelvis anterior/posterior tilt (pitch) in sagittal plane.
+
+        The angle represents the forward (anterior) or backward (posterior)
+        tilting of the pelvis relative to the global vertical, measured in
+        the sagittal plane.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Posterior tilt (retroversione del bacino)
+          The pelvis rotates backward; ASIS moves up, PSIS moves down.
+          Common in posterior pelvic tilt posture, flat back.
+        - **Negative (-)**: Anterior tilt (anteroversione del bacino)
+          The pelvis rotates forward; ASIS moves down, PSIS moves up.
+          Common in hyperlordotic posture, arched back.
+        - **0°**: Neutral position (ASIS and PSIS horizontally aligned)
+
+        Calculation Method
+        ------------------
+        Measured as the angle between the pelvis anteroposterior axis
+        (from PSIS midpoint to ASIS midpoint) and the horizontal plane.
+        Uses projected pelvis points onto the pelvis least-squares plane
+        to ensure planar calculation.
+
+        Clinical Relevance
+        ------------------
+        - Excessive anterior tilt (< -15°): Associated with:
+          * Lumbar hyperlordosis
+          * Hip flexor tightness
+          * Lower back pain
+        - Excessive posterior tilt (> 15°): Associated with:
+          * Lumbar hypolordosis (flat back)
+          * Hamstring dominance
+          * Hip extension limitation
+
+        Returns
+        -------
+        Signal1D
+            Pelvis tilt angle in degrees.
+            Positive = posterior tilt
+            Negative = anterior tilt
+
+        See Also
+        --------
+        pelvis_lateraltilt_global : Pelvis frontal plane tilt
+        pelvis_rotation_global : Pelvis transverse plane rotation
+        trunk_flexionextension_global : Trunk sagittal plane flexion
         """
 
         # Get pelvis points projected into least squares plane
@@ -2331,9 +3053,47 @@ class WholeBody(TimeseriesRecord):
     @property
     def pelvis_lateraltilt_global(self):
         """
-        Return the pelvis roll (frontal tilt) in degrees with respect to
-        the global reference frame.
-        Right tilt is positive, left tilt is negative.
+        Calculate pelvis lateral tilt (roll) in frontal plane.
+
+        The angle represents the left or right side tilting of the pelvis
+        relative to the global horizontal, measured in the frontal plane.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Right tilt (inclinazione destra del bacino)
+          The right side of the pelvis drops lower than the left.
+          Common in right hip drop, Trendelenburg gait.
+        - **Negative (-)**: Left tilt (inclinazione sinistra del bacino)
+          The left side of the pelvis drops lower than the right.
+          Common in left hip drop.
+        - **0°**: Neutral position (pelvis level, ASIS points horizontally aligned)
+
+        Calculation Method
+        ------------------
+        Measured as the angle between the pelvis lateral axis (from right
+        pelvis midpoint to left pelvis midpoint) and the horizontal plane.
+        Uses projected pelvis points onto the pelvis least-squares plane.
+
+        Clinical Relevance
+        ------------------
+        - Excessive lateral tilt (> 5-10°): Associated with:
+          * Hip abductor weakness (gluteus medius)
+          * Leg length discrepancy
+          * Scoliosis compensation
+          * Trendelenburg sign
+
+        Returns
+        -------
+        Signal1D
+            Pelvis lateral tilt angle in degrees.
+            Positive = right tilt (right hip drop)
+            Negative = left tilt (left hip drop)
+
+        See Also
+        --------
+        pelvis_anteroposteriortilt_global : Pelvis sagittal plane tilt
+        pelvis_rotation_global : Pelvis transverse plane rotation
+        trunk_lateralflexion_global : Trunk frontal plane flexion
         """
 
         # Get pelvis points projected into least squares plane
@@ -2358,9 +3118,47 @@ class WholeBody(TimeseriesRecord):
     @property
     def pelvis_rotation_global(self):
         """
-        Return the pelvis yaw (axial rotation) in degrees with respect
-        to the global reference frame.
-        Right rotation is positive, left rotation is negative.
+        Calculate pelvis axial rotation (yaw) in transverse plane.
+
+        The angle represents the left or right rotational orientation of
+        the pelvis relative to the global forward direction, measured in
+        the transverse (horizontal) plane.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Right rotation (rotazione destra del bacino)
+          The pelvis rotates clockwise (viewed from above).
+          The left hip moves forward relative to the right hip.
+        - **Negative (-)**: Left rotation (rotazione sinistra del bacino)
+          The pelvis rotates counterclockwise (viewed from above).
+          The right hip moves forward relative to the left hip.
+        - **0°**: Neutral position (pelvis aligned with forward direction)
+
+        Calculation Method
+        ------------------
+        Measured as the angle between the pelvis lateral axis (from right
+        pelvis midpoint to left pelvis midpoint) and the global lateral
+        axis, projected onto the transverse plane (horizontal).
+
+        Clinical Relevance
+        ------------------
+        - Excessive rotation (> 10-15°): Associated with:
+          * Asymmetric gait pattern
+          * Hip mobility asymmetry
+          * Compensatory trunk rotation
+
+        Returns
+        -------
+        Signal1D
+            Pelvis rotation angle in degrees.
+            Positive = right rotation
+            Negative = left rotation
+
+        See Also
+        --------
+        pelvis_anteroposteriortilt_global : Pelvis sagittal plane tilt
+        pelvis_lateraltilt_global : Pelvis frontal plane tilt
+        trunk_rotation_global : Trunk transverse plane rotation
         """
 
         # Get pelvis points projected into least squares plane
@@ -2385,9 +3183,50 @@ class WholeBody(TimeseriesRecord):
     @property
     def trunk_flexionextension_global(self):
         """
-        Return the trunk flexion/extension in degrees with respect
-        to the global reference frame.
-        Flexion is positive, extension is negative.
+        Calculate trunk flexion/extension angle in sagittal plane.
+
+        The angle represents the forward (flexion) or backward (extension)
+        bending of the trunk relative to the global vertical, measured from
+        pelvis base to C7 (seventh cervical vertebra).
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Flexion (flessione del tronco)
+          The trunk bends forward; C7 moves anteriorly.
+          Common in bending, squatting, sitting.
+        - **Negative (-)**: Extension (estensione del tronco)
+          The trunk bends backward; C7 moves posteriorly.
+          Common in arching, back bending.
+        - **0°**: Neutral position (trunk vertical, C7 directly above pelvis base)
+
+        Calculation Method
+        ------------------
+        Measured as the angle between the spine vector (from PSIS midpoint
+        to C7) and the global vertical axis, projected onto the sagittal plane.
+
+        Clinical Relevance
+        ------------------
+        - Excessive flexion (> 45° during activities): Associated with:
+          * Increased lumbar disc pressure
+          * Back extensor fatigue
+          * Increased injury risk in lifting
+        - Limited flexion (< 60° maximum): Associated with:
+          * Thoracic or lumbar stiffness
+          * Hamstring tightness
+          * Reduced functional mobility
+
+        Returns
+        -------
+        Signal1D
+            Trunk flexion/extension angle in degrees.
+            Positive = flexion (trunk forward)
+            Negative = extension (trunk backward)
+
+        See Also
+        --------
+        trunk_lateralflexion_global : Trunk frontal plane flexion
+        trunk_rotation_global : Trunk transverse plane rotation
+        pelvis_anteroposteriortilt_global : Pelvis sagittal plane tilt
         """
 
         # Get pelvis points projected into least squares plane
@@ -2414,9 +3253,48 @@ class WholeBody(TimeseriesRecord):
     @property
     def trunk_lateralflexion_global(self):
         """
-        Return the trunk lateral tilt (side bending) in degrees with respect
-        to the global reference frame.
-        Right tilt is negative, left tilt is positive.
+        Calculate trunk lateral flexion (side bending) in frontal plane.
+
+        The angle represents the left or right side bending of the trunk
+        relative to the global vertical, measured from pelvis base to C7.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Left lateral flexion (flessione laterale sinistra)
+          The trunk bends to the left; C7 moves laterally left.
+          Common in left side-bending movements.
+        - **Negative (-)**: Right lateral flexion (flessione laterale destra)
+          The trunk bends to the right; C7 moves laterally right.
+          Common in right side-bending movements.
+        - **0°**: Neutral position (trunk vertical, C7 centered over pelvis)
+
+        Calculation Method
+        ------------------
+        Measured as the angle between the spine vector (from PSIS midpoint
+        to C7) and the global vertical axis, projected onto the frontal plane.
+
+        Clinical Relevance
+        ------------------
+        - Excessive lateral flexion (> 10° static): Associated with:
+          * Scoliosis
+          * Trunk muscle imbalance
+          * Lateral pelvic tilt compensation
+        - Asymmetric range of motion: Associated with:
+          * Unilateral muscle tightness
+          * Spinal mobility restrictions
+
+        Returns
+        -------
+        Signal1D
+            Trunk lateral flexion angle in degrees.
+            Positive = left lateral flexion
+            Negative = right lateral flexion
+
+        See Also
+        --------
+        trunk_flexionextension_global : Trunk sagittal plane flexion
+        trunk_rotation_global : Trunk transverse plane rotation
+        pelvis_lateraltilt_global : Pelvis frontal plane tilt
         """
 
         # Get pelvis points projected into least squares plane
@@ -2443,9 +3321,48 @@ class WholeBody(TimeseriesRecord):
     @property
     def trunk_rotation_global(self):
         """
-        Return the trunk axial rotation in degrees with respect to the
-        global reference frame.
-        Right rotation is positive, left rotation is negative.
+        Calculate trunk axial rotation in transverse plane.
+
+        The angle represents the left or right rotational orientation of
+        the shoulders (upper trunk) relative to the global forward direction,
+        measured in the transverse (horizontal) plane.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Right rotation (rotazione destra del tronco)
+          The trunk rotates clockwise (viewed from above).
+          The left shoulder moves forward relative to the right shoulder.
+        - **Negative (-)**: Left rotation (rotazione sinistra del tronco)
+          The trunk rotates counterclockwise (viewed from above).
+          The right shoulder moves forward relative to the left shoulder.
+        - **0°**: Neutral position (shoulders aligned with forward direction)
+
+        Calculation Method
+        ------------------
+        Measured as the angle between the shoulder axis (from right shoulder
+        to left shoulder) and the global lateral axis, projected onto the
+        transverse plane (horizontal).
+
+        Clinical Relevance
+        ------------------
+        - Excessive rotation (> 15° static): Associated with:
+          * Scoliosis
+          * Asymmetric shoulder positioning
+          * Trunk muscle imbalances
+
+        Returns
+        -------
+        Signal1D
+            Trunk rotation angle in degrees.
+            Positive = right rotation
+            Negative = left rotation
+
+        See Also
+        --------
+        trunk_flexionextension_global : Trunk sagittal plane flexion
+        trunk_lateralflexion_global : Trunk frontal plane flexion
+        trunk_rotation_local : Trunk rotation relative to pelvis
+        pelvis_rotation_global : Pelvis transverse plane rotation
         """
 
         # Get vector defining shoulder axis
@@ -2467,9 +3384,48 @@ class WholeBody(TimeseriesRecord):
     @property
     def trunk_rotation_local(self):
         """
-        Return the shoulders axial rotation in degrees with respect to the
-        pelvis local reference frame.
-        Right rotation is positive, left rotation is negative.
+        Calculate trunk axial rotation relative to pelvis in transverse plane.
+
+        The angle represents the rotational separation between the shoulders
+        (upper trunk) and the pelvis, indicating counter-rotation or
+        co-rotation patterns.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Right rotation of trunk relative to pelvis
+          The shoulders rotate right more than (or left less than) the pelvis.
+          Common in gait swing phase, throwing motions.
+        - **Negative (-)**: Left rotation of trunk relative to pelvis
+          The shoulders rotate left more than (or right less than) the pelvis.
+        - **0°**: No relative rotation (trunk and pelvis aligned)
+
+        Calculation Method
+        ------------------
+        Calculated as the difference between trunk_rotation_global and
+        pelvis_rotation_global, isolating trunk rotation relative to
+        the pelvis reference frame.
+
+        Clinical Relevance
+        ------------------
+        - Limited relative rotation (< 20° in gait): Associated with:
+          * Reduced counter-rotation
+          * Trunk stiffness
+          * Compensatory pelvic rotation
+        - Excessive relative rotation (> 40°): Associated with:
+          * Thoracic hypermobility
+          * Lumbar rotation stress
+
+        Returns
+        -------
+        Signal1D
+            Trunk rotation relative to pelvis in degrees.
+            Positive = right rotation relative to pelvis
+            Negative = left rotation relative to pelvis
+
+        See Also
+        --------
+        trunk_rotation_global : Trunk rotation in global frame
+        pelvis_rotation_global : Pelvis rotation in global frame
         """
         return self.trunk_rotation_global - self.pelvis_rotation_global
 
@@ -2572,7 +3528,9 @@ class WholeBody(TimeseriesRecord):
 
         # Calculate angles from vertical in sagittal plane
         ref_angle = np.degrees(np.arctan2(v_ref[:, col_map[0]], v_ref[:, col_map[1]]))
-        neck_angle = np.degrees(np.arctan2(v_neck[:, col_map[0]], v_neck[:, col_map[1]]))
+        neck_angle = np.degrees(
+            np.arctan2(v_neck[:, col_map[0]], v_neck[:, col_map[1]])
+        )
 
         # Relative angle: positive when head is more anterior than trunk
         angle = neck_angle - ref_angle
@@ -2687,7 +3645,9 @@ class WholeBody(TimeseriesRecord):
 
         # Calculate PSIS midpoint (posterior pelvis reference)
         psis_mid_data = (l_psis.to_numpy() + r_psis.to_numpy()) / 2
-        psis_mid_index = np.unique(np.concatenate([l_psis.index, r_psis.index])).tolist()
+        psis_mid_index = np.unique(
+            np.concatenate([l_psis.index, r_psis.index])
+        ).tolist()
 
         # Create a Point3D for psis_mid
         psis_mid = Point3D(
@@ -2766,9 +3726,45 @@ class WholeBody(TimeseriesRecord):
     @property
     def shoulder_lateraltilt_global(self):
         """
-        Return the shoulders roll (frontal tilt) in degrees with respect to
-        the global reference frame.
-        Right tilt is positive, left tilt is negative.
+        Calculate shoulders lateral tilt (roll) in frontal plane.
+
+        The angle represents the left or right tilting of the shoulder girdle
+        relative to the global horizontal, measured in the frontal plane.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Right shoulder elevation
+          The left shoulder is lower than the right.
+          Common in right shoulder shrugging, right side lean.
+        - **Negative (-)**: Left shoulder elevation
+          The right shoulder is lower than the left.
+          Common in left shoulder shrugging, left side lean.
+        - **0°**: Neutral position (shoulders level)
+
+        Calculation Method
+        ------------------
+        Measured as the angle between the shoulder axis (from right shoulder
+        to left shoulder) and the global horizontal, projected onto the
+        frontal plane (lateral and vertical axes).
+
+        Clinical Relevance
+        ------------------
+        - Persistent asymmetry (> 5°): Associated with:
+          * Scoliosis
+          * Shoulder muscle imbalance
+          * Scapular dyskinesis
+
+        Returns
+        -------
+        Signal1D
+            Shoulder tilt angle in degrees.
+            Positive = right shoulder higher
+            Negative = left shoulder higher
+
+        See Also
+        --------
+        shoulder_lateraltilt_local : Shoulder tilt relative to trunk
+        trunk_lateralflexion_global : Trunk lateral flexion
         """
 
         # Define vector determining shoulder orientation
@@ -2790,19 +3786,82 @@ class WholeBody(TimeseriesRecord):
     @property
     def shoulder_lateraltilt_local(self):
         """
-        Return the shoulders roll (frontal tilt) in degrees with respect to
-        the spine lateral tilt.
-        Right tilt is positive, left tilt is negative.
+        Calculate shoulders lateral tilt relative to trunk in frontal plane.
+
+        The angle represents shoulder tilt independent of trunk lean,
+        isolating shoulder girdle orientation relative to the spine.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Right shoulder elevated relative to trunk
+        - **Negative (-)**: Left shoulder elevated relative to trunk
+        - **0°**: Shoulders aligned with trunk lateral tilt
+
+        Calculation Method
+        ------------------
+        Calculated as the difference between shoulder_lateraltilt_global and
+        trunk_lateralflexion_global, removing trunk lean component.
+
+        Returns
+        -------
+        Signal1D
+            Shoulder tilt relative to trunk in degrees.
+            Positive = right shoulder higher relative to trunk
+            Negative = left shoulder higher relative to trunk
+
+        See Also
+        --------
+        shoulder_lateraltilt_global : Shoulder tilt in global frame
+        trunk_lateralflexion_global : Trunk lateral flexion
         """
-        return self.shoulder_lateral_tilt_global - self.trunk_lateralflexion_global
+        return self.shoulder_lateraltilt_global - self.trunk_lateralflexion_global
 
     @property
     def left_shoulder_flexionextension(self):
         """
-        Return the left shoulder flexion/extension in degrees with respect
-        to the neck base.
-        Positive values denote flexion, while negative values indicate
-        extension.
+        Calculate left shoulder flexion/extension angle in sagittal plane.
+
+        The angle represents the forward (flexion) or backward (extension)
+        movement of the arm relative to the shoulder in the sagittal plane.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Flexion (flessione)
+          The arm is raised forward (anteriorly).
+          Common in reaching forward, throwing preparation.
+        - **Negative (-)**: Extension (estensione)
+          The arm is moved backward (posteriorly).
+          Common in backswing, reaching behind.
+        - **0°**: Neutral position (arm hanging at side)
+
+        Calculation Method
+        ------------------
+        Measured as the angle between the upper arm (shoulder-to-elbow vector)
+        and the vertical axis in the shoulder reference frame, projected onto
+        the sagittal plane (anteroposterior and vertical axes).
+
+        Clinical Relevance
+        ------------------
+        - Limited flexion (< 150°): Associated with:
+          * Shoulder joint stiffness
+          * Rotator cuff pathology
+          * Adhesive capsulitis (frozen shoulder)
+        - Limited extension (unable to reach negative values): Associated with:
+          * Anterior shoulder tightness
+          * Pectoralis major tightness
+
+        Returns
+        -------
+        Signal1D
+            Shoulder flexion/extension angle in degrees.
+            Positive = flexion (arm forward)
+            Negative = extension (arm backward)
+
+        See Also
+        --------
+        right_shoulder_flexionextension : Right shoulder flexion angle
+        left_shoulder_abductionadduction : Left shoulder frontal plane motion
+        left_elbow_flexionextension : Left elbow flexion angle
         """
         # ottengo i parametri necessari
         shoulder, rmat = self.left_shoulder_referenceframe
@@ -2823,10 +3882,49 @@ class WholeBody(TimeseriesRecord):
     @property
     def right_shoulder_flexionextension(self):
         """
-        Return the right shoulder flexion/extension in degrees with respect
-        to the neck base.
-        Positive values denote flexion, while negative values indicate
-        extension.
+        Calculate right shoulder flexion/extension angle in sagittal plane.
+
+        The angle represents the forward (flexion) or backward (extension)
+        movement of the arm relative to the shoulder in the sagittal plane.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Flexion (flessione)
+          The arm is raised forward (anteriorly).
+          Common in reaching forward, throwing preparation.
+        - **Negative (-)**: Extension (estensione)
+          The arm is moved backward (posteriorly).
+          Common in backswing, reaching behind.
+        - **0°**: Neutral position (arm hanging at side)
+
+        Calculation Method
+        ------------------
+        Measured as the angle between the upper arm (shoulder-to-elbow vector)
+        and the vertical axis in the shoulder reference frame, projected onto
+        the sagittal plane (anteroposterior and vertical axes).
+
+        Clinical Relevance
+        ------------------
+        - Limited flexion (< 150°): Associated with:
+          * Shoulder joint stiffness
+          * Rotator cuff pathology
+          * Adhesive capsulitis (frozen shoulder)
+        - Limited extension (unable to reach negative values): Associated with:
+          * Anterior shoulder tightness
+          * Pectoralis major tightness
+
+        Returns
+        -------
+        Signal1D
+            Shoulder flexion/extension angle in degrees.
+            Positive = flexion (arm forward)
+            Negative = extension (arm backward)
+
+        See Also
+        --------
+        left_shoulder_flexionextension : Left shoulder flexion angle
+        right_shoulder_abductionadduction : Right shoulder frontal plane motion
+        right_elbow_flexionextension : Right elbow flexion angle
         """
         # ottengo i parametri necessari
         shoulder, rmat = self.right_shoulder_referenceframe
@@ -2847,8 +3945,49 @@ class WholeBody(TimeseriesRecord):
     @property
     def left_shoulder_abductionadduction(self):
         """
-        Return the left shoulder abduction/adduction in degrees.
-        Abduction will be positive, adduction negative.
+        Calculate left shoulder abduction/adduction angle in frontal plane.
+
+        The angle represents the lateral (outward) or medial (inward)
+        movement of the arm relative to the shoulder in the frontal plane.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Abduction (abduzione)
+          The arm is raised laterally away from the body.
+          Common in lateral raises, overhead reaching.
+        - **Negative (-)**: Adduction (adduzione)
+          The arm is moved medially toward or across the body.
+          Common in cross-body movements.
+        - **0°**: Neutral position (arm hanging at side)
+
+        Calculation Method
+        ------------------
+        Measured as the angle between the upper arm (shoulder-to-elbow vector)
+        and the vertical axis in the shoulder reference frame, projected onto
+        the frontal plane (lateral and vertical axes).
+
+        Clinical Relevance
+        ------------------
+        - Limited abduction (< 150°): Associated with:
+          * Rotator cuff pathology (supraspinatus)
+          * Shoulder impingement syndrome
+          * Adhesive capsulitis
+        - Excessive adduction during dynamic tasks: Associated with:
+          * Scapular dyskinesis
+          * Shoulder instability
+
+        Returns
+        -------
+        Signal1D
+            Shoulder abduction/adduction angle in degrees.
+            Positive = abduction (arm outward)
+            Negative = adduction (arm inward)
+
+        See Also
+        --------
+        right_shoulder_abductionadduction : Right shoulder frontal plane motion
+        left_shoulder_flexionextension : Left shoulder sagittal plane motion
+        left_scapular_protractionretraction : Left scapular position
         """
         # Get necessary parameters
         shoulder, rmat = self.left_shoulder_referenceframe
@@ -2868,8 +4007,49 @@ class WholeBody(TimeseriesRecord):
     @property
     def right_shoulder_abductionadduction(self):
         """
-        Return the right shoulder abduction/adduction in degrees.
-        Abduction will be positive, adduction negative.
+        Calculate right shoulder abduction/adduction angle in frontal plane.
+
+        The angle represents the lateral (outward) or medial (inward)
+        movement of the arm relative to the shoulder in the frontal plane.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Abduction (abduzione)
+          The arm is raised laterally away from the body.
+          Common in lateral raises, overhead reaching.
+        - **Negative (-)**: Adduction (adduzione)
+          The arm is moved medially toward or across the body.
+          Common in cross-body movements.
+        - **0°**: Neutral position (arm hanging at side)
+
+        Calculation Method
+        ------------------
+        Measured as the angle between the upper arm (shoulder-to-elbow vector)
+        and the vertical axis in the shoulder reference frame, projected onto
+        the frontal plane (lateral and vertical axes).
+
+        Clinical Relevance
+        ------------------
+        - Limited abduction (< 150°): Associated with:
+          * Rotator cuff pathology (supraspinatus)
+          * Shoulder impingement syndrome
+          * Adhesive capsulitis
+        - Excessive adduction during dynamic tasks: Associated with:
+          * Scapular dyskinesis
+          * Shoulder instability
+
+        Returns
+        -------
+        Signal1D
+            Shoulder abduction/adduction angle in degrees.
+            Positive = abduction (arm outward)
+            Negative = adduction (arm inward)
+
+        See Also
+        --------
+        left_shoulder_abductionadduction : Left shoulder frontal plane motion
+        right_shoulder_flexionextension : Right shoulder sagittal plane motion
+        right_scapular_protractionretraction : Right scapular position
         """
         # Get necessary parameters
         shoulder, rmat = self.right_shoulder_referenceframe
@@ -2891,8 +4071,51 @@ class WholeBody(TimeseriesRecord):
     @property
     def left_shoulder_internalexternalrotation(self):
         """
-        Return the left shoulder internal/external rotation in degrees.
-        Internal rotation is positive, external rotation is negative.
+        Calculate left shoulder internal/external rotation angle in transverse plane.
+
+        The angle represents the rotational orientation of the upper arm around
+        its longitudinal axis, typically assessed with the elbow at 90° flexion.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Internal rotation (rotazione interna)
+          The forearm rotates medially (toward the body).
+          Common in throwing acceleration, reaching across body.
+        - **Negative (-)**: External rotation (rotazione esterna)
+          The forearm rotates laterally (away from the body).
+          Common in throwing cocking phase, backhand motions.
+        - **0°**: Neutral position (forearm pointing forward with elbow at 90°)
+
+        Calculation Method
+        ------------------
+        Measured using the orientation of the elbow's frontal plane
+        (defined by medial-lateral elbow markers) relative to the shoulder
+        reference frame. The vector from elbow medial to lateral is projected
+        onto the transverse plane fixed to the upper arm.
+
+        Clinical Relevance
+        ------------------
+        - Limited internal rotation (< 60°): Associated with:
+          * Posterior shoulder capsule tightness
+          * GIRD (Glenohumeral Internal Rotation Deficit)
+          * Overhead athlete adaptations
+        - Limited external rotation (< 80°): Associated with:
+          * Anterior shoulder tightness
+          * Subscapularis tightness
+          * Reduced throwing performance
+
+        Returns
+        -------
+        Signal1D
+            Shoulder rotation angle in degrees.
+            Positive = internal rotation (forearm inward)
+            Negative = external rotation (forearm outward)
+
+        See Also
+        --------
+        right_shoulder_internalexternalrotation : Right shoulder rotation angle
+        left_shoulder_abductionadduction : Left shoulder frontal plane motion
+        left_elbow_flexionextension : Left elbow flexion angle
         """
         # Get necessary parameters
         elbow_lat = self._get_point("left_elbow_lateral")
@@ -2938,8 +4161,51 @@ class WholeBody(TimeseriesRecord):
     @property
     def right_shoulder_internalexternalrotation(self):
         """
-        Return the right shoulder internal/external rotation in degrees.
-        Internal rotation is positive, external rotation is negative.
+        Calculate right shoulder internal/external rotation angle in transverse plane.
+
+        The angle represents the rotational orientation of the upper arm around
+        its longitudinal axis, typically assessed with the elbow at 90° flexion.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Internal rotation (rotazione interna)
+          The forearm rotates medially (toward the body).
+          Common in throwing acceleration, reaching across body.
+        - **Negative (-)**: External rotation (rotazione esterna)
+          The forearm rotates laterally (away from the body).
+          Common in throwing cocking phase, backhand motions.
+        - **0°**: Neutral position (forearm pointing forward with elbow at 90°)
+
+        Calculation Method
+        ------------------
+        Measured using the orientation of the elbow's frontal plane
+        (defined by medial-lateral elbow markers) relative to the shoulder
+        reference frame. The vector from elbow lateral to medial is projected
+        onto the transverse plane fixed to the upper arm.
+
+        Clinical Relevance
+        ------------------
+        - Limited internal rotation (< 60°): Associated with:
+          * Posterior shoulder capsule tightness
+          * GIRD (Glenohumeral Internal Rotation Deficit)
+          * Overhead athlete adaptations
+        - Limited external rotation (< 80°): Associated with:
+          * Anterior shoulder tightness
+          * Subscapularis tightness
+          * Reduced throwing performance
+
+        Returns
+        -------
+        Signal1D
+            Shoulder rotation angle in degrees.
+            Positive = internal rotation (forearm inward)
+            Negative = external rotation (forearm outward)
+
+        See Also
+        --------
+        left_shoulder_internalexternalrotation : Left shoulder rotation angle
+        right_shoulder_abductionadduction : Right shoulder frontal plane motion
+        right_elbow_flexionextension : Right elbow flexion angle
         """
         # Get necessary parameters
         elbow_lat = self._get_point("right_elbow_lateral")
@@ -2983,8 +4249,326 @@ class WholeBody(TimeseriesRecord):
         return Signal1D(data=-angle, index=elbow_lat.index, unit="°")
 
     @property
+    def left_scapular_protractionretraction(self):
+        """
+        Calculate left scapular protraction/retraction angle in transverse plane.
+
+        The angle represents the horizontal position of the left shoulder relative
+        to neck_base (base of the neck), indicating scapular protraction or
+        retraction.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Scapular protraction (protrazione scapolare)
+          The shoulder is positioned anteriorly (forward) relative to neck base.
+          Common in rounded shoulder posture.
+        - **Negative (-)**: Scapular retraction (retrazione scapolare)
+          The shoulder is positioned posteriorly (backward) relative to neck base.
+          Common in military/upright posture.
+        - **0°**: Neutral position (shoulder aligned with neck base in transverse plane)
+
+        Calculation Method
+        ------------------
+        Measured as the angle between the neck_base-to-left_shoulder vector and the
+        lateral axis in the global transverse plane (horizontal plane).
+
+        The angle quantifies the anterior-posterior displacement of the shoulder
+        girdle, which is primarily driven by scapular movement on the thorax.
+
+        Clinical Relevance
+        ------------------
+        - Excessive protraction (> +20°): Associated with:
+          * Rounded shoulders
+          * Forward head posture
+          * Weak scapular retractors (rhomboids, mid-trapezius)
+          * Tight pectorals
+          * Upper crossed syndrome
+        - Excessive retraction (< -10°): Less common, may indicate:
+          * Overcorrection in posture training
+          * Compensation for thoracic hyperkyphosis
+
+        Returns
+        -------
+        Signal1D
+            Scapular protraction/retraction angle in degrees.
+            Positive = protraction (forward shoulder position)
+            Negative = retraction (backward shoulder position)
+
+        See Also
+        --------
+        right_scapular_protractionretraction : Right scapular protraction/retraction
+        shoulder_lateraltilt_global : Shoulder elevation in frontal plane
+        trunk_rotation_global : Trunk rotation that may affect shoulder position
+        """
+        neck_base = self.neck_base
+        shoulder = self.left_shoulder
+
+        # Get vector from neck_base to left shoulder
+        v_shoulder = (shoulder - neck_base).to_numpy()
+
+        # Extract transverse plane components (lateral_axis, anteroposterior_axis)
+        cols = shoulder.columns
+        axes_labels = [self.lateral_axis, self.anteroposterior_axis]
+        col_map = [np.where(cols == i)[0][0] for i in axes_labels]
+        col_map = np.array(col_map)
+
+        # Calculate angle from lateral axis in transverse plane
+        # x = lateral component, y = anteroposterior component
+        x, y = v_shoulder[:, col_map].T
+        angle = np.degrees(np.arctan2(y, x))
+
+        return Signal1D(data=angle, index=shoulder.index, unit="°")
+
+    @property
+    def right_scapular_protractionretraction(self):
+        """
+        Calculate right scapular protraction/retraction angle in transverse plane.
+
+        The angle represents the horizontal position of the right shoulder relative
+        to neck_base (base of the neck), indicating scapular protraction or
+        retraction.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Scapular protraction (protrazione scapolare)
+          The shoulder is positioned anteriorly (forward) relative to neck base.
+          Common in rounded shoulder posture.
+        - **Negative (-)**: Scapular retraction (retrazione scapolare)
+          The shoulder is positioned posteriorly (backward) relative to neck base.
+          Common in military/upright posture.
+        - **0°**: Neutral position (shoulder aligned with neck base in transverse plane)
+
+        Calculation Method
+        ------------------
+        Measured as the angle between the neck_base-to-right_shoulder vector and the
+        lateral axis in the global transverse plane (horizontal plane).
+
+        The angle quantifies the anterior-posterior displacement of the shoulder
+        girdle, which is primarily driven by scapular movement on the thorax.
+
+        Clinical Relevance
+        ------------------
+        - Excessive protraction (> +20°): Associated with:
+          * Rounded shoulders
+          * Forward head posture
+          * Weak scapular retractors (rhomboids, mid-trapezius)
+          * Tight pectorals
+          * Upper crossed syndrome
+        - Excessive retraction (< -10°): Less common, may indicate:
+          * Overcorrection in posture training
+          * Compensation for thoracic hyperkyphosis
+
+        Returns
+        -------
+        Signal1D
+            Scapular protraction/retraction angle in degrees.
+            Positive = protraction (forward shoulder position)
+            Negative = retraction (backward shoulder position)
+
+        See Also
+        --------
+        left_scapular_protractionretraction : Left scapular protraction/retraction
+        shoulder_lateraltilt_global : Shoulder elevation in frontal plane
+        trunk_rotation_global : Trunk rotation that may affect shoulder position
+        """
+        neck_base = self.neck_base
+        shoulder = self.right_shoulder
+
+        # Get vector from neck_base to right shoulder
+        v_shoulder = (shoulder - neck_base).to_numpy()
+
+        # Extract transverse plane components (lateral_axis, anteroposterior_axis)
+        cols = shoulder.columns
+        axes_labels = [self.lateral_axis, self.anteroposterior_axis]
+        col_map = [np.where(cols == i)[0][0] for i in axes_labels]
+        col_map = np.array(col_map)
+
+        # Calculate angle from lateral axis in transverse plane
+        # x = lateral component, y = anteroposterior component
+        # Note: sign is reversed for right side to maintain consistent interpretation
+        x, y = v_shoulder[:, col_map].T
+        angle = np.degrees(np.arctan2(y, -x))  # Negate x for right side symmetry
+
+        return Signal1D(data=angle, index=shoulder.index, unit="°")
+
+    @property
+    def left_shoulder_elevationdepression(self):
+        """
+        Calculate left shoulder elevation/depression angle in frontal plane.
+
+        The angle represents the vertical position of the left shoulder relative
+        to the upper thoracic spine, indicating shoulder elevation (shrugging) or
+        depression (dropping).
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Shoulder elevation (elevazione della spalla)
+          The shoulder is elevated (shrugged upward).
+          Common in upper trapezius tension, stress postures.
+        - **Negative (-)**: Shoulder depression (depressione della spalla)
+          The shoulder is depressed (pulled downward).
+          Less common in static postures.
+        - **0°**: Neutral position (shoulder aligned with thoracic reference)
+
+        Calculation Method
+        ------------------
+        Measured as the angle at neck_base formed by three points in the frontal
+        plane: shoulder - neck_base - T5 (fifth thoracic vertebra).
+
+        This quantifies the vertical displacement of the shoulder girdle, which
+        is primarily driven by upper trapezius (elevation) and lower trapezius/
+        serratus anterior (depression) activity.
+
+        Clinical Relevance
+        ------------------
+        - Excessive elevation (> +15°): Associated with:
+          * Upper trapezius overactivity
+          * Levator scapulae tightness
+          * Upper crossed syndrome
+          * Chronic neck tension
+        - Asymmetric elevation (left vs right > 5°): Associated with:
+          * Muscle imbalance
+          * Scoliosis compensation
+          * Unilateral overuse
+
+        Returns
+        -------
+        Signal1D
+            Shoulder elevation/depression angle in degrees.
+            Positive = elevation (shoulder up)
+            Negative = depression (shoulder down)
+
+        See Also
+        --------
+        right_shoulder_elevationdepression : Right shoulder elevation/depression
+        left_scapular_protractionretraction : Left scapular anterior/posterior position
+        shoulder_lateraltilt_global : Shoulder tilt in frontal plane
+        """
+        shoulder = self.left_shoulder
+        neck_base = self.neck_base
+        t5 = self._get_point("t5")
+
+        # Calculate 3-point angle in frontal plane: shoulder - neck_base - t5
+        # This gives the elevation/depression relative to thoracic spine
+        angle = self._get_angle_between_three_points(shoulder, neck_base, t5)
+
+        # Adjust sign so positive = elevation (shoulder above neutral)
+        # The angle is measured in frontal plane, so we need to determine
+        # if shoulder is above or below the neck_base-t5 line
+        return Signal1D(data=90 - angle, index=shoulder.index, unit="°")
+
+    @property
+    def right_shoulder_elevationdepression(self):
+        """
+        Calculate right shoulder elevation/depression angle in frontal plane.
+
+        The angle represents the vertical position of the right shoulder relative
+        to the upper thoracic spine, indicating shoulder elevation (shrugging) or
+        depression (dropping).
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Shoulder elevation (elevazione della spalla)
+          The shoulder is elevated (shrugged upward).
+          Common in upper trapezius tension, stress postures.
+        - **Negative (-)**: Shoulder depression (depressione della spalla)
+          The shoulder is depressed (pulled downward).
+          Less common in static postures.
+        - **0°**: Neutral position (shoulder aligned with thoracic reference)
+
+        Calculation Method
+        ------------------
+        Measured as the angle at neck_base formed by three points in the frontal
+        plane: shoulder - neck_base - T5 (fifth thoracic vertebra).
+
+        This quantifies the vertical displacement of the shoulder girdle, which
+        is primarily driven by upper trapezius (elevation) and lower trapezius/
+        serratus anterior (depression) activity.
+
+        Clinical Relevance
+        ------------------
+        - Excessive elevation (> +15°): Associated with:
+          * Upper trapezius overactivity
+          * Levator scapulae tightness
+          * Upper crossed syndrome
+          * Chronic neck tension
+        - Asymmetric elevation (left vs right > 5°): Associated with:
+          * Muscle imbalance
+          * Scoliosis compensation
+          * Unilateral overuse
+
+        Returns
+        -------
+        Signal1D
+            Shoulder elevation/depression angle in degrees.
+            Positive = elevation (shoulder up)
+            Negative = depression (shoulder down)
+
+        See Also
+        --------
+        left_shoulder_elevationdepression : Left shoulder elevation/depression
+        right_scapular_protractionretraction : Right scapular anterior/posterior position
+        shoulder_lateraltilt_global : Shoulder tilt in frontal plane
+        """
+        shoulder = self.right_shoulder
+        neck_base = self.neck_base
+        t5 = self._get_point("t5")
+
+        # Calculate 3-point angle in frontal plane: shoulder - neck_base - t5
+        # This gives the elevation/depression relative to thoracic spine
+        angle = self._get_angle_between_three_points(shoulder, neck_base, t5)
+
+        # Adjust sign so positive = elevation (shoulder above neutral)
+        return Signal1D(data=90 - angle, index=shoulder.index, unit="°")
+
+    @property
     def left_elbow_flexionextension(self):
-        """return the left elbow flexion in degrees. Extension will be negative"""
+        """
+        Calculate left elbow flexion/extension angle in sagittal plane.
+
+        The angle represents the bending or straightening of the elbow joint,
+        indicating flexion (bent elbow) or extension (straight elbow).
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Flexion (flessione)
+          The elbow is bent, bringing the wrist toward the shoulder.
+          Common in lifting, reaching, biceps curl.
+        - **Negative (-)**: Extension (estensione)
+          The elbow is straightened beyond neutral.
+          Rare; indicates hyperextension.
+        - **0°**: Neutral position (fully straight elbow)
+
+        Calculation Method
+        ------------------
+        Measured as the angle between the upper arm (shoulder-to-elbow) and
+        forearm (elbow-to-wrist) vectors. Calculated as 180° minus the angle
+        formed by the three points (wrist, elbow, shoulder), so that flexion
+        is positive and full extension is zero.
+
+        Clinical Relevance
+        ------------------
+        - Limited flexion (< 135°): Associated with:
+          * Elbow joint stiffness
+          * Biceps or triceps contracture
+          * Post-traumatic or post-surgical limitation
+        - Hyperextension (negative values): Associated with:
+          * Joint hypermobility
+          * Ligamentous laxity
+          * Common in women and gymnasts
+
+        Returns
+        -------
+        Signal1D
+            Elbow flexion/extension angle in degrees.
+            Positive = flexion (bent elbow)
+            Negative = extension (hyperextension)
+
+        See Also
+        --------
+        right_elbow_flexionextension : Right elbow flexion angle
+        left_shoulder_flexionextension : Left shoulder flexion angle
+        """
         p1 = self.left_wrist
         p2 = self.left_elbow
         p3 = self.left_shoulder
@@ -2996,7 +4580,52 @@ class WholeBody(TimeseriesRecord):
 
     @property
     def right_elbow_flexionextension(self):
-        """return the right elbow flexion in degrees. Extension will be negative"""
+        """
+        Calculate right elbow flexion/extension angle in sagittal plane.
+
+        The angle represents the bending or straightening of the elbow joint,
+        indicating flexion (bent elbow) or extension (straight elbow).
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Flexion (flessione)
+          The elbow is bent, bringing the wrist toward the shoulder.
+          Common in lifting, reaching, biceps curl.
+        - **Negative (-)**: Extension (estensione)
+          The elbow is straightened beyond neutral.
+          Rare; indicates hyperextension.
+        - **0°**: Neutral position (fully straight elbow)
+
+        Calculation Method
+        ------------------
+        Measured as the angle between the upper arm (shoulder-to-elbow) and
+        forearm (elbow-to-wrist) vectors. Calculated as 180° minus the angle
+        formed by the three points (wrist, elbow, shoulder), so that flexion
+        is positive and full extension is zero.
+
+        Clinical Relevance
+        ------------------
+        - Limited flexion (< 135°): Associated with:
+          * Elbow joint stiffness
+          * Biceps or triceps contracture
+          * Post-traumatic or post-surgical limitation
+        - Hyperextension (negative values): Associated with:
+          * Joint hypermobility
+          * Ligamentous laxity
+          * Common in women and gymnasts
+
+        Returns
+        -------
+        Signal1D
+            Elbow flexion/extension angle in degrees.
+            Positive = flexion (bent elbow)
+            Negative = extension (hyperextension)
+
+        See Also
+        --------
+        left_elbow_flexionextension : Left elbow flexion angle
+        right_shoulder_flexionextension : Right shoulder flexion angle
+        """
         p1 = self.right_wrist
         p2 = self.right_elbow
         p3 = self.right_shoulder

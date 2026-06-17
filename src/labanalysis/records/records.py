@@ -14,6 +14,7 @@ from ..utils import ureg
 from ..io.read.btsbioengineering import read_tdf
 from ..signalprocessing import fillna as sp_fillna
 from .timeseries import *
+from .indexers import RecordLocIndexer, RecordILocIndexer
 
 __all__ = ["Record", "ForcePlatform", "MetabolicRecord", "TimeseriesRecord"]
 
@@ -78,6 +79,16 @@ class Record:
     @property
     def shape(self):
         return self.to_dataframe().shape
+
+    @property
+    def loc(self):
+        """Label-based indexer for Record items."""
+        return RecordLocIndexer(self)
+
+    @property
+    def iloc(self):
+        """Position-based indexer for Record items."""
+        return RecordILocIndexer(self)
 
     def __len__(self):
         return len(self._data)
@@ -319,7 +330,7 @@ class Record:
 
                     # Apply shared timeframe to each element
                     for key in out.keys():
-                        out._data[key] = out._data[key].loc(start, stop, False)
+                        out._data[key] = out._data[key].loc[start:stop, :]
 
                     # Handle column stripping if axis=None
                     if axis is None:
@@ -434,18 +445,6 @@ class Record:
         if not inplace:
             return out
 
-    def loc(self, start: float | int, stop: float | int, inplace: bool = False):
-        if not isinstance(start, (float, int)):
-            raise ValueError("start must be int or float")
-        if not isinstance(stop, (float, int)):
-            raise ValueError("stop must be int or float")
-        if not isinstance(inplace, bool):
-            raise ValueError("inplace must be True or False")
-        out = self if inplace else self.copy()
-        for key in out.keys():
-            out[key].loc(start, stop, True)
-        if not inplace:
-            return out
 
     def to_plotly_figure(self):
         df = self.to_dataframe()

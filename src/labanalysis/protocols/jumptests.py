@@ -549,7 +549,7 @@ class JumpTest(TestProtocol):
             if index is None:
                 raise RuntimeError("strip failed")
             index = index.index
-            exe = exe.loc(index[0], index[-1])
+            exe = exe.loc[index[0]:index[-1], :]
             if not isinstance(exe, TimeseriesRecord):
                 raise RuntimeError("jump resizing failed.")
 

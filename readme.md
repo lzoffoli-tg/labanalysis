@@ -58,6 +58,8 @@
 
 ## Installation
 
+[📖 Detailed installation guide →](docs/getting-started/installation.md)
+
 ### Prerequisites
 - Python >= 3.12
 - pip or conda package manager
@@ -101,7 +103,11 @@ Core dependencies are automatically installed:
 
 ## Quick Start
 
+[⚡ 5-minute quick start →](docs/getting-started/quick-start.md) | [🎯 Your first complete analysis →](docs/getting-started/first-analysis.md)
+
 ### Basic Example: Load and Process Data
+
+[→ Complete data loading guide](docs/user-guide/data-loading/README.md)
 
 ```python
 import labanalysis as laban
@@ -126,6 +132,8 @@ df = record.to_dataframe()
 ```
 
 ### Example: Analyze a Jump Test
+
+[→ Complete jump analysis tutorial](docs/tutorials/01-jump-analysis.md) | [→ Jump tests guide](docs/user-guide/test-protocols/jump-tests.md)
 
 ```python
 import labanalysis as laban
@@ -158,6 +166,8 @@ fig.show()
 
 ### Example: Gait Analysis
 
+[→ Complete gait analysis tutorial](docs/tutorials/02-gait-analysis.md) | [→ Gait analysis guide](docs/user-guide/test-protocols/gait-analysis.md)
+
 ```python
 import labanalysis as laban
 
@@ -186,6 +196,8 @@ gait_cycles = walking_test.gait_cycles
 ```
 
 ### Example: Full Body Biomechanical Analysis
+
+[→ Complete WholeBody tutorial](docs/tutorials/03-full-body-kinematics.md) | [→ WholeBody model guide](docs/user-guide/biomechanics/whole-body-model.md)
 
 ```python
 import labanalysis as laban
@@ -444,31 +456,35 @@ fig.show()
 
 ## Module Reference
 
+[📚 Complete API Reference →](docs/api-reference/README.md)
+
 ### Core Modules
 
-#### `labanalysis.constants`
+#### `labanalysis.constants` [→ API Reference](docs/api-reference/constants.md)
 Physical and physiological constants used throughout the package.
 
 **Constants:**
 - `G`: Gravitational acceleration (9.81 m/s²)
 - Additional domain-specific constants
 
-#### `labanalysis.signalprocessing`
+#### `labanalysis.signalprocessing` [→ API Reference](docs/api-reference/signalprocessing.md)
 Comprehensive signal processing utilities.
 
 **Key Functions:**
-- `butterworth_filt()`: Butterworth filtering
-- `fir_filt()`: FIR filtering
-- `mean_filt()`, `median_filt()`, `rms_filt()`: Statistical filters
-- `find_peaks()`: Peak detection
-- `winter_derivative1()`, `winter_derivative2()`: Derivatives (Winter 2009)
-- `residual_analysis()`: Optimal cut-off frequency determination
-- `crossings()`: Zero-crossing detection
-- `xcorr()`: Cross-correlation
-- `psd()`: Power spectral density
-- `to_reference_frame()`: 3D coordinate transformations
+- [`butterworth_filt()`](docs/api-reference/signalprocessing.md#butterworth_filt) - Butterworth filtering
+- [`fir_filt()`](docs/api-reference/signalprocessing.md#fir_filt) - FIR filtering
+- [`mean_filt()`](docs/api-reference/signalprocessing.md#mean_filt), [`median_filt()`](docs/api-reference/signalprocessing.md#median_filt), [`rms_filt()`](docs/api-reference/signalprocessing.md#rms_filt) - Statistical filters
+- [`find_peaks()`](docs/api-reference/signalprocessing.md#find_peaks) - Peak detection
+- [`winter_derivative1()`](docs/api-reference/signalprocessing.md#winter_derivative1), [`winter_derivative2()`](docs/api-reference/signalprocessing.md#winter_derivative2) - Derivatives (Winter 2009)
+- [`residual_analysis()`](docs/api-reference/signalprocessing.md#residual_analysis) - Optimal cut-off frequency determination
+- [`crossings()`](docs/api-reference/signalprocessing.md#crossings) - Zero-crossing detection
+- [`xcorr()`](docs/api-reference/signalprocessing.md#xcorr) - Cross-correlation
+- [`psd()`](docs/api-reference/signalprocessing.md#psd) - Power spectral density
+- [`to_reference_frame()`](docs/api-reference/signalprocessing.md#to_reference_frame) - 3D coordinate transformations
 
-#### `labanalysis.utils`
+[→ Complete signal processing guide](docs/user-guide/signal-processing/README.md)
+
+#### `labanalysis.utils` [→ API Reference](docs/api-reference/utils.md)
 General-purpose utility functions and unit handling.
 
 **Features:**
@@ -477,22 +493,23 @@ General-purpose utility functions and unit handling.
 
 ### Data Structures
 
-#### `labanalysis.records`
+#### `labanalysis.records` [→ API Reference](docs/api-reference/records/README.md)
 Core data structure classes for representing laboratory measurements.
 
 **Main Classes:**
-- `Record`: Dictionary-like container for timeseries data
-- `TimeseriesRecord`: Specialized record for time-indexed data
-- `WholeBody`: Full body biomechanical model with 42+ anatomical landmarks
+- [`Record`](docs/api-reference/records/records.md#record) - Dictionary-like container for timeseries data
+- [`TimeseriesRecord`](docs/api-reference/records/records.md#timeseriesrecord) - Specialized record for time-indexed data
+- [`WholeBody`](docs/api-reference/records/bodies.md) - Full body biomechanical model with 42+ anatomical landmarks
   - Supports 4 metatarsal markers (first/fifth bilateral) for precise foot plane calculation
   - Includes thoracic vertebra T5 marker for enhanced spine modeling
   - Features 4 cranial markers (anterior/posterior/left/right) for head center and neck analysis
-  - Computes 36 joint angles, reference frames, and derived properties
-- `ForcePlatform`: Force platform data representation
-- `Participant`: Subject/participant information
-- `Signal1D`, `Signal3D`: 1D and 3D signal representations
-- `EMGSignal`: Electromyography signal class
-- `Point3D`: 3D point/marker data
+  - Computes 38 joint angular measures, reference frames, and derived properties
+  - [→ Complete WholeBody guide](docs/user-guide/biomechanics/whole-body-model.md)
+- [`ForcePlatform`](docs/api-reference/records/records.md#forceplatform) - Force platform data representation
+- [`Participant`](docs/api-reference/protocols/protocols.md#participant) - Subject/participant information
+- [`Signal1D`](docs/api-reference/records/timeseries.md#signal1d), [`Signal3D`](docs/api-reference/records/timeseries.md#signal3d) - 1D and 3D signal representations
+- [`EMGSignal`](docs/api-reference/records/timeseries.md#emgsignal) - Electromyography signal class
+- [`Point3D`](docs/api-reference/records/timeseries.md#point3d) - 3D point/marker data
 
 **Key Methods:**
 - `.from_tdf()`: Load from BTS TDF files
@@ -503,26 +520,30 @@ Core data structure classes for representing laboratory measurements.
 
 ### I/O Operations
 
-#### `labanalysis.io.read`
+#### `labanalysis.io.read` [→ API Reference](docs/api-reference/io/read.md)
 Import data from various laboratory equipment formats.
 
 **Supported Formats:**
-- **BTS Bioengineering**: `.tdf` files (force platforms, motion capture)
-- **OpenSim**: `.mot`, `.sto` files
-- **Cosmed**: Metabolic data
-- **IRCAM**: Audio/motion data
-- **Biostrength**: Strength testing equipment
+- **BTS Bioengineering**: `.tdf` files (force platforms, motion capture) - [Guide](docs/user-guide/data-loading/bts-bioengineering.md)
+- **OpenSim**: `.mot`, `.sto` files - [Guide](docs/user-guide/data-loading/opensim.md)
+- **Cosmed**: Metabolic data - [Guide](docs/user-guide/data-loading/cosmed.md)
+- **IRCAM**: Audio/motion data - [Guide](docs/user-guide/data-loading/ircam.md)
+- **Biostrength**: Strength testing equipment - [Guide](docs/user-guide/data-loading/biostrength.md)
 
-#### `labanalysis.io.write`
+[→ Complete data loading guide](docs/user-guide/data-loading/README.md)
+
+#### `labanalysis.io.write` [→ API Reference](docs/api-reference/io/write.md)
 Export data to standard formats.
 
 **Export Formats:**
 - OpenSim motion files (`.mot`)
 - Custom formats for analysis pipelines
 
+[→ Data export guide](docs/user-guide/data-export/README.md)
+
 ### Modelling
 
-#### `labanalysis.modelling.ols`
+#### `labanalysis.modelling.ols` [→ API Reference](docs/api-reference/modelling/ols.md)
 Ordinary Least Squares regression and geometric modeling.
 
 **Classes:**
@@ -530,28 +551,32 @@ Ordinary Least Squares regression and geometric modeling.
 - `LinearRegression`: Standard linear regression
 - Geometric fitting utilities
 
-#### `labanalysis.modelling.pytorch`
+[→ Regression guide](docs/user-guide/modeling/regression.md)
+
+#### `labanalysis.modelling.pytorch` [→ API Reference](docs/api-reference/modelling/pytorch.md)
 PyTorch-based deep learning utilities with CPU optimizations.
 
 **Features:**
 - Custom neural network modules
-- `TorchTrainer`: Optimized trainer with 2-3x CPU speedup ([see guide](docs/CPU_OPTIMIZATION_GUIDE.md))
+- `TorchTrainer`: Optimized trainer with 2-3x CPU speedup ([→ CPU optimization guide](docs/advanced/CPU_OPTIMIZATION_GUIDE.md))
 - Training and evaluation helpers
 - Model validation and visualization
 - Integration with ONNX for model deployment
 
+[→ PyTorch guide](docs/user-guide/modeling/pytorch-basics.md) | [→ TorchTrainer guide](docs/user-guide/modeling/torch-trainer.md)
+
 ### Test Protocols
 
-#### `labanalysis.protocols`
+#### `labanalysis.protocols` [→ API Reference](docs/api-reference/protocols/README.md)
 Standardized test protocols with automated analysis.
 
 **Available Protocols:**
-- **Balance Tests**: `StaticBalanceTest`, `DynamicBalanceTest`
-- **Jump Tests**: `CounterMovementJump`, `SquatJump`, `DropJump`
-- **Locomotion**: `WalkingTest`, `RunningTest`, `GaitAnalysis`
-- **Strength**: `IsometricTest`, `IsokineticTest`, `FreeWeightTest`
-- **Agility**: `ChangeOfDirectionTest`, `ReactiveAgilityTest`
-- **VO2max**: `GradedExerciseTest`, `SubmaximalTest`
+- **Balance Tests**: `StaticBalanceTest`, `DynamicBalanceTest` - [Guide](docs/user-guide/test-protocols/balance-tests.md)
+- **Jump Tests**: `CounterMovementJump`, `SquatJump`, `DropJump` - [Guide](docs/user-guide/test-protocols/jump-tests.md)
+- **Locomotion**: `WalkingTest`, `RunningTest`, `GaitAnalysis` - [Guide](docs/user-guide/test-protocols/gait-analysis.md)
+- **Strength**: `IsometricTest`, `IsokineticTest`, `FreeWeightTest` - [Guide](docs/user-guide/test-protocols/strength-tests.md)
+- **Agility**: `ChangeOfDirectionTest`, `ReactiveAgilityTest` - [Guide](docs/user-guide/test-protocols/agility-tests.md)
+- **VO2max**: `GradedExerciseTest`, `SubmaximalTest` - [Guide](docs/user-guide/test-protocols/vo2max-tests.md)
 
 Each protocol class provides:
 - `.from_tdf()`: Load data
@@ -559,16 +584,18 @@ Each protocol class provides:
 - `.plot()`: Interactive visualization
 - `.report()`: Formatted report generation
 
+[→ Complete test protocols guide](docs/user-guide/test-protocols/README.md)
+
 ### Equations
 
-#### `labanalysis.equations.strength`
+#### `labanalysis.equations.strength` [→ API Reference](docs/api-reference/equations/strength.md)
 Predictive equations for strength assessment.
 
 **Functions:**
 - `estimate_1rm()`: One-repetition maximum estimation
 - Various load-velocity relationships
 
-#### `labanalysis.equations.cardio`
+#### `labanalysis.equations.cardio` [→ API Reference](docs/api-reference/equations/cardio.md)
 Cardiovascular and metabolic prediction equations.
 
 **Functions:**
@@ -579,15 +606,66 @@ Cardiovascular and metabolic prediction equations.
 
 ## Documentation
 
-Additional documentation and guides are available in the [`docs/`](docs/) directory:
+📚 **[Complete Documentation Hub →](docs/README.md)** - Start here for all guides, tutorials, and API reference
 
-📚 **Available Guides:**
-- **[CPU Optimization Guide](docs/CPU_OPTIMIZATION_GUIDE.md)** - Performance optimization for `TorchTrainer` on CPU
-  - 11 implemented optimizations for 2-3x speedup
+### Quick Links
+
+**Getting Started:**
+- 🚀 [Installation Guide](docs/getting-started/installation.md) - Install from pip or git
+- ⚡ [Quick Start (5 min)](docs/getting-started/quick-start.md) - Your first analysis
+- 💡 [Core Concepts](docs/getting-started/core-concepts.md) - Understand Record, Signal, Protocol patterns
+- 🎯 [Your First Analysis](docs/getting-started/first-analysis.md) - Complete walkthrough
+
+**User Guides (by task):**
+- 📂 [Data Loading](docs/user-guide/data-loading/README.md) - Load from BTS, OpenSim, Biostrength, IRCAM, Cosmed
+- 📊 [Signal Processing](docs/user-guide/signal-processing/README.md) - Filtering, peaks, derivatives, frequency analysis
+- 🧍 [Biomechanics](docs/user-guide/biomechanics/README.md) - WholeBody model (104+ properties, 38 angular measures), force platforms, joint angles
+- 🧪 [Test Protocols](docs/user-guide/test-protocols/README.md) - Jump, gait, balance, strength, agility, VO2max
+- 🤖 [Modeling](docs/user-guide/modeling/README.md) - Regression, PyTorch, ONNX deployment
+- 📈 [Visualization](docs/user-guide/visualization/README.md) - Plotly-based interactive plots
+- 💾 [Data Export](docs/user-guide/data-export/README.md) - Export to Excel, OpenSim, reports
+
+**Tutorials (complete workflows):**
+1. [Jump Analysis](docs/tutorials/01-jump-analysis.md) - Complete CMJ analysis from TDF to report
+2. [Gait Analysis](docs/tutorials/02-gait-analysis.md) - Walking/running analysis workflow
+3. [Full Body Kinematics](docs/tutorials/03-full-body-kinematics.md) - WholeBody model workflow
+4. [Strength Assessment](docs/tutorials/04-strength-assessment.md) - Isokinetic/isometric testing
+5. [Signal Processing Pipeline](docs/tutorials/05-signal-processing.md) - Complete processing workflow
+6. [Custom Protocol](docs/tutorials/06-custom-protocol.md) - Extend TestProtocol
+7. [Batch Processing](docs/tutorials/07-batch-processing.md) - Process multiple files
+8. [ML Modeling](docs/tutorials/08-ml-modeling.md) - PyTorch training workflow
+
+[View all 8 tutorials →](docs/tutorials/README.md)
+
+**API Reference:**
+- 📚 [Complete API Documentation](docs/api-reference/README.md) - All classes and functions
+- [Records Module](docs/api-reference/records/README.md) - Timeseries, Signal, Record, WholeBody
+- [Protocols Module](docs/api-reference/protocols/README.md) - Participant, TestProtocol, TestResults
+- [Signal Processing](docs/api-reference/signalprocessing.md) - 30+ processing functions
+- [I/O Module](docs/api-reference/io/README.md) - Data readers and writers
+- [Modeling Module](docs/api-reference/modelling/README.md) - OLS and PyTorch models
+
+**Advanced Topics:**
+- ⚡ [CPU Optimization Guide](docs/advanced/CPU_OPTIMIZATION_GUIDE.md) - Achieve 2-3x speedup for TorchTrainer
+  - 11 implemented optimizations
   - Best practices for batch size and multiprocessing
   - Configuration examples and profiling tips
+- 🔧 [Custom Protocols](docs/advanced/extending-protocols.md) - Create custom TestProtocol implementations
+- 🎨 [Custom Signals](docs/advanced/custom-signals.md) - Extend Signal1D and Signal3D
+- ⚙️ [Unit Handling](docs/advanced/unit-handling.md) - Deep dive into Pint integration
+- 📈 [Performance Tips](docs/advanced/performance-tips.md) - Optimization best practices
 
-For a complete list of available documentation, see [`docs/README.md`](docs/README.md).
+**Examples:**
+- [Basic Examples](docs/examples/basic/) - Loading, filtering, exporting (3 scripts)
+- [Biomechanics Examples](docs/examples/biomechanics/) - Joint angles, GRF, markers (3 scripts)
+- [Protocol Examples](docs/examples/protocols/) - CMJ, running, balance tests (3 scripts)
+- [Modeling Examples](docs/examples/modeling/) - Polynomial fit, PyTorch, 1RM (3 scripts)
+
+[View all examples →](docs/examples/README.md)
+
+**Support:**
+- 🐛 [Troubleshooting](docs/troubleshooting/README.md) - Common errors and solutions
+- 💻 [Developer Guide](docs/development/README.md) - Contributing and development setup
 
 ---
 

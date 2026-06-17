@@ -1,6 +1,12 @@
-# Labanalysis Test Suite
+# labanalysis Test Suite
 
-This directory contains the comprehensive test suite for the labanalysis package.
+Comprehensive test suite for the labanalysis biomechanical analysis library.
+
+## Overview
+
+This test suite validates the core functionality of labanalysis, covering signal processing, biomechanical data structures, and modeling capabilities.
+
+**Current Status:** 518 passing tests, 3 skipped
 
 ## 📦 Installation
 
@@ -27,206 +33,385 @@ The `[dev]` extra installs additional dependencies needed for testing:
 - pytest-xdist
 - pytest-timeout
 
-## 🧪 Running Tests
+## 🧪 Quick Start
 
-### Run All Tests
 ```bash
+# Run all tests
 pytest test/
-```
 
-### Run Specific Test Module
-```bash
-# Run only RunningExercise tests
-pytest test/test_runningexercise.py -v
+# Run specific module tests
+pytest test/signalprocessing/
+pytest test/records/
+pytest test/modelling/
 
-# Run only jump tests
-pytest test/test_jumps.py -v
-```
-
-### Run Specific Test Class or Function
-```bash
-# Run a specific test class
-pytest test/test_runningexercise.py::TestRunningExerciseKinematics -v
-
-# Run a specific test function
-pytest test/test_runningexercise.py::TestRunningExerciseKinematics::test_basic_cycle_detection -v
-```
-
-### Run Tests in Parallel
-```bash
-# Use multiple CPU cores
-pytest test/ -n auto
-```
-
-### Run Tests with Coverage
-```bash
-# Generate coverage report
+# Run with coverage
 pytest test/ --cov=labanalysis --cov-report=html
-
-# View coverage report
-open htmlcov/index.html  # macOS/Linux
-start htmlcov/index.html  # Windows
 ```
 
-## 📁 Test Structure
+## 📁 Directory Structure
 
 ```
 test/
-├── README.md                    # This file
-├── conftest.py                  # Shared fixtures and utilities
-├── assets/                      # Test data files
-│   ├── running_test/           # Running exercise test data
-│   ├── jumptest_data/          # Jump test data
-│   ├── balance_data/           # Balance test data
-│   └── ...
-├── test_runningexercise.py     # RunningExercise comprehensive tests
-├── test_jumps.py               # Jump test protocols
-├── test_balance.py             # Balance tests
-├── test_strengthtests.py       # Strength tests
-└── ...
+├── README.md               # This file
+│
+├── signalprocessing/       # Signal processing tests (300 tests)
+│   └── test_signalprocessing.py
+│
+├── records/                # Data structures tests (52 tests)
+│   ├── test_bodies.py
+│   ├── test_item_access.py
+│   └── test_records.py
+│
+└── modelling/              # Modelling and ML tests (166 tests)
+    ├── test_pytorch_modules.py
+    ├── test_pytorch_utils.py
+    └── test_regression.py
 ```
 
-## 🔬 Test Coverage
+**Total:** 518 passing tests
 
-### RunningExercise Tests (`test_runningexercise.py`)
+## 🏗️ Test Coverage
 
-Comprehensive test protocol with 30+ test cases:
+The test suite covers three main areas of labanalysis:
 
-- **Kinematics Algorithm**: Marker-based cycle detection
-- **Kinetics Algorithm**: Force platform-based cycle detection
-- **Edge Cases**: Error handling, boundary conditions
-- **Integration**: Real TDF file testing
-- **Parametric Tests**: Various configurations
+1. **Signal Processing** (`test/signalprocessing/`)
+   - Filters (Butterworth, moving average, Savitzky-Golay)
+   - Derivatives (Winter's method, finite differences)
+   - Spectral analysis (FFT, PSD, autocorrelation)
+   - Utilities (peak detection, crossings, interpolation)
 
-**Fixtures:**
-- `mock_running_markers`: Synthetic Point3D markers (500 Hz)
-- `mock_force_platform`: Synthetic ForcePlatform data (500 Hz)
-- `running_tdf_file`: Path to real running test TDF
-- `marker_mapping`: Standard marker set mapping
+2. **Records & Data Structures** (`test/records/`)
+   - Timeseries, Signal1D, Signal3D, Point3D
+   - EMGSignal, Record, ForcePlatform
+   - WholeBody (full-body marker model with 38 angular measures)
+     * Joint centers with missing medial markers
+     * All 38 angular measures accessibility
+     * New marker support (cranial, foot, spine)
+     * Reference frame calculations
+   - Attribute/item interchangeable access
 
-**Test Classes:**
-- `TestRunningExerciseKinematics` (9 tests)
-- `TestRunningExerciseKinetics` (7 tests)
-- `TestRunningExerciseEdgeCases` (3 tests)
-- `TestRunningStepProperties` (5 tests)
-- `TestRunningExerciseIntegration` (4 tests)
-- `TestRunningExerciseParametric` (2 tests)
+3. **Modelling** (`test/modelling/`)
+   - OLS regression models (polynomial, power, exponential)
+   - PyTorch utilities and modules
+   - Multi-segment regression
+
+## 📊 Test Characteristics
+
+All tests are **unit tests** with these characteristics:
+- Fast execution (test suite completes in ~75 seconds)
+- No external file dependencies
+- Test individual functions/classes in isolation
+- Generate test data inline using numpy
+
+**Example:**
+```python
+def test_butterworth_filter():
+    """Test Butterworth lowpass filter."""
+    # Generate test signal
+    t = np.linspace(0, 1, 1000)
+    signal = np.sin(2 * np.pi * 10 * t)  # 10 Hz sine wave
+    
+    # Apply filter
+    from labanalysis.signalprocessing import butterworth
+    filtered = butterworth(signal, cutoff=50.0, order=4, fs=1000)
+    
+    assert filtered.shape == signal.shape
+```
+
+### Important: Source Code Testing
+
+Tests in `test/records/test_bodies.py` import directly from the `src/` directory rather than 
+the installed package. This ensures tests validate the current codebase state:
+
+```python
+import sys
+from pathlib import Path
+
+# Add src directory to path to import from source code
+src_path = Path(__file__).parent.parent.parent / "src"
+sys.path.insert(0, str(src_path))
+
+import labanalysis as laban  # Now imports from src/
+```
+
+This approach:
+- ✅ Tests current development code, not installed version
+- ✅ Catches bugs before package installation
+- ✅ Enables testing without reinstalling after each edit
+
+## ⏩ Running Tests
+
+**Run all tests:**
+```bash
+pytest test/
+# 518 passed, 3 skipped in ~75s
+```
+
+**Run specific modules:**
+```bash
+pytest test/signalprocessing/  # 300 tests
+pytest test/records/           # 52 tests  
+pytest test/modelling/         # 166 tests
+```
+
+**Run with verbose output:**
+```bash
+pytest test/ -v
+```
+
+**Run specific test:**
+```bash
+pytest test/signalprocessing/test_signalprocessing.py::TestButterworth::test_lowpass_basic
+```
+
+## 🔧 Test Data Generation
+
+Tests generate data inline using numpy, scipy, and labanalysis constructors:
+
+```python
+import numpy as np
+import labanalysis as laban
+
+def test_signal_filtering():
+    """Test signal filtering with synthetic data."""
+    # Generate test signal inline
+    time = np.linspace(0, 1, 1000)
+    signal = np.sin(2 * np.pi * 10 * time)  # 10 Hz sine
+    
+    # Create Signal1D object
+    sig = laban.Signal1D(data=signal, index=time, unit='V')
+    
+    # Test filtering
+    filtered = laban.signalprocessing.butterworth(sig, cutoff=5.0)
+    assert filtered.shape == sig.shape
+```
+
+**Benefits:**
+- ✅ No external dependencies
+- ✅ Deterministic and reproducible
+- ✅ Fast execution
+- ✅ Clear test intent
+
+
 
 ## 🎯 Writing New Tests
+
+### Guidelines
+
+1. **Generate data inline** using numpy/scipy
+2. **Test one thing** per test function
+3. **Use descriptive names** that explain what's being tested
+4. **Keep tests fast** (avoid long computations)
+5. **Document complex tests** with docstrings
+
+### Example Structure
+
+```python
+import numpy as np
+import pytest
+import labanalysis as laban
+
+class TestButterworth:
+    """Tests for Butterworth filter."""
+    
+    def test_lowpass_basic(self):
+        """Test basic lowpass filtering removes high frequencies."""
+        # Arrange: Create test signal
+        fs = 1000
+        t = np.linspace(0, 1, fs)
+        signal_10hz = np.sin(2 * np.pi * 10 * t)
+        signal_100hz = np.sin(2 * np.pi * 100 * t)
+        signal = signal_10hz + signal_100hz
+        
+        # Act: Apply 50 Hz lowpass filter
+        filtered = laban.signalprocessing.butterworth(
+            signal, cutoff=50.0, order=4, fs=fs
+        )
+        
+        # Assert: High frequency attenuated
+        assert filtered.shape == signal.shape
+        assert np.max(np.abs(filtered - signal_10hz)) < 0.1
+```
 
 ### Test Naming Convention
 - Test files: `test_<module>.py`
 - Test classes: `Test<FeatureName>`
 - Test functions: `test_<specific_behavior>`
 
-### Example Test Structure
-```python
-import pytest
-import src.labanalysis as laban
+## 📈 Coverage
 
-class TestMyFeature:
-    """Tests for MyFeature functionality."""
-    
-    def test_basic_functionality(self, fixture_name):
-        """Test basic feature behavior."""
-        # Arrange
-        obj = laban.MyClass(param=value)
-        
-        # Act
-        result = obj.method()
-        
-        # Assert
-        assert result == expected
-        assert isinstance(result, ExpectedType)
+**Check current coverage:**
+```bash
+pytest test/ --cov=labanalysis --cov-report=html
+open htmlcov/index.html  # View detailed coverage report
 ```
 
-### Using Fixtures
+**Current coverage:**
+- `signalprocessing`: Excellent (300 tests)
+- `records`: Excellent (52 tests)
+- `modelling`: Good (166 tests)
+
+## 💡 Common Patterns
+
+### Testing Signal Processing
+
+```python
+def test_filter_removes_high_frequency():
+    """Test that lowpass filter removes high-frequency noise."""
+    # Generate signal with known frequency components
+    time = np.arange(0, 1.0, 0.001)
+    signal_low = np.sin(2 * np.pi * 10 * time)   # 10 Hz
+    signal_high = np.sin(2 * np.pi * 100 * time) # 100 Hz
+    noisy = signal_low + signal_high
+    
+    sig = laban.Signal1D(data=noisy, index=time, unit='V')
+    
+    # Apply 50 Hz lowpass filter
+    filtered = laban.signalprocessing.butterworth(sig, cutoff=50.0, order=4)
+    
+    # High frequency should be attenuated
+    fft_orig = np.fft.rfft(sig.data)
+    fft_filt = np.fft.rfft(filtered.data)
+    freqs = np.fft.rfftfreq(len(time), 0.001)
+    
+    idx_100hz = np.argmin(np.abs(freqs - 100))
+    attenuation = np.abs(fft_filt[idx_100hz]) / np.abs(fft_orig[idx_100hz])
+    assert attenuation < 0.1  # >90% attenuation at 100 Hz
+```
+
+### Testing Protocols
+
 ```python
 @pytest.fixture
-def my_fixture():
-    """Provide test data or objects."""
-    data = create_test_data()
-    return data
+def participant():
+    """Standard test participant."""
+    return laban.Participant(
+        name="Test", surname="Subject",
+        gender="Male", height=181, weight=75,
+        birthdate=date(2000, 1, 1),
+        recordingdate=date(2025, 1, 1)
+    )
 
-def test_with_fixture(my_fixture):
-    """Test using the fixture."""
-    result = process(my_fixture)
-    assert result is not None
+def test_jump_protocol(participant, cmj_force_platform):
+    """Test complete jump analysis workflow."""
+    jump = laban.SingleJump(
+        participant=participant,
+        force_platform=cmj_force_platform,
+        jump_type="CMJ"
+    )
+    
+    # Validate core metrics
+    assert jump.jump_height is not None
+    assert_realistic_jump_height(jump.jump_height)
+    
+    # Validate phase detection
+    assert hasattr(jump, 'unweighting_phase')
+    assert hasattr(jump, 'propulsion_phase')
+    assert hasattr(jump, 'flight_phase')
+    
+    # Validate performance metrics
+    assert jump.rsi is not None
+    assert jump.peak_power is not None
 ```
 
-### Parametric Tests
+### Testing Data I/O
+
 ```python
-@pytest.mark.parametrize("input,expected", [
-    (1, 2),
-    (2, 4),
-    (3, 6),
-])
-def test_doubling(input, expected):
-    """Test doubling function with multiple inputs."""
-    assert double(input) == expected
+import tempfile
+from pathlib import Path
+
+def test_tdf_roundtrip():
+    """Test that data survives TDF write/read cycle."""
+    # Generate synthetic data
+    fp_orig = generate_force_platform_data(duration_s=5.0)
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Write to TDF
+        filepath = Path(tmpdir) / "test.tdf"
+        laban.io.write.tdf(filepath, force_platform=fp_orig)
+        
+        # Read back
+        fp_read = laban.io.read.tdf(filepath)
+        
+        # Validate
+        np.testing.assert_allclose(
+            fp_orig.force.data,
+            fp_read.force.data,
+            rtol=1e-6
+        )
 ```
-
-## 📊 Test Data
-
-Test data files are located in `test/assets/` and organized by test type:
-
-- `running_test/` - Running biomechanics data (TDF files)
-- `jumptest_data/` - Jump test protocols
-- `balance_data/` - Balance and posture tests
-- `shuttle_test_data/` - Agility tests
-- `cosmed_data/` - Metabolic data
-
-**Note**: Large test data files (>10MB) are included in the repository but excluded from the built package distribution.
 
 ## 🐛 Troubleshooting
 
-### Test Discovery Issues
-If pytest doesn't find your tests:
-```bash
-# Make sure you're in the project root
-cd /path/to/labanalysis
+### Import Errors
 
-# Check pytest can find the tests
-pytest --collect-only test/
+**Problem:** `ModuleNotFoundError: No module named 'labanalysis'`
+
+**Solution:** Install package in development mode:
+```bash
+pip install -e .
 ```
 
-### Import Errors
-If you get import errors:
-```bash
-# Reinstall in editable mode
-pip install -e ".[dev]"
+### Test Discovery
 
-# Or add src to PYTHONPATH
-export PYTHONPATH="${PYTHONPATH}:$(pwd)/src"  # Linux/macOS
-set PYTHONPATH=%PYTHONPATH%;%cd%\src  # Windows
+**Problem:** Pytest doesn't find tests
+
+**Solution:** Run from project root:
+```bash
+cd /path/to/labanalysis
+pytest test/
 ```
 
 ### Slow Tests
-Some tests (especially integration tests with real TDF files) can be slow:
+
+The full test suite takes ~75 seconds. To run faster:
 ```bash
-# Skip slow tests
-pytest test/ -m "not slow"
+# Run only one module
+pytest test/records/  # ~7 seconds
 
-# Run only fast unit tests
-pytest test/ -k "not Integration"
+# Parallel execution (if pytest-xdist installed)
+pytest test/ -n auto
+```
 
-# Set timeout for hanging tests
-pytest test/ --timeout=60
+## 🚀 CI/CD Integration
+
+**Recommended GitHub Actions workflow:**
+
+```yaml
+name: Tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - run: pip install -e ".[dev]"
+      - run: pytest -m "not slow and not pytorch" --cov=labanalysis
+      - run: pytest -m slow --timeout=600  # Slow tests with longer timeout
 ```
 
 ## 📝 Contributing
 
-When adding new tests:
+When adding new features to labanalysis:
 
-1. **Follow project conventions** (see existing tests)
-2. **Add docstrings** explaining what is being tested
-3. **Use meaningful assertions** with clear failure messages
-4. **Keep tests isolated** (no shared state between tests)
-5. **Use fixtures** for common setup
-6. **Document complex test logic** with comments
+1. **Write tests first** (TDD approach preferred)
+2. **Use synthetic data** (avoid .tdf file dependencies)
+3. **Mirror library structure** (test location matches source location)
+4. **Apply appropriate markers** (`@pytest.mark.unit` or `@pytest.mark.integration`)
+5. **Document test purpose** (clear docstrings)
+6. **Validate coverage** (`pytest --cov`)
 
-## 📚 References
+## 📚 Resources
 
 - [pytest documentation](https://docs.pytest.org/)
-- [labanalysis documentation](https://github.com/lzoffoli-tg/labanalysis)
-- [Testing best practices](https://docs.pytest.org/en/stable/goodpractices.html)
+- [labanalysis source code](../src/labanalysis/)
+- [TDF file format specification](https://www.btsbioengineering.com/)
+- [ACSM metabolic equations](https://www.acsm.org/)
+
+---
+
+**Maintainer:** Technogym Research Team  
+**Last Updated:** 2026-06-17

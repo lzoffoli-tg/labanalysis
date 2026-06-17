@@ -771,7 +771,7 @@ class FreeWeightRepetition(DefaultFreeWeightObject):
             out.append(
                 RepetitionPhase(
                     total_load_kg=self.total_load_kg,
-                    **{i: v.slice(i0, i1) for i, v in self.items()},  # type: ignore
+                    **{i: v.loc[i0:i1, :] for i, v in self.items()},
                 )
             )
         return out
