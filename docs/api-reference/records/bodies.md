@@ -198,7 +198,7 @@ All angle properties return `Signal1D` objects with angles in degrees. Calculate
 | `right_knee_flexionextension` | Signal1D | Right knee sagittal plane | Flexion | Extension |
 | `right_knee_varusvalgus` | Signal1D | Right knee frontal plane alignment | Varus (bow-leg) | Valgus (knock-knee) |
 
-**Note**: Sign convention - Positive = Varus, Negative = Valgus, 0° = Perfect alignment
+**Note**: Sign convention - Positive = Varus, Negative = Valgus, 0° = Perfect alignment. Angles are automatically normalized to [-180°, +180°] range to prevent wrapping issues.
 
 ##### Hip Angles (6)
 

@@ -85,7 +85,7 @@ for i in range(len(heel_strikes) - 1):
 | `left_knee_varusvalgus` | Frontal plane alignment | Varus (bow-leg) | Valgus (knock-knee) | -5° to +5° |
 | `right_knee_varusvalgus` | Frontal plane alignment | Varus (bow-leg) | Valgus (knock-knee) | -5° to +5° |
 
-**Note**: Sign convention updated - **Positive = Varus** (bow-legged), **Negative = Valgus** (knock-knee) for both knees.
+**Note**: Sign convention - **Positive = Varus** (bow-legged), **Negative = Valgus** (knock-knee) for both knees. Angles are normalized to [-180°, +180°] to ensure values near 0° for aligned knees (prevents wrapping to ~360°).
 
 **Example: Knee Varus/Valgus Assessment**
 

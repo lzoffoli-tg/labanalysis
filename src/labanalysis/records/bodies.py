@@ -2585,6 +2585,9 @@ class WholeBody(TimeseriesRecord):
         # Negative when knee deviates medially (valgus)
         angle = angle_leg - angle_thigh
 
+        # Normalize to [-180, 180] to avoid angle wrapping issues (e.g., 358° → -2°)
+        angle = (angle + 180) % 360 - 180
+
         return Signal1D(data=angle, index=knee.index, unit="°")
 
     @property
@@ -2642,6 +2645,9 @@ class WholeBody(TimeseriesRecord):
         # Positive when knee deviates laterally (varus)
         # Negative when knee deviates medially (valgus)
         angle = angle_thigh - angle_leg
+
+        # Normalize to [-180, 180] to avoid angle wrapping issues (e.g., 358° → -2°)
+        angle = (angle + 180) % 360 - 180
 
         return Signal1D(data=angle, index=knee.index, unit="°")
 

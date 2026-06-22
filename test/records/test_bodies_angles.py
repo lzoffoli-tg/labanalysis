@@ -425,6 +425,29 @@ class TestKneeVarusValgus:
         # (aligned knees should give ~0°, not large positive/negative values)
         assert True, "Sign convention: Positive=Varus, Negative=Valgus, 0°=Aligned"
 
+    def test_angle_normalization(self, aligned_knees_wholebody):
+        """
+        Test that angles are normalized to [-180°, +180°] range.
+
+        This prevents wrapping issues where small angles near 0°
+        could appear as ~360° or ~-360°.
+        """
+        left_vv = aligned_knees_wholebody.left_knee_varusvalgus
+        right_vv = aligned_knees_wholebody.right_knee_varusvalgus
+
+        left_data = np.asarray(left_vv.data)
+        right_data = np.asarray(right_vv.data)
+
+        # All angles should be in [-180, 180] range
+        assert np.all(left_data >= -180), f"Left knee has angles < -180°: {left_data.min():.1f}°"
+        assert np.all(left_data <= 180), f"Left knee has angles > 180°: {left_data.max():.1f}°"
+        assert np.all(right_data >= -180), f"Right knee has angles < -180°: {right_data.min():.1f}°"
+        assert np.all(right_data <= 180), f"Right knee has angles > 180°: {right_data.max():.1f}°"
+
+        # For aligned knees, should be close to 0°, not ~360°
+        assert np.all(np.abs(left_data) < 180), "Left knee angles should not wrap to ±180°"
+        assert np.all(np.abs(right_data) < 180), "Right knee angles should not wrap to ±180°"
+
 
 class TestHipAnglesSignConvention:
     """Test hip angle sign conventions."""
