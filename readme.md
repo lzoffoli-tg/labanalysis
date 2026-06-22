@@ -759,6 +759,5 @@ This package integrates and builds upon several excellent open-source libraries:
 
 ---
 
-**Version**: 202  
 **Python**: ≥ 3.12  
 **Last Updated**: June 2026

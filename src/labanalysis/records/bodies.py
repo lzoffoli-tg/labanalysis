@@ -1668,6 +1668,94 @@ class WholeBody(TimeseriesRecord):
         return Signal1D(data=data, index=index, unit=elbow.unit)
 
     @property
+    def left_lower_limb_length(self):
+        """
+        Calculate total left lower limb length (thigh + leg).
+
+        Returns the sum of thigh length (hip to knee) and leg length
+        (knee to ankle). This represents the functional length of the
+        entire lower limb.
+
+        Returns
+        -------
+        Signal1D
+            Distance in meters from hip to ankle joint center.
+
+        See Also
+        --------
+        left_thigh_length : Length of thigh segment only
+        left_leg_length : Length of leg segment only
+        right_lower_limb_length : Right lower limb total length
+        """
+        return self.left_thigh_length + self.left_leg_length
+
+    @property
+    def right_lower_limb_length(self):
+        """
+        Calculate total right lower limb length (thigh + leg).
+
+        Returns the sum of thigh length (hip to knee) and leg length
+        (knee to ankle). This represents the functional length of the
+        entire lower limb.
+
+        Returns
+        -------
+        Signal1D
+            Distance in meters from hip to ankle joint center.
+
+        See Also
+        --------
+        right_thigh_length : Length of thigh segment only
+        right_leg_length : Length of leg segment only
+        left_lower_limb_length : Left lower limb total length
+        """
+        return self.right_thigh_length + self.right_leg_length
+
+    @property
+    def left_upper_limb_length(self):
+        """
+        Calculate total left upper limb length (arm + forearm).
+
+        Returns the sum of arm length (shoulder to elbow) and forearm length
+        (elbow to wrist). This represents the functional length of the
+        entire upper limb.
+
+        Returns
+        -------
+        Signal1D
+            Distance in meters from shoulder to wrist joint center.
+
+        See Also
+        --------
+        left_arm_length : Length of arm segment only
+        left_forearm_length : Length of forearm segment only
+        right_upper_limb_length : Right upper limb total length
+        """
+        return self.left_arm_length + self.left_forearm_length
+
+    @property
+    def right_upper_limb_length(self):
+        """
+        Calculate total right upper limb length (arm + forearm).
+
+        Returns the sum of arm length (shoulder to elbow) and forearm length
+        (elbow to wrist). This represents the functional length of the
+        entire upper limb.
+
+        Returns
+        -------
+        Signal1D
+            Distance in meters from shoulder to wrist joint center.
+
+        See Also
+        --------
+        right_arm_length : Length of arm segment only
+        right_forearm_length : Length of forearm segment only
+        left_upper_limb_length : Left upper limb total length
+        """
+        return self.right_arm_length + self.right_forearm_length
+
+    @property
     def trunk_height(self):
         """
         Calculate trunk height as distance from pelvis center to neck base.
@@ -2448,25 +2536,25 @@ class WholeBody(TimeseriesRecord):
 
         Interpretation
         --------------
-        - **Positive (+)**: Valgus deformity (ginocchio valgo, "a X", knock-knee)
-          The knee deviates medially; the leg angle opens laterally.
-        - **Negative (-)**: Varus deformity (ginocchio varo, "a parentesi", bow-legged)
+        - **Positive (+)**: Varus deformity (ginocchio varo, "a parentesi", bow-legged)
           The knee deviates laterally; the leg angle opens medially.
+        - **Negative (-)**: Valgus deformity (ginocchio valgo, "a X", knock-knee)
+          The knee deviates medially; the leg angle opens laterally.
         - **0°**: Neutral alignment (anca-ginocchio-caviglia collineari nel piano frontale)
 
         Calculation Method
         ------------------
-        Measured as the difference between thigh and leg angles in the frontal plane:
+        Measured as the difference between leg and thigh angles in the frontal plane:
         - Thigh angle: angle of hip-to-knee vector from vertical
         - Leg angle: angle of knee-to-ankle vector from vertical
-        - Varus/Valgus = (Thigh angle) - (Leg angle)
+        - Varus/Valgus = (Leg angle) - (Thigh angle)
 
         Returns
         -------
         Signal1D
             Knee varus/valgus angle in degrees.
-            Positive = valgus (ginocchio valgo)
-            Negative = varus (ginocchio varo)
+            Positive = varus (ginocchio varo)
+            Negative = valgus (ginocchio valgo)
         """
         hip = self.left_hip
         knee = self.left_knee
@@ -2493,9 +2581,9 @@ class WholeBody(TimeseriesRecord):
         angle_leg = np.degrees(np.arctan2(v_leg_2d[:, 0], v_leg_2d[:, 1]))
 
         # Varus/valgus is the difference
-        # Positive when knee deviates medially (valgus)
-        # Negative when knee deviates laterally (varus)
-        angle = angle_thigh - angle_leg
+        # Positive when knee deviates laterally (varus)
+        # Negative when knee deviates medially (valgus)
+        angle = angle_leg - angle_thigh
 
         return Signal1D(data=angle, index=knee.index, unit="°")
 
@@ -2508,24 +2596,23 @@ class WholeBody(TimeseriesRecord):
 
         Interpretation
         --------------
-        - **Positive (+)**: Valgus deformity (ginocchio valgo, "a X", knock-knee)
-          The knee deviates medially; the leg angle opens laterally.
-        - **Negative (-)**: Varus deformity (ginocchio varo, "a parentesi", bow-legged)
+        - **Positive (+)**: Varus deformity (ginocchio varo, "a parentesi", bow-legged)
           The knee deviates laterally; the leg angle opens medially.
+        - **Negative (-)**: Valgus deformity (ginocchio valgo, "a X", knock-knee)
+          The knee deviates medially; the leg angle opens laterally.
         - **0°**: Neutral alignment (anca-ginocchio-caviglia collineari nel piano frontale)
 
         Calculation Method
         ------------------
         Measured as the difference between leg and thigh angles in the frontal plane.
-        Sign is reversed compared to left side to maintain consistent interpretation
-        (positive = valgus for both sides).
+        Sign convention: positive = varus (lateral deviation) for both sides.
 
         Returns
         -------
         Signal1D
             Knee varus/valgus angle in degrees.
-            Positive = valgus (ginocchio valgo)
-            Negative = varus (ginocchio varo)
+            Positive = varus (ginocchio varo)
+            Negative = valgus (ginocchio valgo)
         """
         hip = self.right_hip
         knee = self.right_knee
@@ -2551,9 +2638,10 @@ class WholeBody(TimeseriesRecord):
         # Angle from vertical (leg angle)
         angle_leg = np.degrees(np.arctan2(v_leg_2d[:, 0], v_leg_2d[:, 1]))
 
-        # Varus/valgus is the difference (sign reversed for right side)
-        # This ensures positive = valgus for both left and right knees
-        angle = angle_leg - angle_thigh
+        # Varus/valgus is the difference
+        # Positive when knee deviates laterally (varus)
+        # Negative when knee deviates medially (valgus)
+        angle = angle_thigh - angle_leg
 
         return Signal1D(data=angle, index=knee.index, unit="°")
 
@@ -2616,7 +2704,7 @@ class WholeBody(TimeseriesRecord):
             self.vertical_axis,  # type: ignore
         )
 
-        return 90 + angle
+        return 90 - angle
 
     @property
     def right_hip_flexionextension(self):
@@ -2677,7 +2765,7 @@ class WholeBody(TimeseriesRecord):
             self.vertical_axis,  # type: ignore
         )
 
-        return 90 + angle
+        return 90 - angle
 
     @property
     def left_hip_abductionadduction(self):
@@ -2738,7 +2826,7 @@ class WholeBody(TimeseriesRecord):
             self.vertical_axis,  # type: ignore
         )
 
-        return angle + 90
+        return 90 - angle
 
     @property
     def right_hip_abductionadduction(self):
@@ -2799,7 +2887,7 @@ class WholeBody(TimeseriesRecord):
         )
 
         # adjust the sign according to the knee position
-        return -1 * (90 + angle)
+        return (angle - 90)
 
     @property
     def left_hip_internalexternalrotation(self):
@@ -3099,8 +3187,8 @@ class WholeBody(TimeseriesRecord):
         # Get pelvis points projected into least squares plane
         l_asis, r_asis, l_psis, r_psis = self._get_projected_pelvis_points()
 
-        # Define vector determining lateral axis of pelvis
-        ml = ((l_asis + l_psis) / 2 - (r_asis + r_psis) / 2).to_numpy()
+        # Define vector determining lateral axis of pelvis (left to right)
+        ml = ((r_asis + r_psis) / 2 - (l_asis + l_psis) / 2).to_numpy()
 
         # Consider only global frontal plane
         cols = l_asis.columns
@@ -3164,8 +3252,8 @@ class WholeBody(TimeseriesRecord):
         # Get pelvis points projected into least squares plane
         l_asis, r_asis, l_psis, r_psis = self._get_projected_pelvis_points()
 
-        # Define vector determining lateral axis of pelvis
-        ml = ((l_asis + l_psis) / 2 - (r_asis + r_psis) / 2).to_numpy()
+        # Define vector determining lateral axis of pelvis (left to right)
+        ml = ((r_asis + r_psis) / 2 - (l_asis + l_psis) / 2).to_numpy()
 
         # Consider only global transverse plane
         cols = l_asis.columns
@@ -3656,9 +3744,9 @@ class WholeBody(TimeseriesRecord):
             columns=l_psis.columns,
         )
 
-        # Calculate 3-point angle: PSIS_mid - L2 - T5
-        # Internal angle at L2 vertex
-        angle = self._get_angle_between_three_points(psis_mid, l2, t5)
+        # Calculate 3-point angle: T5 - L2 - PSIS_mid
+        # Internal angle at L2 vertex (order: superior → vertex → inferior)
+        angle = self._get_angle_between_three_points(t5, l2, psis_mid)
 
         return Signal1D(data=angle, index=l2.index, unit="°")
 
@@ -3717,9 +3805,9 @@ class WholeBody(TimeseriesRecord):
         t5 = self._get_point("t5")
         c7 = self._get_point("c7")
 
-        # Calculate 3-point angle: L2 - T5 - C7
-        # Internal angle at T5 vertex
-        angle = self._get_angle_between_three_points(l2, t5, c7)
+        # Calculate 3-point angle: C7 - T5 - L2
+        # Internal angle at T5 vertex (order: superior → vertex → inferior)
+        angle = self._get_angle_between_three_points(c7, t5, l2)
 
         return Signal1D(data=angle, index=t5.index, unit="°")
 
@@ -3877,7 +3965,7 @@ class WholeBody(TimeseriesRecord):
             self.vertical_axis,  # type: ignore
         )
 
-        return 90 + angle
+        return -90 - angle
 
     @property
     def right_shoulder_flexionextension(self):
@@ -3940,7 +4028,7 @@ class WholeBody(TimeseriesRecord):
             self.vertical_axis,  # type: ignore
         )
 
-        return 90 + angle
+        return -90 - angle
 
     @property
     def left_shoulder_abductionadduction(self):

@@ -194,9 +194,11 @@ All angle properties return `Signal1D` objects with angles in degrees. Calculate
 | Property | Type | Description | Positive | Negative |
 |----------|------|-------------|----------|----------|
 | `left_knee_flexionextension` | Signal1D | Left knee sagittal plane | Flexion | Extension |
-| `left_knee_varusvalgus` | Signal1D | Left knee frontal plane | Valgus | Varus |
+| `left_knee_varusvalgus` | Signal1D | Left knee frontal plane alignment | Varus (bow-leg) | Valgus (knock-knee) |
 | `right_knee_flexionextension` | Signal1D | Right knee sagittal plane | Flexion | Extension |
-| `right_knee_varusvalgus` | Signal1D | Right knee frontal plane | Valgus | Varus |
+| `right_knee_varusvalgus` | Signal1D | Right knee frontal plane alignment | Varus (bow-leg) | Valgus (knock-knee) |
+
+**Note**: Sign convention - Positive = Varus, Negative = Valgus, 0° = Perfect alignment
 
 ##### Hip Angles (6)
 
@@ -217,11 +219,13 @@ print(f"Hip flexion: mean={hip_flex.data.mean():.1f}°, max={hip_flex.data.max()
 
 ##### Pelvis Angles (3)
 
-| Property | Type | Description | Positive | Negative |
-|----------|------|-------------|----------|----------|
-| `pelvis_anteroposteriortilt_global` | Signal1D | Pelvis sagittal tilt | Posterior tilt | Anterior tilt |
-| `pelvis_lateraltilt_global` | Signal1D | Pelvis frontal tilt | Right tilt | Left tilt |
-| `pelvis_rotation_global` | Signal1D | Pelvis transverse rotation | Right rotation | Left rotation |
+| Property | Type | Description | Positive | Negative | Neutral |
+|----------|------|-------------|----------|----------|---------|
+| `pelvis_anteroposteriortilt_global` | Signal1D | Pelvis sagittal tilt | Posterior tilt | Anterior tilt | 0° |
+| `pelvis_lateraltilt_global` | Signal1D | Pelvis frontal tilt | Right tilt (right hip drop) | Left tilt (left hip drop) | 0° (level) |
+| `pelvis_rotation_global` | Signal1D | Pelvis transverse rotation | Right rotation | Left rotation | 0° (aligned) |
+
+**Note**: All pelvis angles return 0° when the pelvis is in neutral position (level and aligned with global axes)
 
 ##### Trunk Angles (4)
 
@@ -269,12 +273,12 @@ print(f"Hip flexion: mean={hip_flex.data.mean():.1f}°, max={hip_flex.data.max()
 
 ##### Spine Curvature Angles (2)
 
-| Property | Type | Description | Normal Range |
-|----------|------|-------------|--------------|
-| `lumbar_lordosis` | Signal1D | Lumbar spine curvature angle | 140-160° |
-| `dorsal_kyphosis` | Signal1D | Thoracic spine curvature angle | 140-160° |
+| Property | Type | Description | Normal Range | Calculation |
+|----------|------|-------------|--------------|-------------|
+| `lumbar_lordosis` | Signal1D | Lumbar spine curvature angle at L2 | 140-160° | T5 → L2 → PSIS_mid |
+| `dorsal_kyphosis` | Signal1D | Thoracic spine curvature angle at T5 | 140-160° | C7 → T5 → L2 |
 
-**Note**: Smaller angles indicate greater curvature (more lordotic/kyphotic)
+**Note**: These are internal angles at vertebral vertices. Smaller angles (<140°) indicate greater curvature (hyperlordosis/hyperkyphosis), larger angles (>160°) indicate flatter spine (hypolordosis/hypokyphosis)
 
 #### Properties: 8 Computed Properties
 

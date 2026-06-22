@@ -82,8 +82,10 @@ for i in range(len(heel_strikes) - 1):
 |----------|-------------|----------|----------|------------|
 | `left_knee_flexionextension` | Sagittal plane | Flexion | Extension | 0° to 140° |
 | `right_knee_flexionextension` | Sagittal plane | Flexion | Extension | 0° to 140° |
-| `left_knee_varusvalgus` | Frontal plane | Valgus (knock-knee) | Varus (bow-leg) | -5° to +5° |
-| `right_knee_varusvalgus` | Frontal plane | Valgus (knock-knee) | Varus (bow-leg) | -5° to +5° |
+| `left_knee_varusvalgus` | Frontal plane alignment | Varus (bow-leg) | Valgus (knock-knee) | -5° to +5° |
+| `right_knee_varusvalgus` | Frontal plane alignment | Varus (bow-leg) | Valgus (knock-knee) | -5° to +5° |
+
+**Note**: Sign convention updated - **Positive = Varus** (bow-legged), **Negative = Valgus** (knock-knee) for both knees.
 
 **Example: Knee Varus/Valgus Assessment**
 
@@ -96,11 +98,11 @@ varus_valgus = body.left_knee_varusvalgus
 mean_alignment = varus_valgus.data.mean()
 
 if mean_alignment > 5:
-    print(f"Valgus alignment: {mean_alignment:.1f}° (knock-knee)")
-elif mean_alignment < -5:
     print(f"Varus alignment: {mean_alignment:.1f}° (bow-legged)")
+elif mean_alignment < -5:
+    print(f"Valgus alignment: {abs(mean_alignment):.1f}° (knock-knee)")
 else:
-    print(f"Neutral alignment: {mean_alignment:.1f}°")
+    print(f"Neutral alignment: {mean_alignment:.1f}° (perfect)")
 ```
 
 ### Hip Angles (6)
@@ -113,6 +115,8 @@ else:
 | `right_hip_abductionadduction` | Frontal plane | Abduction | Adduction | -20° to 45° |
 | `left_hip_internalexternalrotation` | Transverse plane | Internal | External | -45° to 45° |
 | `right_hip_internalexternalrotation` | Transverse plane | Internal | External | -45° to 45° |
+
+**Note**: Hip angles return approximately 0° when the thigh is vertical (neutral standing position). Flexion/extension angles are measured relative to the vertical axis.
 
 **Example: Hip Kinematics During Squat**
 
@@ -143,11 +147,13 @@ print(f"Squat classification: {depth}")
 
 All pelvis angles measured in global reference frame.
 
-| Property | Description | Positive | Negative |
-|----------|-------------|----------|----------|
-| `pelvis_anteroposteriortilt_global` | Sagittal tilt | Posterior tilt | Anterior tilt |
-| `pelvis_lateraltilt_global` | Frontal tilt | Right tilt | Left tilt |
-| `pelvis_rotation_global` | Transverse rotation | Right rotation | Left rotation |
+| Property | Description | Positive | Negative | Neutral |
+|----------|-------------|----------|----------|---------|
+| `pelvis_anteroposteriortilt_global` | Sagittal tilt | Posterior tilt | Anterior tilt | 0° |
+| `pelvis_lateraltilt_global` | Frontal tilt | Right tilt (right hip drop) | Left tilt (left hip drop) | 0° |
+| `pelvis_rotation_global` | Transverse rotation | Right rotation | Left rotation | 0° |
+
+**Note**: All pelvis angles are 0° in neutral position (level, aligned pelvis).
 
 **Example: Pelvic Tilt Assessment**
 
@@ -164,6 +170,17 @@ elif mean_tilt > 10:
     print(f"Posterior pelvic tilt: {mean_tilt:.1f}° (flat back)")
 else:
     print(f"Neutral pelvic tilt: {mean_tilt:.1f}°")
+
+# Get lateral pelvic tilt
+lateral_tilt = body.pelvis_lateraltilt_global
+mean_lateral = lateral_tilt.data.mean()
+
+if abs(mean_lateral) < 2:
+    print(f"Level pelvis: {mean_lateral:.1f}°")
+elif mean_lateral > 5:
+    print(f"Right pelvic tilt: {mean_lateral:.1f}° (right hip drop)")
+else:
+    print(f"Left pelvic tilt: {abs(mean_lateral):.1f}° (left hip drop)")
 ```
 
 ### Trunk Angles (4)
@@ -241,6 +258,8 @@ if asymmetry > 10:
 | `left_shoulder_internalexternalrotation` | Transverse plane | Internal | External | -90° to 90° |
 | `right_shoulder_internalexternalrotation` | Transverse plane | Internal | External | -90° to 90° |
 
+**Note**: Shoulder angles return approximately 0° when the arm hangs vertically at the side (neutral standing position). Flexion/extension and abduction/adduction are measured relative to the vertical axis.
+
 **Example: Shoulder ROM Assessment**
 
 ```python
@@ -299,10 +318,14 @@ else:
 
 | Property | Description | Normal Range | Interpretation |
 |----------|-------------|--------------|----------------|
-| `lumbar_lordosis` | Lumbar curvature angle | 140-160° | Smaller = more curved (hyperlordosis) |
-| `dorsal_kyphosis` | Thoracic curvature angle | 140-160° | Smaller = more curved (hyperkyphosis) |
+| `lumbar_lordosis` | Lumbar curvature angle at L2 | 140-160° | Smaller = more curved (hyperlordosis) |
+| `dorsal_kyphosis` | Thoracic curvature angle at T5 | 140-160° | Smaller = more curved (hyperkyphosis) |
 
-**Note**: These are **internal angles** at vertebrae. Smaller angles indicate greater curvature.
+**Note**: These are **internal angles** at vertebrae (T5-L2-PSIS_mid for lordosis, C7-T5-L2 for kyphosis). Smaller angles indicate greater spinal curvature.
+
+**Calculation Details**:
+- **Lumbar lordosis**: Angle at L2 vertex, formed by T5 (superior) → L2 → PSIS midpoint (inferior)
+- **Thoracic kyphosis**: Angle at T5 vertex, formed by C7 (superior) → T5 → L2 (inferior)
 
 **Example: Spinal Curvature Assessment**
 
@@ -317,15 +340,19 @@ mean_kyphosis = kyphosis.data.mean()
 
 print(f"Lumbar lordosis: {mean_lordosis:.1f}°")
 if mean_lordosis < 140:
-    print("  → Hyperlordosis (excessive lumbar curve)")
+    print("  → Hyperlordosis (excessive lumbar curve, sway back)")
 elif mean_lordosis > 160:
     print("  → Hypolordosis (flat lumbar spine)")
+else:
+    print("  → Normal lumbar curvature")
 
 print(f"Thoracic kyphosis: {mean_kyphosis:.1f}°")
 if mean_kyphosis < 140:
-    print("  → Hyperkyphosis (rounded upper back)")
+    print("  → Hyperkyphosis (rounded upper back, hunchback)")
 elif mean_kyphosis > 160:
-    print("  → Reduced kyphosis (flat upper back)")
+    print("  → Hypokyphosis (flat upper back)")
+else:
+    print("  → Normal thoracic curvature")
 ```
 
 ## Bilateral Comparison
