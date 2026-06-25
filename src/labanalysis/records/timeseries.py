@@ -17,7 +17,6 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from ..signalprocessing import fillna as sp_fillna
-from ..signalprocessing import gram_schmidt
 from ..utils import FloatArray1D, FloatArray2D, TextArray1D, ureg
 from .indexers import TimeseriesLocIndexer, TimeseriesILocIndexer
 
@@ -924,79 +923,6 @@ class Signal3D(Timeseries):
         if axis not in self.columns:
             raise ValueError(f"anteroposterior_axis must be any of {self.columns}")
         self._anteroposterior_axis = str(axis)
-
-    def change_reference_frame(
-        self,
-        new_x: (
-            np.ndarray
-            | list[int | float]
-            | tuple[int | float, int | float, int | float]
-        ) = [1, 0, 0],
-        new_y: (
-            np.ndarray
-            | list[int | float]
-            | tuple[int | float, int | float, int | float]
-        ) = [0, 1, 0],
-        new_z: (
-            np.ndarray
-            | list[int | float]
-            | tuple[int | float, int | float, int | float]
-        ) = [0, 0, 1],
-        new_origin: (
-            np.ndarray
-            | list[int | float]
-            | tuple[int | float, int | float, int | float]
-        ) = [0, 0, 0],
-        inplace: bool = False,
-    ):
-        """
-        Rotate and translate each sample using the new reference frame defined by
-        orthonormal versors new_x, new_y, new_z and origin new_origin.
-
-        A point can be aligned to this reference frame by:
-            new = np.einsum("nij,nj->ni", R, old - O)
-
-        Where R is the rotation matrix (N, 3, 3) and O (N, 3) is the origin of
-        the reference frame.
-
-        Parameters
-        ----------
-        new_x, new_y, new_z : array-like
-            Orthonormal basis vectors.
-        new_origin : array-like
-            New origin.
-
-        Returns
-        -------
-        Signal3D
-            Transformed signal.
-
-        Raises
-        ------
-        ValueError
-            If input vectors are not valid.
-        """
-        if not isinstance(inplace, bool):
-            raise ValueError("inplace must be True or False")
-        i = np.atleast_2d(new_x)
-        if i.shape[0] == 1:
-            i = np.ones(self.shape) * i
-        j = np.atleast_2d(new_y)
-        if j.shape[0] == 1:
-            j = np.ones(self.shape) * j
-        k = np.atleast_2d(new_z)
-        if k.shape[0] == 1:
-            k = np.ones(self.shape) * k
-        o = np.atleast_2d(new_origin)
-        if o.shape[0] == 1:
-            o = np.ones(self.shape) * o
-        rmat = gram_schmidt(i, j, k)
-        rmat = rmat.transpose([0, 2, 1])
-        new = np.einsum("nij,nj->ni", rmat, self._data.copy() - o)
-        out = self if inplace else self.copy()
-        out[:, :] = new
-        if not inplace:
-            return out
 
     def copy(self):
         return Signal3D(

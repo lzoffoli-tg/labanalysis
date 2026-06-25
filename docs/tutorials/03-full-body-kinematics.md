@@ -111,6 +111,74 @@ Available joint angles: 18
   - right_shoulder_internalexternalrotation
 ```
 
+## Step 2.5: Understanding Reference Frames (Optional Deep Dive)
+
+Joint angles in labanalysis are calculated using **anatomical reference frames**. Each body segment (pelvis, thigh, shank, etc.) has its own local coordinate system defined by three orthogonal axes.
+
+```python
+# Access a reference frame
+left_knee_rf = body.left_knee_referenceframe
+
+# Inspect semantic axes (coordinate-system independent naming)
+print("Left knee reference frame (first frame):")
+print(f"  Origin: {left_knee_rf.origin[0]}")
+print(f"  Lateral axis: {left_knee_rf.lateral_axis[0]}")
+print(f"  Vertical axis: {left_knee_rf.vertical_axis[0]}")
+
+# The rotation matrix contains all three axes as columns
+# Column 0 = lateral_axis
+# Column 1 = vertical_axis  
+# Column 2 = anteroposterior_axis
+print(f"\nRotation matrix shape: {left_knee_rf.rotation_matrix.shape}")
+```
+
+**Output:**
+```
+Left knee reference frame (first frame):
+  Origin: [0.095  0.523  0.012]
+  Lateral axis: [0.998  0.052 -0.034]
+  Vertical axis: [-0.051  0.998  0.025]
+
+Rotation matrix shape: (850, 3, 3)
+```
+
+### Semantic Axis Naming
+
+labanalysis uses **anatomically meaningful axis names** instead of coordinate-specific names (X/Y/Z):
+- `lateral_axis` - Always means mediolateral direction
+- `vertical_axis` - Always means superior-inferior direction
+- `anteroposterior_axis` - Always means forward-backward direction
+
+**Why this matters:** Your code works the same regardless of the user's coordinate system configuration. Whether vertical is Y, Z, or X in the global frame, `vertical_axis` always has the same anatomical meaning.
+
+### Available Reference Frames
+
+```python
+# Pelvis reference frame
+pelvis_rf = body.pelvis_referenceframe
+
+# Hip reference frames  
+left_hip_rf = body.left_hip_referenceframe
+right_hip_rf = body.right_hip_referenceframe
+
+# Knee reference frames
+left_knee_rf = body.left_knee_referenceframe
+right_knee_rf = body.right_knee_referenceframe
+
+# Shoulder reference frames
+left_shoulder_rf = body.left_shoulder_referenceframe
+right_shoulder_rf = body.right_shoulder_referenceframe
+
+# Elbow reference frames
+left_elbow_rf = body.left_elbow_referenceframe
+right_elbow_rf = body.right_elbow_referenceframe
+```
+
+**For more details:**
+- [Tutorial: Custom Reference Frames](09-custom-reference-frames.md) - Complete guide to creating and using reference frames
+- [Example: Reference Frame Transformations](../examples/biomechanics/reference-frames.py) - Working code examples
+- [User Guide: Coordinate Systems](../user-guide/biomechanics/coordinate-systems.md) - Coordinate system documentation
+
 ## Step 3: Extract Lower Limb Kinematics
 
 ```python

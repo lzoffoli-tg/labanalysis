@@ -7,6 +7,7 @@ import pandas as pd
 
 from ..signalprocessing import gram_schmidt
 from .records import *
+from .referenceframes import ReferenceFrame
 from .timeseries import *
 
 __all__ = ["WholeBody"]
@@ -172,15 +173,12 @@ class WholeBody(TimeseriesRecord):
         "right_hip_abductionadduction",
         "left_hip_internalexternalrotation",
         "right_hip_internalexternalrotation",
-        "pelvis_anteroposteriortilt_global",
+        "pelvis_anteroposterior_tilt",
         "pelvis_lateraltilt_global",
         "pelvis_rotation_global",
-        "trunk_flexionextension_global",
         "trunk_lateralflexion_global",
-        "trunk_rotation_global",
-        "trunk_rotation_local",
-        "shoulder_lateraltilt_global",
-        "shoulder_lateraltilt_local",
+        "trunk_rotation",
+        "shoulder_lateral_tilt",
         "left_shoulder_abductionadduction",
         "right_shoulder_abductionadduction",
         "left_shoulder_flexionextension",
@@ -192,8 +190,7 @@ class WholeBody(TimeseriesRecord):
         "left_elbow_flexionextension",
         "right_elbow_flexionextension",
         "neck_lateral_tilt",
-        "neck_flexionextension_local",
-        "neck_flexionextension_global",
+        "neck_flexionextension",
         "lumbar_lordosis",
         "dorsal_kyphosis",
     ]
@@ -505,8 +502,43 @@ class WholeBody(TimeseriesRecord):
         # Calculate covariance matrix for each sample
         cov = np.einsum("nij,nik->njk", centered, centered) / mat.shape[1]
 
-        # Calculate eigenvalues and eigenvectors
-        eigvals, eigvecs = np.linalg.eigh(cov)
+        # Calculate eigenvalues and eigenvectors with fallback for numerical issues
+        try:
+            eigvals, eigvecs = np.linalg.eigh(cov)
+        except np.linalg.LinAlgError:
+            # Fallback: add regularization term to improve numerical stability
+            # This handles cases where points are nearly collinear or have numerical issues
+            reg_term = 1e-8 * np.eye(3)
+            cov_regularized = cov + reg_term[np.newaxis, :, :]
+            try:
+                eigvals, eigvecs = np.linalg.eigh(cov_regularized)
+            except np.linalg.LinAlgError:
+                # Second fallback: use SVD which is more robust
+                # SVD decomposition: centered = U @ S @ Vt
+                # The normal to the plane is the last column of V (last row of Vt)
+                normals = np.zeros((centered.shape[0], 3))
+                for i in range(centered.shape[0]):
+                    try:
+                        _, _, vt = np.linalg.svd(centered[i].T)
+                        normals[i] = vt[-1]  # Last row of Vt is normal vector
+                    except np.linalg.LinAlgError:
+                        # Ultimate fallback: use cross product of first two centered points
+                        # if available, otherwise use vertical normal
+                        if centered.shape[1] >= 2:
+                            v1 = centered[i, :, 0]
+                            v2 = centered[i, :, 1]
+                            normal = np.cross(v1, v2)
+                            norm = np.linalg.norm(normal)
+                            normals[i] = normal / (norm + 1e-10)
+                        else:
+                            # Default to vertical plane normal
+                            normals[i] = np.array([0, 1, 0])
+
+                # Skip to coefficient calculation
+                a, b, c = normals[:, :3].T
+                d = -np.sum(normals * centroid[:, 0, :], axis=1)
+                coefficients = np.stack([a, b, c, d], axis=1)
+                return coefficients
 
         # Eigenvector associated with smallest eigenvalue is the plane normal
         normals = eigvecs[:, :, 0]
@@ -947,6 +979,25 @@ class WholeBody(TimeseriesRecord):
         rotated = np.einsum("nij,nj->ni", rotation_matrix, centered)
         x, y = rotated[:, col_map].T
 
+        # For left-handed reference frames (det(R) = -1), the anteroposterior_axis
+        # is negated to keep it pointing forward. When using anteroposterior in
+        # angle calculations, we must account for this by negating the component.
+        # Check if we're using the anteroposterior axis and if frame is left-handed
+        det_R = np.linalg.det(rotation_matrix[0])  # Check first frame
+        is_left_handed = det_R < 0
+
+        # Map axis names to indices in rotated coordinates
+        axis_map = {"X": 0, "Y": 1, "Z": 2}
+        a_idx = axis_map.get(axis_a, -1)
+        b_idx = axis_map.get(axis_b, -1)
+
+        # If using Z-axis in left-handed frame, negate it
+        if is_left_handed:
+            if a_idx == 2:  # axis_a is Z
+                x = -x
+            if b_idx == 2:  # axis_b is Z
+                y = -y
+
         # get the angle
         angle = np.degrees(np.arctan2(y, x))
 
@@ -982,317 +1033,516 @@ class WholeBody(TimeseriesRecord):
     @property
     def left_ankle_referenceframe(self):
         """
-        Calculate left ankle anatomical reference frame.
+        Left ankle reference frame for angular measurements.
 
-        The reference frame is centered at the left ankle joint center with
-        axes aligned to anatomical directions.
+        Axes Orientation
+        ----------------
+        - **X-axis**: Points LEFT (lateral to medial, away from midline)
+        - **Y-axis**: Points UP (ankle center to knee center)
+        - **Z-axis**: Points FORWARD (cross product X × Y)
 
-        Calculation Method
-        ------------------
-        - **Origin**: Left ankle joint center (midpoint of medial/lateral malleoli)
-        - **X-axis**: Points laterally (from medial to lateral malleolus)
-        - **Y-axis**: Points superiorly (from ankle to knee)
-        - **Z-axis**: Points anteriorly (cross product of X and Y)
+        Origin
+        ------
+        Left ankle center (use `self.left_ankle` property)
 
-        The rotation matrix is computed using Gram-Schmidt orthonormalization
-        to ensure orthogonal axes.
+        Construction
+        ------------
+        1. X-axis: LEFT (left_ankle_lateral → left_ankle_medial)
+        2. Y-axis: UP (left_ankle → left_knee)
+        3. Z-axis: FORWARD (Gram-Schmidt cross product)
+        4. Apply Gram-Schmidt orthonormalization
 
         Returns
         -------
-        tuple[Point3D, np.ndarray]
-            Origin point (N, 3) and rotation matrix (N, 3, 3).
-            Transform points to this reference frame via:
-            `new = np.einsum("nij,nj->ni", R, old - O)`
+        ReferenceFrame
+            Reference frame object with origin at ankle center and orthonormalized axes.
 
         See Also
         --------
+        left_ankle : Ankle center (origin of this frame)
         right_ankle_referenceframe : Right ankle reference frame
-        left_ankle_flexionextension : Ankle angle calculated in this frame
-        left_ankle_inversioneversion : Ankle angle calculated in this frame
+        left_ankle_flexionextension : Flexion angle using this frame
+        left_ankle_inversioneversion : Inversion angle using this frame
         """
-        ankle_lat: Point3D = self._get_point("left_ankle_lateral")
         ankle = self.left_ankle
         knee = self.left_knee
 
-        # get the rotation matrix
         try:
-            ankle_med: Point3D = self._get_point("left_ankle_medial")
-            new_x = (ankle_lat - ankle_med).to_numpy()
-        except Exception as e:
-            new_x = np.ones(ankle.shape) * np.array([1, 0, 0])
-        new_y = (knee - ankle).to_numpy()
-        rmat = gram_schmidt(new_x, new_y).transpose((0, 2, 1))
-        rmat = np.asarray(rmat, float)
+            ankle_lat = self._get_point("left_ankle_lateral")
+            ankle_med = self._get_point("left_ankle_medial")
+            # X-axis: LEFT (lateral to medial)
+            axis_x = (ankle_lat - ankle_med).to_numpy()
+        except Exception:
+            # Default LEFT: use lateral_axis property to determine which column
+            lateral_idx = np.where(ankle.columns == ankle.lateral_axis)[0][0]
+            axis_x = np.zeros((ankle.shape[0], 3))
+            axis_x[:, lateral_idx] = -1  # LEFT (negative for left side)
 
-        return ankle, rmat
+        # Y-axis: UP (ankle to knee)
+        axis_y = (knee - ankle).to_numpy()
+
+        # Create ReferenceFrame
+        return ReferenceFrame(
+            origin=ankle, lateral_axis=axis_x, vertical_axis=axis_y
+        )
 
     @property
     def right_ankle_referenceframe(self):
         """
-        Calculate right ankle anatomical reference frame.
+        Right ankle reference frame for angular measurements.
 
-        The reference frame is centered at the right ankle joint center with
-        axes aligned to anatomical directions.
+        Axes Orientation
+        ----------------
+        - **X-axis**: Points RIGHT (lateral to medial, away from midline)
+        - **Y-axis**: Points UP (ankle center to knee center)
+        - **Z-axis**: Points FORWARD (cross product X × Y)
 
-        Calculation Method
-        ------------------
-        - **Origin**: Right ankle joint center (midpoint of medial/lateral malleoli)
-        - **X-axis**: Points laterally (from lateral to medial malleolus)
-        - **Y-axis**: Points superiorly (from ankle to knee)
-        - **Z-axis**: Points anteriorly (cross product of X and Y)
+        Origin
+        ------
+        Right ankle center (use `self.right_ankle` property)
 
-        The rotation matrix is computed using Gram-Schmidt orthonormalization
-        to ensure orthogonal axes.
+        Construction
+        ------------
+        1. X-axis: RIGHT (right_ankle_lateral → right_ankle_medial)
+        2. Y-axis: UP (right_ankle → right_knee)
+        3. Z-axis: FORWARD (Gram-Schmidt cross product)
+        4. Apply Gram-Schmidt orthonormalization
 
         Returns
         -------
-        tuple[Point3D, np.ndarray]
-            Origin point (N, 3) and rotation matrix (N, 3, 3).
-            Transform points to this reference frame via:
-            `new = np.einsum("nij,nj->ni", R, old - O)`
+        ReferenceFrame
+            Reference frame object with origin at ankle center and orthonormalized axes.
 
         See Also
         --------
+        right_ankle : Ankle center (origin of this frame)
         left_ankle_referenceframe : Left ankle reference frame
-        right_ankle_flexionextension : Ankle angle calculated in this frame
-        right_ankle_inversioneversion : Ankle angle calculated in this frame
+        right_ankle_flexionextension : Flexion angle using this frame
+        right_ankle_inversioneversion : Inversion angle using this frame
         """
-        ankle_lat: Point3D = self._get_point("right_ankle_lateral")
         ankle = self.right_ankle
         knee = self.right_knee
 
-        # get the rotation matrix
         try:
-            ankle_med: Point3D = self._get_point("right_ankle_medial")
-            new_x = (ankle_med - ankle_lat).to_numpy()
-        except Exception as e:
-            new_x = np.ones(ankle.shape) * np.array([1, 0, 0])
-        new_y = (knee - ankle).to_numpy()
-        rmat = gram_schmidt(new_x, new_y).transpose((0, 2, 1))
-        rmat = np.asarray(rmat, float)
+            ankle_lat = self._get_point("right_ankle_lateral")
+            ankle_med = self._get_point("right_ankle_medial")
+            # X-axis: RIGHT (lateral to medial, for right ankle lateral is more positive X)
+            axis_x = (ankle_lat - ankle_med).to_numpy()
+        except Exception:
+            # Default RIGHT: use lateral_axis property to determine which column
+            lateral_idx = np.where(ankle.columns == ankle.lateral_axis)[0][0]
+            axis_x = np.zeros((ankle.shape[0], 3))
+            axis_x[:, lateral_idx] = 1  # RIGHT (positive for right side)
 
-        return ankle, rmat
+        # Y-axis: UP (ankle to knee)
+        axis_y = (knee - ankle).to_numpy()
+
+        # Z-axis: compute and negate to keep pointing FORWARD (left-handed system)
+        axis_z = -np.cross(axis_x, axis_y)
+
+        # Create ReferenceFrame (left-handed: det(R) = -1)
+        return ReferenceFrame(
+            origin=ankle,
+            lateral_axis=axis_x,
+            vertical_axis=axis_y,
+            anteroposterior_axis=axis_z,
+        )
+
+    @property
+    def left_knee_referenceframe(self):
+        """
+        Left knee reference frame for angular measurements.
+
+        Axes Orientation
+        ----------------
+        - **X-axis**: Points LEFT (lateral to medial, away from midline)
+        - **Y-axis**: Points UP (knee center to hip center)
+        - **Z-axis**: Points FORWARD (cross product X × Y)
+
+        Origin
+        ------
+        Left knee center (use `self.left_knee` property)
+
+        Construction
+        ------------
+        1. X-axis: LEFT (left_knee_lateral → left_knee_medial)
+        2. Y-axis: UP (left_knee → left_hip)
+        3. Z-axis: FORWARD (Gram-Schmidt cross product)
+        4. Apply Gram-Schmidt orthonormalization
+
+        Returns
+        -------
+        ReferenceFrame
+            Reference frame with origin at left knee center and orthonormal axes.
+
+        See Also
+        --------
+        left_knee : Knee center (origin of this frame)
+        right_knee_referenceframe : Right knee reference frame
+        left_knee_flexionextension : Knee flexion angle using this frame
+        left_knee_varusvalgus : Knee varus/valgus angle using this frame
+        """
+        knee = self.left_knee
+        hip = self.left_hip
+
+        try:
+            knee_lat = self._get_point("left_knee_lateral")
+            knee_med = self._get_point("left_knee_medial")
+            # X-axis: LEFT (lateral to medial)
+            axis_x = (knee_lat - knee_med).to_numpy()
+        except Exception:
+            # Default LEFT: use lateral_axis property to determine which column
+            lateral_idx = np.where(knee.columns == knee.lateral_axis)[0][0]
+            axis_x = np.zeros((knee.shape[0], 3))
+            axis_x[:, lateral_idx] = -1  # LEFT (negative for left side)
+
+        # Y-axis: UP (knee to hip)
+        axis_y = (hip - knee).to_numpy()
+
+        return ReferenceFrame(
+            origin=knee, lateral_axis=axis_x, vertical_axis=axis_y
+        )
+
+    @property
+    def right_knee_referenceframe(self):
+        """
+        Right knee reference frame for angular measurements.
+
+        Axes Orientation
+        ----------------
+        - **X-axis**: Points RIGHT (lateral to medial, away from midline)
+        - **Y-axis**: Points UP (knee center to hip center)
+        - **Z-axis**: Points FORWARD (cross product X × Y)
+
+        Origin
+        ------
+        Right knee center (use `self.right_knee` property)
+
+        Construction
+        ------------
+        1. X-axis: RIGHT (right_knee_lateral → right_knee_medial)
+        2. Y-axis: UP (right_knee → right_hip)
+        3. Z-axis: FORWARD (Gram-Schmidt cross product)
+        4. Apply Gram-Schmidt orthonormalization
+
+        Returns
+        -------
+        ReferenceFrame
+            Reference frame with origin at right knee center and orthonormal axes.
+
+        See Also
+        --------
+        right_knee : Knee center (origin of this frame)
+        left_knee_referenceframe : Left knee reference frame
+        right_knee_flexionextension : Knee flexion angle using this frame
+        right_knee_varusvalgus : Knee varus/valgus angle using this frame
+        """
+        knee = self.right_knee
+        hip = self.right_hip
+
+        try:
+            knee_lat = self._get_point("right_knee_lateral")
+            knee_med = self._get_point("right_knee_medial")
+            # X-axis: RIGHT (lateral to medial, for right knee lateral is more positive X)
+            axis_x = (knee_lat - knee_med).to_numpy()
+        except Exception:
+            # Default RIGHT: use lateral_axis property to determine which column
+            lateral_idx = np.where(knee.columns == knee.lateral_axis)[0][0]
+            axis_x = np.zeros((knee.shape[0], 3))
+            axis_x[:, lateral_idx] = 1  # RIGHT (positive for right side)
+
+        # Y-axis: UP (knee to hip)
+        axis_y = (hip - knee).to_numpy()
+
+        # Z-axis: compute and negate to keep pointing FORWARD (left-handed system)
+        axis_z = -np.cross(axis_x, axis_y)
+
+        return ReferenceFrame(
+            origin=knee,
+            lateral_axis=axis_x,
+            vertical_axis=axis_y,
+            anteroposterior_axis=axis_z,
+        )
 
     @property
     def left_hip_referenceframe(self):
         """
-        Calculate left hip anatomical reference frame.
+        Left hip reference frame (based on pelvis frame with X pointing LEFT).
 
-        The reference frame is centered at the left hip joint center with
-        axes aligned to the pelvis reference frame.
+        Axes Orientation
+        ----------------
+        - **X-axis**: Points LEFT (lateral direction for left leg)
+        - **Y-axis**: Points UP (from pelvis frame)
+        - **Z-axis**: Points FORWARD (from pelvis frame)
 
-        Calculation Method
-        ------------------
-        - **Origin**: Left hip joint center (estimated using De Leva 1996)
-        - **Axes**: Aligned with pelvis reference frame (shared rotation matrix)
+        Origin
+        ------
+        Left hip joint center (use `self.left_hip` property, De Leva 1996)
+
+        Construction
+        ------------
+        Uses pelvis reference frame directly (X already points LEFT for left side).
 
         Returns
         -------
-        tuple[Point3D, np.ndarray]
-            Origin point (N, 3) and rotation matrix (N, 3, 3).
-            Transform points to this reference frame via:
-            `new = np.einsum("nij,nj->ni", R, old - O)`
+        ReferenceFrame
+            Reference frame with origin at left hip center and axes from pelvis frame.
 
         See Also
         --------
+        left_hip : Hip joint center (origin of this frame)
         right_hip_referenceframe : Right hip reference frame
-        pelvis_referenceframe : Pelvis reference frame (shared rotation)
-        left_hip_flexionextension : Hip angle calculated in this frame
+        pelvis_referenceframe : Base pelvis reference frame
+        left_hip_flexionextension : Hip flexion angle using this frame
+        left_hip_abductionadduction : Hip abduction angle using this frame
+        left_hip_internalexternalrotation : Hip rotation angle using this frame
         """
-        return self.left_hip, self.pelvis_referenceframe[1]
+        # For left hip, use pelvis frame axes with hip origin
+        pelvis_rf = self.pelvis_referenceframe
+        return ReferenceFrame(
+            origin=self.left_hip,
+            lateral_axis=pelvis_rf.lateral_axis,
+            vertical_axis=pelvis_rf.vertical_axis,
+            anteroposterior_axis=pelvis_rf.anteroposterior_axis,
+        )
 
     @property
     def right_hip_referenceframe(self):
         """
-        Calculate right hip anatomical reference frame.
+        Right hip reference frame (mirrored pelvis frame with X pointing RIGHT).
 
-        The reference frame is centered at the right hip joint center with
-        axes aligned to the pelvis reference frame.
+        Axes Orientation
+        ----------------
+        - **X-axis**: Points RIGHT (lateral direction, opposite of pelvis X)
+        - **Y-axis**: Points UP (same as pelvis)
+        - **Z-axis**: Points FORWARD (same as pelvis, makes left-handed system)
 
-        Calculation Method
-        ------------------
-        - **Origin**: Right hip joint center (estimated using De Leva 1996)
-        - **Axes**: Aligned with pelvis reference frame (shared rotation matrix)
+        Origin
+        ------
+        Right hip joint center (use `self.right_hip` property, De Leva 1996)
+
+        Construction
+        ------------
+        Mirrors the pelvis reference frame:
+        - X: negated pelvis X (points RIGHT instead of LEFT)
+        - Y: same pelvis Y (points UP)
+        - Z: same pelvis Z (points FORWARD, det(R) = -1, left-handed)
 
         Returns
         -------
-        tuple[Point3D, np.ndarray]
-            Origin point (N, 3) and rotation matrix (N, 3, 3).
-            Transform points to this reference frame via:
-            `new = np.einsum("nij,nj->ni", R, old - O)`
+        ReferenceFrame
+            Reference frame with origin at right hip center, mirrored axes (left-handed).
 
         See Also
         --------
+        right_hip : Hip joint center (origin of this frame)
         left_hip_referenceframe : Left hip reference frame
-        pelvis_referenceframe : Pelvis reference frame (shared rotation)
-        right_hip_flexionextension : Hip angle calculated in this frame
+        pelvis_referenceframe : Base pelvis reference frame
+        right_hip_flexionextension : Hip flexion angle using this frame
+        right_hip_abductionadduction : Hip abduction angle using this frame
+        right_hip_internalexternalrotation : Hip rotation angle using this frame
         """
-        return self.right_hip, self.pelvis_referenceframe[1]
+        pelvis_rf = self.pelvis_referenceframe
+
+        # For right hip: lateral axis points RIGHT, vertical UP, anteroposterior FORWARD
+        # This creates a left-handed system (det(R) = -1) to maintain Z pointing forward
+        axis_x = -pelvis_rf.lateral_axis  # Lateral: RIGHT
+        axis_y = pelvis_rf.vertical_axis  # Vertical: UP
+        axis_z = pelvis_rf.anteroposterior_axis  # Anteroposterior: FORWARD (same as pelvis)
+
+        return ReferenceFrame(
+            origin=self.right_hip,
+            lateral_axis=axis_x,
+            vertical_axis=axis_y,
+            anteroposterior_axis=axis_z,
+        )
 
     @property
     def pelvis_referenceframe(self):
         """
-        Calculate pelvis anatomical reference frame.
+        Pelvis reference frame for angular measurements.
 
-        The reference frame is centered at the pelvis centroid with axes
-        aligned to the pelvis anatomical landmarks.
+        Axes Orientation
+        ----------------
+        - **X-axis**: Points LEFT (right ASIS-PSIS midpoint to left ASIS-PSIS midpoint)
+        - **Y-axis**: Points UP (pelvis_center to neck_base)
+        - **Z-axis**: Points FORWARD (cross product X × Y)
 
-        Calculation Method
-        ------------------
-        - **Origin**: Centroid of four pelvis landmarks (ASIS and PSIS, left and right)
-        - **X-axis (i)**: Points laterally (from pelvis center to left side midpoint)
-        - **Y-axis (j)**: Points superiorly (perpendicular to pelvis plane)
-        - **Z-axis (k)**: Points anteriorly (from pelvis center to ASIS midpoint)
+        Origin
+        ------
+        Pelvis center (use `self.pelvis_center` property)
 
-        All points are first projected onto the pelvis least-squares plane
-        to ensure planar calculation. The rotation matrix is computed using
-        Gram-Schmidt orthonormalization.
+        Construction
+        ------------
+        1. X-axis: LEFT (from right midpoint to left midpoint)
+        2. Y-axis: UP (pelvis_center → neck_base)
+        3. Z-axis: FORWARD (Gram-Schmidt cross product)
+        4. Apply Gram-Schmidt orthonormalization
 
         Returns
         -------
-        tuple[Point3D, np.ndarray]
-            Origin point (N, 3) and rotation matrix (N, 3, 3).
-            Transform points to this reference frame via:
-            `new = np.einsum("nij,nj->ni", R, old - O)`
+        ReferenceFrame
+            Reference frame with origin at pelvis center and orthonormal axes.
 
         See Also
         --------
-        left_hip_referenceframe : Left hip reference frame (uses this rotation)
-        right_hip_referenceframe : Right hip reference frame (uses this rotation)
-        pelvis_anteroposteriortilt_global : Pelvis tilt calculated using this frame
+        pelvis_center : Pelvis center (origin of this frame)
+        neck_base : Neck base (used for Y-axis)
+        left_hip_referenceframe : Left hip reference frame (based on pelvis)
+        right_hip_referenceframe : Right hip reference frame (based on pelvis)
+        pelvis_lateral_tilt : Pelvis lateral tilt using this frame
+        pelvis_anteroposterior_tilt : Pelvis anteroposterior tilt using this frame
+        trunk_rotation : Trunk rotation using this frame
         """
+        # Get pelvis points
+        l_asis = self._get_point("left_asis")
+        r_asis = self._get_point("right_asis")
+        l_psis = self._get_point("left_psis")
+        r_psis = self._get_point("right_psis")
 
-        # get the pelvis points projected into its least squares plane
-        l_asis, r_asis, l_psis, r_psis = self._get_projected_pelvis_points()
-
-        # get the plane versors
+        # Calculate midpoints
+        left_mid = (l_asis + l_psis) / 2
+        right_mid = (r_asis + r_psis) / 2
         centroid = (l_asis + r_asis + l_psis + r_psis) / 4
-        i = np.asarray((l_asis + l_psis) / 2 - centroid, float)
-        i = i / np.linalg.norm(i, axis=1, keepdims=True)
-        k = np.asarray((l_asis + r_asis) / 2 - centroid, float)
-        k = k / np.linalg.norm(k, axis=1, keepdims=True)
-        j = np.cross(k, i)
 
-        # obtain the rotation matrix
-        rmat = gram_schmidt(i, j, k).transpose((0, 2, 1))
+        # Get neck_base for Y-axis
+        neck_base = self.neck_base
 
-        return centroid, rmat
+        # X-axis: LEFT (right midpoint to left midpoint)
+        axis_x = (left_mid - right_mid).to_numpy()
+        axis_x = axis_x / np.linalg.norm(axis_x, axis=1, keepdims=True)
+
+        # Y-axis: UP (pelvis_center to neck_base)
+        axis_y = (neck_base - centroid).to_numpy()
+        axis_y = axis_y / np.linalg.norm(axis_y, axis=1, keepdims=True)
+
+        # Z-axis: FORWARD (cross product)
+        axis_z = np.cross(axis_x, axis_y)
+
+        return ReferenceFrame(
+            origin=centroid,
+            lateral_axis=axis_x,
+            vertical_axis=axis_y,
+            anteroposterior_axis=axis_z,
+        )
 
     @property
     def left_shoulder_referenceframe(self):
         """
-        Calculate left shoulder anatomical reference frame.
+        Left shoulder reference frame for angular measurements.
 
-        The reference frame is centered at the left shoulder joint center with
-        axes aligned to trunk orientation.
+        Axes Orientation
+        ----------------
+        - **X-axis**: Points LEFT (neck_base to left shoulder, lateral)
+        - **Y-axis**: Points UP (pelvis_center to neck_base)
+        - **Z-axis**: Points FORWARD (cross product X × Y)
 
-        Calculation Method
-        ------------------
-        - **Origin**: Left shoulder joint center
-        - **X-axis (i)**: Points laterally (from trunk axis to shoulder)
-        - **Y-axis (j)**: Points superiorly (from pelvis base to C7)
-        - **Z-axis**: Points anteriorly (cross product of X and Y)
+        Origin
+        ------
+        Left shoulder joint center (use `self.left_shoulder` property, De Leva 1996)
 
-        The shoulder is projected onto the vertical trunk axis (pelvis center
-        to C7), and the lateral axis is defined as the vector from this
-        projection to the shoulder. The rotation matrix is computed using
-        Gram-Schmidt orthonormalization.
+        Construction
+        ------------
+        1. X-axis: LEFT (neck_base → left_shoulder)
+        2. Y-axis: UP (pelvis_center → neck_base)
+        3. Z-axis: FORWARD (Gram-Schmidt cross product)
+        4. Apply Gram-Schmidt orthonormalization
 
         Returns
         -------
-        tuple[Point3D, np.ndarray]
-            Origin point (N, 3) and rotation matrix (N, 3, 3).
-            Transform points to this reference frame via:
-            `new = np.einsum("nij,nj->ni", R, old - O)`
+        ReferenceFrame
+            Reference frame with origin at left shoulder center and orthonormal axes.
 
         See Also
         --------
+        left_shoulder : Shoulder joint center (origin of this frame)
+        neck_base : Neck base (used for X-axis)
+        pelvis_center : Pelvis center (used for Y-axis)
         right_shoulder_referenceframe : Right shoulder reference frame
-        left_shoulder_flexionextension : Shoulder angle calculated in this frame
-        left_shoulder_abductionadduction : Shoulder angle calculated in this frame
+        left_shoulder_flexionextension : Shoulder flexion angle using this frame
+        left_shoulder_abductionadduction : Shoulder abduction angle using this frame
+        left_shoulder_internalexternalrotation : Shoulder rotation angle using this frame
         """
-        l_asis, r_asis, l_psis, r_psis = self._get_projected_pelvis_points()
-        base = (r_psis + l_psis) / 2
-        c7 = self._get_point("c7")
-        pelvis_center = self.pelvis_center
         shoulder = self.left_shoulder
+        neck_base = self.neck_base
+        pelvis_center = self.pelvis_center
 
-        # determino l'asse verticale
-        j = c7 - base
+        # X-axis: LEFT (neck_base to shoulder, points outward/LEFT for left shoulder)
+        axis_x = (shoulder - neck_base).to_numpy()
+        axis_x = axis_x / np.linalg.norm(axis_x, axis=1, keepdims=True)
 
-        # calcolo le coordinate della proiezione della spalla sull'asse
-        # verticale passante per il centro della pelvi
-        proj = self._get_projection_point_onto_axis(
-            point=shoulder,
-            origin=pelvis_center,
-            direction=j,
+        # Y-axis: UP (pelvis_center to neck_base)
+        axis_y = (neck_base - pelvis_center).to_numpy()
+        axis_y = axis_y / np.linalg.norm(axis_y, axis=1, keepdims=True)
+
+        # Z-axis: FORWARD (cross product)
+        axis_z = np.cross(axis_x, axis_y)
+
+        return ReferenceFrame(
+            origin=shoulder,
+            lateral_axis=axis_x,
+            vertical_axis=axis_y,
+            anteroposterior_axis=axis_z,
         )
-
-        # calcolo l'asse laterale
-        i = shoulder - proj
-
-        # ottengo la matrice di rotazione
-        rmat = gram_schmidt(i.to_numpy(), j.to_numpy()).transpose((0, 2, 1))
-
-        return shoulder, rmat
 
     @property
     def right_shoulder_referenceframe(self):
         """
-        Calculate right shoulder anatomical reference frame.
+        Right shoulder reference frame for angular measurements.
 
-        The reference frame is centered at the right shoulder joint center with
-        axes aligned to trunk orientation.
+        Axes Orientation
+        ----------------
+        - **X-axis**: Points RIGHT (neck_base to right shoulder, lateral)
+        - **Y-axis**: Points UP (pelvis_center to neck_base)
+        - **Z-axis**: Points FORWARD (cross product X × Y)
 
-        Calculation Method
-        ------------------
-        - **Origin**: Right shoulder joint center
-        - **X-axis (i)**: Points laterally (from shoulder to trunk axis)
-        - **Y-axis (j)**: Points superiorly (from pelvis base to C7)
-        - **Z-axis**: Points anteriorly (cross product of X and Y)
+        Origin
+        ------
+        Right shoulder joint center (use `self.right_shoulder` property, De Leva 1996)
 
-        The shoulder is projected onto the vertical trunk axis (pelvis center
-        to C7), and the lateral axis is defined as the vector from the shoulder
-        to this projection. The rotation matrix is computed using Gram-Schmidt
-        orthonormalization.
+        Construction
+        ------------
+        1. X-axis: RIGHT (neck_base → right_shoulder)
+        2. Y-axis: UP (pelvis_center → neck_base)
+        3. Z-axis: FORWARD (Gram-Schmidt cross product)
+        4. Apply Gram-Schmidt orthonormalization
 
         Returns
         -------
-        tuple[Point3D, np.ndarray]
-            Origin point (N, 3) and rotation matrix (N, 3, 3).
-            Transform points to this reference frame via:
-            `new = np.einsum("nij,nj->ni", R, old - O)`
+        ReferenceFrame
+            Reference frame with origin at right shoulder center and orthonormal axes.
 
         See Also
         --------
+        right_shoulder : Shoulder joint center (origin of this frame)
+        neck_base : Neck base (used for X-axis)
+        pelvis_center : Pelvis center (used for Y-axis)
         left_shoulder_referenceframe : Left shoulder reference frame
-        right_shoulder_flexionextension : Shoulder angle calculated in this frame
-        right_shoulder_abductionadduction : Shoulder angle calculated in this frame
+        right_shoulder_flexionextension : Shoulder flexion angle using this frame
+        right_shoulder_abductionadduction : Shoulder abduction angle using this frame
+        right_shoulder_internalexternalrotation : Shoulder rotation angle using this frame
         """
-        l_asis, r_asis, l_psis, r_psis = self._get_projected_pelvis_points()
-        base = (r_psis + l_psis) / 2
-        c7 = self._get_point("c7")
-        pelvis_center = self.pelvis_center
         shoulder = self.right_shoulder
+        neck_base = self.neck_base
+        pelvis_center = self.pelvis_center
 
-        # determino l'asse verticale
-        j = c7 - base
+        # X-axis: RIGHT (neck_base to shoulder, points outward/RIGHT for right shoulder)
+        axis_x = (shoulder - neck_base).to_numpy()
+        axis_x = axis_x / np.linalg.norm(axis_x, axis=1, keepdims=True)
 
-        # calcolo le coordinate della proiezione della spalla sull'asse
-        # verticale passante per il centro della pelvi
-        proj = self._get_projection_point_onto_axis(
-            point=shoulder,
-            origin=pelvis_center,
-            direction=j,
+        # Y-axis: UP (pelvis_center to neck_base)
+        axis_y = (neck_base - pelvis_center).to_numpy()
+        axis_y = axis_y / np.linalg.norm(axis_y, axis=1, keepdims=True)
+
+        # Z-axis: compute and negate to keep pointing FORWARD (left-handed system)
+        axis_z = -np.cross(axis_x, axis_y)
+
+        return ReferenceFrame(
+            origin=shoulder,
+            lateral_axis=axis_x,
+            vertical_axis=axis_y,
+            anteroposterior_axis=axis_z,
         )
-
-        # calcolo l'asse laterale
-        i = proj - shoulder
-
-        # ottengo la matrice di rotazione
-        rmat = gram_schmidt(i.to_numpy(), j.to_numpy()).transpose((0, 2, 1))
-
-        return shoulder, rmat
 
     @property
     def left_ankle(self):
@@ -1348,7 +1598,19 @@ class WholeBody(TimeseriesRecord):
 
     @property
     def pelvis_center(self):
-        return self.pelvis_referenceframe[0]
+        """
+        Pelvis center (centroid of 4 ASIS/PSIS markers).
+
+        Returns
+        -------
+        Point3D
+            Pelvis center point (average of ASIS and PSIS markers).
+        """
+        l_asis = self._get_point("left_asis")
+        r_asis = self._get_point("right_asis")
+        l_psis = self._get_point("left_psis")
+        r_psis = self._get_point("right_psis")
+        return (l_asis + r_asis + l_psis + r_psis) / 4
 
     @property
     def head_center(self):
@@ -1392,7 +1654,7 @@ class WholeBody(TimeseriesRecord):
         Returns
         -------
         Point3D
-            Neck base point (average of sc and c7 markers).
+            Neck3D base point (average of sc and c7 markers).
         """
         sc = self._get_point("sc")
         c7 = self._get_point("c7")
@@ -1410,11 +1672,70 @@ class WholeBody(TimeseriesRecord):
         )
 
     @property
-    def pelvis_plane(self):
+    def neck_referenceframe(self):
+        """
+        Neck reference frame for angular measurements.
+
+        Axes Orientation
+        ----------------
+        - **X-axis**: Points LEFT (cross product Y × Z)
+        - **Y-axis**: Points UP (pelvis_center to neck_base)
+        - **Z-axis**: Points FORWARD (C7 to sternoclavicular_junction)
+
+        Origin
+        ------
+        Neck base (use `self.neck_base` property)
+
+        Construction
+        ------------
+        1. Y-axis: UP (pelvis_center → neck_base)
+        2. Z-axis: FORWARD (C7 → sc)
+        3. X-axis: LEFT (cross product Y × Z)
+        4. Apply Gram-Schmidt orthonormalization
+
+        Returns
+        -------
+        ReferenceFrame
+            Reference frame with origin at neck base and orthonormal axes.
+
+        See Also
+        --------
+        neck_base : Neck base (origin of this frame)
+        pelvis_center : Pelvis center (used for Y-axis)
+        neck_flexionextension : Neck flexion angle using this frame
+        neck_lateral_tilt : Neck lateral tilt using this frame
+        pelvis_rotation : Pelvis rotation using this frame
+        """
+        neck_base = self.neck_base
+        pelvis_center = self.pelvis_center
+
+        # Y-axis: UP (pelvis_center to neck_base)
+        axis_y = (neck_base - pelvis_center).to_numpy()
+        axis_y = axis_y / np.linalg.norm(axis_y, axis=1, keepdims=True)
+
+        # Z-axis: FORWARD (C7 to sternoclavicular junction)
+        c7 = self._get_point("c7")
+        sc = self._get_point("sc")
+        axis_z = (sc - c7).to_numpy()
+        axis_z = axis_z / np.linalg.norm(axis_z, axis=1, keepdims=True)
+
+        # X-axis: LEFT (cross product Y × Z)
+        axis_x = np.cross(axis_y, axis_z)
+
+        return ReferenceFrame(
+            origin=neck_base,
+            lateral_axis=axis_x,
+            vertical_axis=axis_y,
+            anteroposterior_axis=axis_z,
+        )
+
+    @property
+    def _pelvis_plane(self):
 
         # extract the normal as the vertical axis denoted by the rotation
         # matrix of the pelvis reference frame
-        centroid, rmat = self.pelvis_referenceframe
+        centroid = self.pelvis_center
+        rmat = self.pelvis_referenceframe.rotation_matrix
         normal = rmat[:, 1, :]
 
         # get the "d" coefficient
@@ -1440,7 +1761,7 @@ class WholeBody(TimeseriesRecord):
 
     @property
     def pelvis_height(self):
-        pelvis_plane = self.pelvis_plane
+        pelvis_plane = self._pelvis_plane
         try:
             l_height = self._get_point_to_plane_distance(
                 self._get_point("left_throcanter"),
@@ -1480,7 +1801,7 @@ class WholeBody(TimeseriesRecord):
             Distance in meters from ankle joint to foot plane.
         """
         ankle = self.left_ankle
-        foot_plane = self.left_foot_plane
+        foot_plane = self._left_foot_plane
         return self._get_point_to_plane_distance(ankle, foot_plane)
 
     @property
@@ -1494,7 +1815,7 @@ class WholeBody(TimeseriesRecord):
             Distance in meters from ankle joint to foot plane.
         """
         ankle = self.right_ankle
-        foot_plane = self.right_foot_plane
+        foot_plane = self._right_foot_plane
         return self._get_point_to_plane_distance(ankle, foot_plane)
 
     @property
@@ -1961,7 +2282,7 @@ class WholeBody(TimeseriesRecord):
         return self._get_translated_point_along_plane(
             self._get_point("left_throcanter"),
             offsets,
-            self.pelvis_plane,
+            self._pelvis_plane,
         )
 
     @property
@@ -1983,7 +2304,7 @@ class WholeBody(TimeseriesRecord):
         return self._get_translated_point_along_plane(
             self._get_point("right_throcanter"),
             offsets,
-            self.pelvis_plane,
+            self._pelvis_plane,
         )
 
     @property
@@ -2080,7 +2401,233 @@ class WholeBody(TimeseriesRecord):
             return lat
 
     @property
-    def left_foot_plane(self):
+    def left_elbow_referenceframe(self):
+        """
+        Left elbow reference frame for angular measurements.
+
+        Axes Orientation
+        ----------------
+        - **X-axis**: Points LEFT (lateral to medial, away from midline)
+        - **Y-axis**: Points UP (elbow center to shoulder center)
+        - **Z-axis**: Points FORWARD (cross product X × Y)
+
+        Origin
+        ------
+        Left elbow center (use `self.left_elbow` property)
+
+        Construction
+        ------------
+        1. X-axis: LEFT (left_elbow_lateral → left_elbow_medial)
+        2. Y-axis: UP (left_elbow → left_shoulder)
+        3. Z-axis: FORWARD (Gram-Schmidt cross product)
+        4. Apply Gram-Schmidt orthonormalization
+
+        Returns
+        -------
+        ReferenceFrame
+            Reference frame with origin at left elbow center and orthonormal axes.
+
+        See Also
+        --------
+        left_elbow : Elbow center (origin of this frame)
+        right_elbow_referenceframe : Right elbow reference frame
+        left_elbow_flexionextension : Elbow flexion angle using this frame
+        """
+        elbow = self.left_elbow
+        shoulder = self.left_shoulder
+
+        try:
+            elbow_lat = self._get_point("left_elbow_lateral")
+            elbow_med = self._get_point("left_elbow_medial")
+            # X-axis: LEFT (lateral to medial)
+            axis_x = (elbow_lat - elbow_med).to_numpy()
+        except Exception:
+            # Default LEFT: use lateral_axis property to determine which column
+            lateral_idx = np.where(elbow.columns == elbow.lateral_axis)[0][0]
+            axis_x = np.zeros((elbow.shape[0], 3))
+            axis_x[:, lateral_idx] = -1  # LEFT (negative for left side)
+
+        # Y-axis: UP (elbow to shoulder)
+        axis_y = (shoulder - elbow).to_numpy()
+
+        return ReferenceFrame(
+            origin=elbow, lateral_axis=axis_x, vertical_axis=axis_y
+        )
+
+    @property
+    def right_elbow_referenceframe(self):
+        """
+        Right elbow reference frame for angular measurements.
+
+        Axes Orientation
+        ----------------
+        - **X-axis**: Points RIGHT (lateral to medial, away from midline)
+        - **Y-axis**: Points UP (elbow center to shoulder center)
+        - **Z-axis**: Points FORWARD (cross product X × Y)
+
+        Origin
+        ------
+        Right elbow center (use `self.right_elbow` property)
+
+        Construction
+        ------------
+        1. X-axis: RIGHT (right_elbow_lateral → right_elbow_medial)
+        2. Y-axis: UP (right_elbow → right_shoulder)
+        3. Z-axis: FORWARD (Gram-Schmidt cross product)
+        4. Apply Gram-Schmidt orthonormalization
+
+        Returns
+        -------
+        ReferenceFrame
+            Reference frame with origin at right elbow center and orthonormal axes.
+
+        See Also
+        --------
+        right_elbow : Elbow center (origin of this frame)
+        left_elbow_referenceframe : Left elbow reference frame
+        right_elbow_flexionextension : Elbow flexion angle using this frame
+        """
+        elbow = self.right_elbow
+        shoulder = self.right_shoulder
+
+        try:
+            elbow_lat = self._get_point("right_elbow_lateral")
+            elbow_med = self._get_point("right_elbow_medial")
+            # X-axis: RIGHT (lateral to medial, for right elbow lateral is more positive X)
+            axis_x = (elbow_lat - elbow_med).to_numpy()
+        except Exception:
+            # Default RIGHT: use lateral_axis property to determine which column
+            lateral_idx = np.where(elbow.columns == elbow.lateral_axis)[0][0]
+            axis_x = np.zeros((elbow.shape[0], 3))
+            axis_x[:, lateral_idx] = 1  # RIGHT (positive for right side)
+
+        # Y-axis: UP (elbow to shoulder)
+        axis_y = (shoulder - elbow).to_numpy()
+
+        # Z-axis: compute and negate to keep pointing FORWARD (left-handed system)
+        axis_z = -np.cross(axis_x, axis_y)
+
+        return ReferenceFrame(
+            origin=elbow,
+            lateral_axis=axis_x,
+            vertical_axis=axis_y,
+            anteroposterior_axis=axis_z,
+        )
+
+    @property
+    def left_wrist_referenceframe(self):
+        """
+        Left wrist reference frame for angular measurements.
+
+        Axes Orientation
+        ----------------
+        - **X-axis**: Points LEFT (lateral to medial, away from midline)
+        - **Y-axis**: Points UP (wrist center to elbow center)
+        - **Z-axis**: Points FORWARD (cross product X × Y)
+
+        Origin
+        ------
+        Left wrist center (use `self.left_wrist` property)
+
+        Construction
+        ------------
+        1. X-axis: LEFT (left_wrist_lateral → left_wrist_medial)
+        2. Y-axis: UP (left_wrist → left_elbow)
+        3. Z-axis: FORWARD (Gram-Schmidt cross product)
+        4. Apply Gram-Schmidt orthonormalization
+
+        Returns
+        -------
+        ReferenceFrame
+            Reference frame with origin at left wrist center and orthonormal axes.
+
+        See Also
+        --------
+        left_wrist : Wrist center (origin of this frame)
+        right_wrist_referenceframe : Right wrist reference frame
+        """
+        wrist = self.left_wrist
+        elbow = self.left_elbow
+
+        try:
+            wrist_lat = self._get_point("left_wrist_lateral")
+            wrist_med = self._get_point("left_wrist_medial")
+            # X-axis: LEFT (lateral to medial)
+            axis_x = (wrist_lat - wrist_med).to_numpy()
+        except Exception:
+            # Default LEFT: use lateral_axis property to determine which column
+            lateral_idx = np.where(wrist.columns == wrist.lateral_axis)[0][0]
+            axis_x = np.zeros((wrist.shape[0], 3))
+            axis_x[:, lateral_idx] = -1  # LEFT (negative for left side)
+
+        # Y-axis: UP (wrist to elbow)
+        axis_y = (elbow - wrist).to_numpy()
+
+        return ReferenceFrame(
+            origin=wrist, lateral_axis=axis_x, vertical_axis=axis_y
+        )
+
+    @property
+    def right_wrist_referenceframe(self):
+        """
+        Right wrist reference frame for angular measurements.
+
+        Axes Orientation
+        ----------------
+        - **X-axis**: Points RIGHT (lateral to medial, away from midline)
+        - **Y-axis**: Points UP (wrist center to elbow center)
+        - **Z-axis**: Points FORWARD (cross product X × Y)
+
+        Origin
+        ------
+        Right wrist center (use `self.right_wrist` property)
+
+        Construction
+        ------------
+        1. X-axis: RIGHT (right_wrist_lateral → right_wrist_medial)
+        2. Y-axis: UP (right_wrist → right_elbow)
+        3. Z-axis: FORWARD (Gram-Schmidt cross product)
+        4. Apply Gram-Schmidt orthonormalization
+
+        Returns
+        -------
+        ReferenceFrame
+            Reference frame with origin at right wrist center and orthonormal axes.
+
+        See Also
+        --------
+        right_wrist : Wrist center (origin of this frame)
+        left_wrist_referenceframe : Left wrist reference frame
+        """
+        wrist = self.right_wrist
+        elbow = self.right_elbow
+
+        try:
+            wrist_lat = self._get_point("right_wrist_lateral")
+            wrist_med = self._get_point("right_wrist_medial")
+            # X-axis: RIGHT (lateral to medial, for right wrist lateral is more positive X)
+            axis_x = (wrist_lat - wrist_med).to_numpy()
+        except Exception:
+            # Default RIGHT: use lateral_axis property to determine which column
+            lateral_idx = np.where(wrist.columns == wrist.lateral_axis)[0][0]
+            axis_x = np.zeros((wrist.shape[0], 3))
+            axis_x[:, lateral_idx] = 1  # RIGHT (positive for right side)
+
+        # Y-axis: UP (wrist to elbow)
+        axis_y = (elbow - wrist).to_numpy()
+
+        # Z-axis: compute and negate to keep pointing FORWARD (left-handed system)
+        axis_z = -np.cross(axis_x, axis_y)
+
+        return ReferenceFrame(
+            origin=wrist,
+            lateral_axis=axis_x,
+            vertical_axis=axis_y,
+            anteroposterior_axis=axis_z,
+        )
+
+    @property
+    def _left_foot_plane(self):
         """
         Calculate left foot plane from toe, heel, and metatarsal markers.
 
@@ -2119,7 +2666,7 @@ class WholeBody(TimeseriesRecord):
         )
 
     @property
-    def right_foot_plane(self):
+    def _right_foot_plane(self):
         """
         Calculate right foot plane from toe, heel, and metatarsal markers.
 
@@ -2148,7 +2695,7 @@ class WholeBody(TimeseriesRecord):
             points.append(fifth_meta)
         if len(points) < 3:
             raise ValueError(
-                "there are not enough Point3D to define the left foot plane."
+                "there are not enough Point3D to define the right foot plane."
             )
         return Timeseries(
             data=self._get_least_squares_plane_coefs(*points),
@@ -2207,10 +2754,11 @@ class WholeBody(TimeseriesRecord):
         left_knee_flexionextension : Left knee flexion angle
         """
         # get points and reference frame
-        ankle, rmat = self.left_ankle_referenceframe
+        ankle = self.left_ankle
+        rmat = self.left_ankle_referenceframe.rotation_matrix
         proj = self._get_projection_point_on_plane(
             ankle,
-            self.left_foot_plane,
+            self._left_foot_plane,
         )
         angle, x, y = self._get_angle_by_point_on_reference_frame_and_plane(
             proj,
@@ -2272,10 +2820,11 @@ class WholeBody(TimeseriesRecord):
         right_ankle_inversioneversion : Right ankle frontal plane motion
         right_knee_flexionextension : Right knee flexion angle
         """
-        ankle, rmat = self.right_ankle_referenceframe
+        ankle = self.right_ankle
+        rmat = self.right_ankle_referenceframe.rotation_matrix
         proj = self._get_projection_point_on_plane(
             ankle,
-            self.right_foot_plane,
+            self._right_foot_plane,
         )
         angle, x, y = self._get_angle_by_point_on_reference_frame_and_plane(
             proj,
@@ -2337,10 +2886,11 @@ class WholeBody(TimeseriesRecord):
         left_ankle_flexionextension : Left ankle sagittal plane motion
         left_knee_varusvalgus : Left knee frontal plane alignment
         """
-        ankle, rmat = self.left_ankle_referenceframe
+        ankle = self.left_ankle
+        rmat = self.left_ankle_referenceframe.rotation_matrix
         proj = self._get_projection_point_on_plane(
             ankle,
-            self.left_foot_plane,
+            self._left_foot_plane,
         )
         angle, x, y = self._get_angle_by_point_on_reference_frame_and_plane(
             proj,
@@ -2402,10 +2952,11 @@ class WholeBody(TimeseriesRecord):
         right_ankle_flexionextension : Right ankle sagittal plane motion
         right_knee_varusvalgus : Right knee frontal plane alignment
         """
-        ankle, rmat = self.right_ankle_referenceframe
+        ankle = self.right_ankle
+        rmat = self.right_ankle_referenceframe.rotation_matrix
         proj = self._get_projection_point_on_plane(
             ankle,
-            self.right_foot_plane,
+            self._right_foot_plane,
         )
         angle, x, y = self._get_angle_by_point_on_reference_frame_and_plane(
             proj,
@@ -2437,10 +2988,15 @@ class WholeBody(TimeseriesRecord):
 
         Calculation Method
         ------------------
-        Measured as the angle between the thigh (hip-to-knee) and shank
-        (knee-to-ankle) vectors. Calculated as 180° minus the angle formed
-        by the three points (hip, knee, ankle), so that flexion is positive
-        and full extension is zero.
+        Uses left knee reference frame with:
+        - Origin: Left knee center (midpoint of lateral and medial knee markers)
+        - X-axis: LEFT (knee_lateral - knee_medial)
+        - Y-axis: UP (knee → hip)
+        - Z-axis: FORWARD (cross product)
+
+        The ankle position is transformed to the knee reference frame and
+        the angle is measured in the sagittal plane (Z-Y components).
+        Zero is defined when ankle is at 270° (vertical DOWN, fully extended leg).
 
         Clinical Relevance
         ------------------
@@ -2458,7 +3014,7 @@ class WholeBody(TimeseriesRecord):
         Signal1D
             Knee flexion/extension angle in degrees.
             Positive = flexion (bent knee)
-            Negative = extension (hyperextension)
+            Range: [0°, 180°]
 
         See Also
         --------
@@ -2466,11 +3022,28 @@ class WholeBody(TimeseriesRecord):
         left_knee_varusvalgus : Left knee frontal plane alignment
         left_hip_flexionextension : Left hip flexion angle
         """
-        p1 = self.left_hip
-        p2 = self.left_knee
-        p3 = self.left_ankle
-        angle = 180 - self._get_angle_between_three_points(p1, p2, p3)
-        return Signal1D(data=angle, index=p1.index, unit="°")
+        knee = self.left_knee
+        ankle = self.left_ankle
+        rmat = self.left_knee_referenceframe.rotation_matrix
+
+        # Ankle vector from knee origin
+        ankle_vec = (ankle - knee).to_numpy()
+
+        # Transform to knee reference frame
+        ankle_rf = np.einsum("nij,nj->ni", rmat, ankle_vec)
+
+        # Sagittal plane angle (Z-Y components)
+        # Knee flexion is measured from the extended position (ankle below knee, Y negative)
+        # arctan2(-Z, -Y) gives angle from downward vertical (-Y axis)
+        # At extended (ankle straight down): Z≈0, Y<0 → angle ≈ 0°
+        # At flexed (ankle forward): Z>0, Y<0 → angle < 0°, so negate to get positive flexion
+        flexion = (
+            -np.arctan2(ankle_rf[:, 2], -ankle_rf[:, 1])
+            * 180
+            / np.pi
+        )
+
+        return Signal1D(data=flexion, index=knee.index, unit="°")
 
     @property
     def right_knee_flexionextension(self):
@@ -2521,11 +3094,29 @@ class WholeBody(TimeseriesRecord):
         right_knee_varusvalgus : Right knee frontal plane alignment
         right_hip_flexionextension : Right hip flexion angle
         """
-        p1 = self.right_hip
-        p2 = self.right_knee
-        p3 = self.right_ankle
-        angle = 180 - self._get_angle_between_three_points(p1, p2, p3)
-        return Signal1D(data=angle, index=p1.index, unit="°")
+        knee = self.right_knee
+        ankle = self.right_ankle
+        rmat = self.right_knee_referenceframe.rotation_matrix
+
+        # Ankle vector from knee origin
+        ankle_vec = (ankle - knee).to_numpy()
+
+        # Transform to knee reference frame
+        ankle_rf = np.einsum("nij,nj->ni", rmat, ankle_vec)
+
+        # Sagittal plane angle (anteroposterior-vertical components)
+        # Knee flexion is measured from the extended position (ankle below knee, vertical negative)
+        # For left-handed frame: anteroposterior is negated to point forward
+        # arctan2(-anteroposterior, -vertical) gives angle from downward vertical
+        # At extended (ankle straight down): anteroposterior≈0, vertical<0 → angle ≈ 0°
+        # At flexed (ankle forward): anteroposterior<0 (negated in frame), vertical<0 → angle > 0°, but we need to negate result
+        flexion = (
+            -np.arctan2(ankle_rf[:, 2], -ankle_rf[:, 1])
+            * 180
+            / np.pi
+        )
+
+        return Signal1D(data=flexion, index=knee.index, unit="°")
 
     @property
     def left_knee_varusvalgus(self):
@@ -2556,37 +3147,26 @@ class WholeBody(TimeseriesRecord):
             Positive = varus (ginocchio varo)
             Negative = valgus (ginocchio valgo)
         """
-        hip = self.left_hip
         knee = self.left_knee
         ankle = self.left_ankle
+        rmat = self.left_knee_referenceframe.rotation_matrix
 
-        # Get vectors in frontal plane (lateral_axis, vertical_axis)
-        v_thigh = (knee - hip).to_numpy()  # Vector from hip to knee
-        v_leg = (ankle - knee).to_numpy()  # Vector from knee to ankle
+        # Ankle vector from knee origin
+        ankle_vec = (ankle - knee).to_numpy()
 
-        # Extract frontal plane components
-        cols = knee.columns
-        axes_labels = [self.lateral_axis, self.vertical_axis]
-        col_map = [np.where(cols == i)[0][0] for i in axes_labels]
-        col_map = np.array(col_map)
+        # Transform to knee reference frame
+        ankle_rf = np.einsum("nij,nj->ni", rmat, ankle_vec)
 
-        # Project vectors onto frontal plane
-        v_thigh_2d = v_thigh[:, col_map]
-        v_leg_2d = v_leg[:, col_map]
-
-        # Calculate angle between vectors using atan2
-        # Angle from vertical (thigh angle)
-        angle_thigh = np.degrees(np.arctan2(v_thigh_2d[:, 0], v_thigh_2d[:, 1]))
-        # Angle from vertical (leg angle)
-        angle_leg = np.degrees(np.arctan2(v_leg_2d[:, 0], v_leg_2d[:, 1]))
-
-        # Varus/valgus is the difference
-        # Positive when knee deviates laterally (varus)
-        # Negative when knee deviates medially (valgus)
-        angle = angle_leg - angle_thigh
-
-        # Normalize to [-180, 180] to avoid angle wrapping issues (e.g., 358° → -2°)
-        angle = (angle + 180) % 360 - 180
+        # Frontal plane angle (X-Y components)
+        # Varus/valgus is measured in the frontal plane (lateral-vertical)
+        # arctan2(X, -Y) gives angle from downward vertical (-Y axis) in frontal plane
+        # Positive X (lateral) with Y negative (down) = varus (knee out, bow-legged)
+        # Negative X (medial) with Y negative (down) = valgus (knee in, knock-knee)
+        angle = (
+            np.arctan2(ankle_rf[:, 0], -ankle_rf[:, 1])
+            * 180
+            / np.pi
+        )
 
         return Signal1D(data=angle, index=knee.index, unit="°")
 
@@ -2617,37 +3197,27 @@ class WholeBody(TimeseriesRecord):
             Positive = varus (ginocchio varo)
             Negative = valgus (ginocchio valgo)
         """
-        hip = self.right_hip
         knee = self.right_knee
         ankle = self.right_ankle
+        rmat = self.right_knee_referenceframe.rotation_matrix
 
-        # Get vectors in frontal plane (lateral_axis, vertical_axis)
-        v_thigh = (knee - hip).to_numpy()  # Vector from hip to knee
-        v_leg = (ankle - knee).to_numpy()  # Vector from knee to ankle
+        # Ankle vector from knee origin
+        ankle_vec = (ankle - knee).to_numpy()
 
-        # Extract frontal plane components
-        cols = knee.columns
-        axes_labels = [self.lateral_axis, self.vertical_axis]
-        col_map = [np.where(cols == i)[0][0] for i in axes_labels]
-        col_map = np.array(col_map)
+        # Transform to knee reference frame
+        ankle_rf = np.einsum("nij,nj->ni", rmat, ankle_vec)
 
-        # Project vectors onto frontal plane
-        v_thigh_2d = v_thigh[:, col_map]
-        v_leg_2d = v_leg[:, col_map]
-
-        # Calculate angle between vectors using atan2
-        # Angle from vertical (thigh angle)
-        angle_thigh = np.degrees(np.arctan2(v_thigh_2d[:, 0], v_thigh_2d[:, 1]))
-        # Angle from vertical (leg angle)
-        angle_leg = np.degrees(np.arctan2(v_leg_2d[:, 0], v_leg_2d[:, 1]))
-
-        # Varus/valgus is the difference
-        # Positive when knee deviates laterally (varus)
-        # Negative when knee deviates medially (valgus)
-        angle = angle_thigh - angle_leg
-
-        # Normalize to [-180, 180] to avoid angle wrapping issues (e.g., 358° → -2°)
-        angle = (angle + 180) % 360 - 180
+        # Frontal plane angle (lateral-vertical components)
+        # Varus/valgus is measured in the frontal plane (lateral-vertical)
+        # For left-handed frame: lateral_axis points RIGHT, already correct
+        # arctan2(lateral, -vertical) gives angle from downward vertical in frontal plane
+        # Positive lateral (lateral) with vertical negative (down) = varus (knee out, bow-legged)
+        # Negative lateral (medial) with vertical negative (down) = valgus (knee in, knock-knee)
+        angle = (
+            np.arctan2(ankle_rf[:, 0], -ankle_rf[:, 1])
+            * 180
+            / np.pi
+        )
 
         return Signal1D(data=angle, index=knee.index, unit="°")
 
@@ -2700,7 +3270,8 @@ class WholeBody(TimeseriesRecord):
         left_knee_flexionextension : Left knee flexion angle
         """
         # get points and reference frame
-        hip, rmat = self.left_hip_referenceframe
+        hip = self.left_hip
+        rmat = self.left_hip_referenceframe.rotation_matrix
         knee = self.left_knee
         angle, x, y = self._get_angle_by_point_on_reference_frame_and_plane(
             knee,
@@ -2710,7 +3281,13 @@ class WholeBody(TimeseriesRecord):
             self.vertical_axis,  # type: ignore
         )
 
-        return 90 - angle
+        # Transform to anatomical convention: 0° = neutral (thigh vertical)
+        # The reference frame vertical_axis points downward in the hip frame
+        # (determined by the lateral_axis × vertical_axis orthonormalization)
+        # For vertical thigh (knee below hip), arctan2 gives ~+90°
+        # Subtract 90° to make neutral position = 0°, then normalize to [0°, 360°]
+        result = (angle.to_numpy() - 90) % 360
+        return Signal1D(data=result, index=angle.index, unit="°")
 
     @property
     def right_hip_flexionextension(self):
@@ -2761,7 +3338,8 @@ class WholeBody(TimeseriesRecord):
         right_knee_flexionextension : Right knee flexion angle
         """
         # get points and reference frame
-        hip, rmat = self.right_hip_referenceframe
+        hip = self.right_hip
+        rmat = self.right_hip_referenceframe.rotation_matrix
         knee = self.right_knee
         angle, x, y = self._get_angle_by_point_on_reference_frame_and_plane(
             knee,
@@ -2771,7 +3349,13 @@ class WholeBody(TimeseriesRecord):
             self.vertical_axis,  # type: ignore
         )
 
-        return 90 - angle
+        # Transform to anatomical convention: 0° = neutral (thigh vertical)
+        # The reference frame vertical_axis points downward in the hip frame
+        # (determined by the lateral_axis × vertical_axis orthonormalization)
+        # For vertical thigh (knee below hip), arctan2 gives ~+90°
+        # Subtract 90° to make neutral position = 0°, then normalize to [0°, 360°]
+        result = (angle.to_numpy() - 90) % 360
+        return Signal1D(data=result, index=angle.index, unit="°")
 
     @property
     def left_hip_abductionadduction(self):
@@ -2822,7 +3406,8 @@ class WholeBody(TimeseriesRecord):
         left_knee_varusvalgus : Left knee frontal plane alignment
         """
         # get points and reference frame
-        hip, rmat = self.left_hip_referenceframe
+        hip = self.left_hip
+        rmat = self.left_hip_referenceframe.rotation_matrix
         knee = self.left_knee
         angle, x, y = self._get_angle_by_point_on_reference_frame_and_plane(
             knee,
@@ -2832,7 +3417,13 @@ class WholeBody(TimeseriesRecord):
             self.vertical_axis,  # type: ignore
         )
 
-        return 90 - angle
+        # Transform to anatomical convention: 0° = neutral (thigh vertical)
+        # The reference frame vertical_axis points downward in the hip frame
+        # (determined by the lateral_axis × vertical_axis orthonormalization)
+        # For vertical thigh (knee below hip), arctan2 gives ~+90°
+        # Subtract 90° to make neutral position = 0°, then normalize to [0°, 360°]
+        result = (angle.to_numpy() - 90) % 360
+        return Signal1D(data=result, index=angle.index, unit="°")
 
     @property
     def right_hip_abductionadduction(self):
@@ -2882,7 +3473,8 @@ class WholeBody(TimeseriesRecord):
         right_hip_flexionextension : Right hip sagittal plane motion
         right_knee_varusvalgus : Right knee frontal plane alignment
         """
-        hip, rmat = self.right_hip_referenceframe
+        hip = self.right_hip
+        rmat = self.right_hip_referenceframe.rotation_matrix
         knee = self.right_knee
         angle, x, y = self._get_angle_by_point_on_reference_frame_and_plane(
             knee,
@@ -2892,8 +3484,13 @@ class WholeBody(TimeseriesRecord):
             self.vertical_axis,  # type: ignore
         )
 
-        # adjust the sign according to the knee position
-        return (angle - 90)
+        # Transform to anatomical convention: 0° = neutral (thigh vertical)
+        # The reference frame vertical_axis points downward in the hip frame
+        # (determined by the lateral_axis × vertical_axis orthonormalization)
+        # For vertical thigh (knee below hip), arctan2 gives ~+90°
+        # Subtract 90° to make neutral position = 0°, then normalize to [0°, 360°]
+        result = (angle.to_numpy() - 90) % 360
+        return Signal1D(data=result, index=angle.index, unit="°")
 
     @property
     def left_hip_internalexternalrotation(self):
@@ -2948,7 +3545,6 @@ class WholeBody(TimeseriesRecord):
         """
 
         # Get necessary parameters
-        rmat = self.left_hip_referenceframe[1]
         knee_lat = self._get_point("left_knee_lateral")
         knee_med = self._get_point("left_knee_medial")
         ankle_lat = self._get_point("left_ankle_lateral")
@@ -2970,15 +3566,17 @@ class WholeBody(TimeseriesRecord):
         # Align vector to new reference frame
         vr = np.einsum("nij,nj->ni", rmat, va)
 
-        # Consider transverse plane fixed to the generated reference frame
-        cols = knee_lat.columns
-        axes_labels = [self.lateral_axis, self.anteroposterior_axis]
-        col_map = [np.where(cols == i)[0][0] for i in axes_labels]
-        col_map = np.array(col_map)
-        x, y = vr[:, col_map].T
+        # Transverse plane components (lateral X and anteroposterior Z)
+        # After einsum, vr has shape (n, 3) with components [X, Y, Z] in the reference frame
+        x = vr[:, 0]  # Lateral component
+        y = vr[:, 2]  # Anteroposterior component
 
-        # Calculate angle of vector with respect to plane
+        # Calculate angle of vector with respect to transverse plane
         angle = np.degrees(np.arctan2(y, x))
+
+        # Invert sign to match clinical convention: positive = internal rotation, negative = external rotation
+        # Original implementation had opposite convention
+        angle = -angle
 
         # Return angle
         return Signal1D(data=angle, index=knee_lat.index, unit="°")
@@ -3035,7 +3633,6 @@ class WholeBody(TimeseriesRecord):
         right_knee_varusvalgus : Right knee frontal plane alignment
         """
         # Get necessary parameters
-        rmat = self.right_hip_referenceframe[1]
         knee_lat = self._get_point("right_knee_lateral")
         knee_med = self._get_point("right_knee_medial")
         ankle_lat = self._get_point("right_ankle_lateral")
@@ -3047,9 +3644,11 @@ class WholeBody(TimeseriesRecord):
         va = (v1 + v2) / 2
 
         # Determine reference frame rotation matrix
-        i = (self.left_hip - self.right_hip).to_numpy()
+        # Fixed: Changed from left_hip - right_hip to right_hip - left_hip for correct symmetry
+        i = (self.right_hip - self.left_hip).to_numpy()
         i = i / np.linalg.norm(i, axis=1, keepdims=True)
-        k = (self.left_hip - self.left_knee).to_numpy()
+        # Fixed: Changed from left_hip - left_knee to right_hip - right_knee (was copy-paste error)
+        k = (self.right_hip - self.right_knee).to_numpy()
         k = k / np.linalg.norm(k, axis=1, keepdims=True)
         j = np.cross(k, i)
         rmat = gram_schmidt(i, j, k).transpose((0, 2, 1))
@@ -3057,92 +3656,23 @@ class WholeBody(TimeseriesRecord):
         # Align vector to new reference frame
         vr = np.einsum("nij,nj->ni", rmat, va)
 
-        # Consider transverse plane fixed to the generated reference frame
-        cols = knee_lat.columns
-        axes_labels = [self.lateral_axis, self.anteroposterior_axis]
-        col_map = [np.where(cols == i)[0][0] for i in axes_labels]
-        col_map = np.array(col_map)
-        x, y = vr[:, col_map].T
+        # Transverse plane components (lateral X and anteroposterior Z)
+        # After einsum, vr has shape (n, 3) with components [X, Y, Z] in the reference frame
+        x = vr[:, 0]  # Lateral component
+        y = vr[:, 2]  # Anteroposterior component
 
-        # Calculate angle of vector with respect to plane
+        # Calculate angle of vector with respect to transverse plane
         angle = np.degrees(np.arctan2(y, x))
 
-        # Correct angle sign
-        angle = 180 - angle
-        angle[y < 0] = angle[y < 0] - 360
+        # NOTE: Removed compensatory transformations (180 - angle, conditional - 360)
+        # These were only needed to compensate for the wrong reference frame above
+
+        # Invert sign to match clinical convention: positive = internal rotation, negative = external rotation
+        # Original implementation had opposite convention
+        angle = -angle
 
         # Return angle
         return Signal1D(data=angle, index=knee_lat.index, unit="°")
-
-    @property
-    def pelvis_anteroposteriortilt_global(self):
-        """
-        Calculate pelvis anterior/posterior tilt (pitch) in sagittal plane.
-
-        The angle represents the forward (anterior) or backward (posterior)
-        tilting of the pelvis relative to the global vertical, measured in
-        the sagittal plane.
-
-        Interpretation
-        --------------
-        - **Positive (+)**: Posterior tilt (retroversione del bacino)
-          The pelvis rotates backward; ASIS moves up, PSIS moves down.
-          Common in posterior pelvic tilt posture, flat back.
-        - **Negative (-)**: Anterior tilt (anteroversione del bacino)
-          The pelvis rotates forward; ASIS moves down, PSIS moves up.
-          Common in hyperlordotic posture, arched back.
-        - **0°**: Neutral position (ASIS and PSIS horizontally aligned)
-
-        Calculation Method
-        ------------------
-        Measured as the angle between the pelvis anteroposterior axis
-        (from PSIS midpoint to ASIS midpoint) and the horizontal plane.
-        Uses projected pelvis points onto the pelvis least-squares plane
-        to ensure planar calculation.
-
-        Clinical Relevance
-        ------------------
-        - Excessive anterior tilt (< -15°): Associated with:
-          * Lumbar hyperlordosis
-          * Hip flexor tightness
-          * Lower back pain
-        - Excessive posterior tilt (> 15°): Associated with:
-          * Lumbar hypolordosis (flat back)
-          * Hamstring dominance
-          * Hip extension limitation
-
-        Returns
-        -------
-        Signal1D
-            Pelvis tilt angle in degrees.
-            Positive = posterior tilt
-            Negative = anterior tilt
-
-        See Also
-        --------
-        pelvis_lateraltilt_global : Pelvis frontal plane tilt
-        pelvis_rotation_global : Pelvis transverse plane rotation
-        trunk_flexionextension_global : Trunk sagittal plane flexion
-        """
-
-        # Get pelvis points projected into least squares plane
-        l_asis, r_asis, l_psis, r_psis = self._get_projected_pelvis_points()
-
-        # Define vector determining anteroposterior axis of pelvis
-        ap = ((l_asis + r_asis) / 2 - (l_psis + r_psis) / 2).to_numpy()
-
-        # Consider only global sagittal plane
-        cols = l_asis.columns
-        axes_labels = [self.anteroposterior_axis, self.vertical_axis]
-        col_map = [np.where(cols == i)[0][0] for i in axes_labels]
-        col_map = np.array(col_map)
-
-        # Calculate angle
-        x, y = ap[:, col_map].T
-        angle = np.degrees(np.arctan2(y, x))
-
-        # Return angle
-        return Signal1D(data=angle, index=l_asis.index, unit="°")
 
     @property
     def pelvis_lateraltilt_global(self):
@@ -3275,74 +3805,89 @@ class WholeBody(TimeseriesRecord):
         return Signal1D(data=angle, index=l_asis.index, unit="°")
 
     @property
-    def trunk_flexionextension_global(self):
+    def pelvis_anteroposterior_tilt(self):
         """
-        Calculate trunk flexion/extension angle in sagittal plane.
+        Calculate pelvis anteroposterior tilt (pitch) in sagittal plane.
 
-        The angle represents the forward (flexion) or backward (extension)
-        bending of the trunk relative to the global vertical, measured from
-        pelvis base to C7 (seventh cervical vertebra).
+        The angle represents the forward or backward tilting of the pelvis
+        relative to neutral position, measured in the sagittal plane.
 
         Interpretation
         --------------
-        - **Positive (+)**: Flexion (flessione del tronco)
-          The trunk bends forward; C7 moves anteriorly.
-          Common in bending, squatting, sitting.
-        - **Negative (-)**: Extension (estensione del tronco)
-          The trunk bends backward; C7 moves posteriorly.
-          Common in arching, back bending.
-        - **0°**: Neutral position (trunk vertical, C7 directly above pelvis base)
+        - **Positive (+)**: Anterior tilt (antiversione del bacino)
+          ASIS markers are lower/more forward than PSIS markers.
+          Lumbar lordosis typically increases.
+          Common in hyperlordosis, tight hip flexors.
+        - **Negative (-)**: Posterior tilt (retroversione del bacino)
+          PSIS markers are lower/more forward than ASIS markers.
+          Lumbar lordosis typically decreases.
+          Common in hypolordosis, tight hamstrings.
+        - **0°**: Neutral position (ASIS and PSIS at same height)
 
         Calculation Method
         ------------------
-        Measured as the angle between the spine vector (from PSIS midpoint
-        to C7) and the global vertical axis, projected onto the sagittal plane.
+        Uses pelvis reference frame with:
+        - Origin: Pelvis center (centroid of 4 ASIS/PSIS markers)
+        - X-axis: LEFT (right midpoint to left midpoint)
+        - Y-axis: UP (pelvis_center to neck_base)
+        - Z-axis: FORWARD (cross product)
+
+        The tilt vector (PSIS midpoint to ASIS midpoint) is transformed
+        to the pelvis reference frame and the angle is measured in the
+        sagittal plane (Z-Y components).
 
         Clinical Relevance
         ------------------
-        - Excessive flexion (> 45° during activities): Associated with:
-          * Increased lumbar disc pressure
-          * Back extensor fatigue
-          * Increased injury risk in lifting
-        - Limited flexion (< 60° maximum): Associated with:
-          * Thoracic or lumbar stiffness
+        - Excessive anterior tilt (> +10°): Associated with:
+          * Increased lumbar lordosis
+          * Anterior pelvic pain syndrome
+          * Hip flexor tightness
+          * Lower back pain
+        - Excessive posterior tilt (< -10°): Associated with:
+          * Decreased lumbar lordosis (flat back)
           * Hamstring tightness
-          * Reduced functional mobility
+          * Sacroiliac joint dysfunction
 
         Returns
         -------
         Signal1D
-            Trunk flexion/extension angle in degrees.
-            Positive = flexion (trunk forward)
-            Negative = extension (trunk backward)
+            Pelvis anteroposterior tilt angle in degrees.
+            Positive = anterior tilt (ASIS forward/lower)
+            Negative = posterior tilt (PSIS forward/lower)
 
         See Also
         --------
-        trunk_lateralflexion_global : Trunk frontal plane flexion
-        trunk_rotation_global : Trunk transverse plane rotation
-        pelvis_anteroposteriortilt_global : Pelvis sagittal plane tilt
+        pelvis_lateral_tilt : Pelvis frontal plane tilt
+        pelvis_rotation : Pelvis transverse plane rotation
+        lumbar_lordosis : Lumbar spine curvature
         """
+        # Get pelvis markers
+        l_asis = self._get_point("left_asis")
+        r_asis = self._get_point("right_asis")
+        l_psis = self._get_point("left_psis")
+        r_psis = self._get_point("right_psis")
 
-        # Get pelvis points projected into least squares plane
-        l_asis, r_asis, l_psis, r_psis = self._get_projected_pelvis_points()
+        # Get pelvis reference frame
+        rmat = self.pelvis_referenceframe.rotation_matrix
 
-        # Get vector defining spine (rachis)
-        c7 = self._get_point("c7").to_numpy()
-        base = ((l_psis + r_psis) / 2).to_numpy()
-        vt = c7 - base
+        # Calculate tilt vector (PSIS midpoint to ASIS midpoint)
+        psis_mid = (l_psis + r_psis) / 2
+        asis_mid = (l_asis + r_asis) / 2
+        tilt_vec = (asis_mid - psis_mid).to_numpy()
 
-        # Consider only global sagittal plane
-        cols = l_psis.columns
-        axes_labels = [self.anteroposterior_axis, self.vertical_axis]
-        col_map = [np.where(cols == i)[0][0] for i in axes_labels]
-        col_map = np.array(col_map)
+        # Transform to pelvis reference frame
+        tilt_vec_rf = np.einsum("nij,nj->ni", rmat, tilt_vec)  # type: ignore
 
-        # Calculate angle
-        x, y = vt[:, col_map].T
-        angle = np.degrees(np.arctan2(y, x))
+        # Sagittal plane angle (Z-Y components)
+        # arctan2(Z, Y) - angle from vertical (Y-axis)
+        angle = (
+            np.arctan2(tilt_vec_rf[:, 2], tilt_vec_rf[:, 1])
+            * 180
+            / np.pi
+        )
 
         # Return angle
-        return Signal1D(data=90 - angle, index=l_psis.index, unit="°")
+        return Signal1D(data=angle, index=l_asis.index, unit="°")
 
     @property
     def trunk_lateralflexion_global(self):
@@ -3413,115 +3958,89 @@ class WholeBody(TimeseriesRecord):
         return Signal1D(data=angle - 90, index=l_psis.index, unit="°")
 
     @property
-    def trunk_rotation_global(self):
+    def trunk_rotation(self):
         """
-        Calculate trunk axial rotation in transverse plane.
+        Calculate trunk axial rotation (yaw) in transverse plane.
 
-        The angle represents the left or right rotational orientation of
-        the shoulders (upper trunk) relative to the global forward direction,
-        measured in the transverse (horizontal) plane.
+        The angle represents the rotational orientation of the shoulders
+        relative to the pelvis, measured in the transverse (horizontal) plane.
 
         Interpretation
         --------------
-        - **Positive (+)**: Right rotation (rotazione destra del tronco)
-          The trunk rotates clockwise (viewed from above).
-          The left shoulder moves forward relative to the right shoulder.
-        - **Negative (-)**: Left rotation (rotazione sinistra del tronco)
-          The trunk rotates counterclockwise (viewed from above).
+        - **Positive (+)**: Left rotation (rotazione sinistra del tronco)
+          The shoulders rotate counterclockwise (viewed from above).
           The right shoulder moves forward relative to the left shoulder.
-        - **0°**: Neutral position (shoulders aligned with forward direction)
+          Common in left trunk rotation movements.
+        - **Negative (-)**: Right rotation (rotazione destra del tronco)
+          The shoulders rotate clockwise (viewed from above).
+          The left shoulder moves forward relative to the right shoulder.
+          Common in right trunk rotation movements.
+        - **0°**: Neutral position (shoulders aligned with pelvis in transverse plane)
 
         Calculation Method
         ------------------
-        Measured as the angle between the shoulder axis (from right shoulder
-        to left shoulder) and the global lateral axis, projected onto the
-        transverse plane (horizontal).
+        Uses pelvis reference frame with:
+        - Origin: Pelvis center (centroid of 4 ASIS/PSIS markers)
+        - X-axis: LEFT (right midpoint to left midpoint)
+        - Y-axis: UP (pelvis_center to neck_base)
+        - Z-axis: FORWARD (cross product)
+
+        The shoulder axis vector (C7 to sternoclavicular junction) is
+        transformed to the pelvis reference frame and the angle is measured
+        in the transverse plane (X-Z components).
 
         Clinical Relevance
         ------------------
-        - Excessive rotation (> 15° static): Associated with:
-          * Scoliosis
-          * Asymmetric shoulder positioning
-          * Trunk muscle imbalances
+        - Excessive rotation (> 15-20° static): Associated with:
+          * Trunk muscle imbalance
+          * Spinal rotation restrictions
+          * Compensatory pelvis rotation
+          * Asymmetric movement patterns
+        - Limited range of motion: Associated with:
+          * Thoracic spine stiffness
+          * Rib cage mobility restrictions
+          * Postural compensations
 
         Returns
         -------
         Signal1D
             Trunk rotation angle in degrees.
-            Positive = right rotation
-            Negative = left rotation
+            Positive = left rotation (right shoulder forward)
+            Negative = right rotation (left shoulder forward)
 
         See Also
         --------
-        trunk_flexionextension_global : Trunk sagittal plane flexion
         trunk_lateralflexion_global : Trunk frontal plane flexion
-        trunk_rotation_local : Trunk rotation relative to pelvis
-        pelvis_rotation_global : Pelvis transverse plane rotation
+        pelvis_rotation : Pelvis transverse plane rotation
+        shoulder_lateral_tilt : Shoulder frontal plane tilt
         """
+        # Get shoulder axis markers
+        c7 = self._get_point("c7")
+        sc = self._get_point("sc")
 
-        # Get vector defining shoulder axis
-        vt = self.left_shoulder - self.right_shoulder
+        # Get pelvis reference frame
+        rmat = self.pelvis_referenceframe.rotation_matrix
 
-        # Consider only global transverse plane
-        cols = vt.columns
-        axes_labels = [self.lateral_axis, self.anteroposterior_axis]
-        col_map = [np.where(cols == i)[0][0] for i in axes_labels]
-        col_map = np.array(col_map)
+        # Calculate shoulder axis vector (C7 to sternoclavicular junction)
+        shoulder_axis = (sc - c7).to_numpy()
 
-        # Calculate angle
-        x, y = vt.copy().to_numpy()[:, col_map].T
-        angle = np.degrees(np.arctan2(y, x))
+        # Transform to pelvis reference frame
+        shoulder_axis_rf = np.einsum("nij,nj->ni", rmat, shoulder_axis)  # type: ignore
+
+        # Transverse plane angle (X-Z components)
+        # arctan2(X, Z) - angle from anteroposterior axis (Z)
+        # Positive X component (LEFT) = left rotation = positive angle
+        angle = (
+            np.arctan2(
+                shoulder_axis_rf[:, 0],
+                shoulder_axis_rf[:, 2],
+            )
+            * 180
+            / np.pi
+        )
 
         # Return angle
-        return Signal1D(data=angle, index=vt.index, unit="°")
-
-    @property
-    def trunk_rotation_local(self):
-        """
-        Calculate trunk axial rotation relative to pelvis in transverse plane.
-
-        The angle represents the rotational separation between the shoulders
-        (upper trunk) and the pelvis, indicating counter-rotation or
-        co-rotation patterns.
-
-        Interpretation
-        --------------
-        - **Positive (+)**: Right rotation of trunk relative to pelvis
-          The shoulders rotate right more than (or left less than) the pelvis.
-          Common in gait swing phase, throwing motions.
-        - **Negative (-)**: Left rotation of trunk relative to pelvis
-          The shoulders rotate left more than (or right less than) the pelvis.
-        - **0°**: No relative rotation (trunk and pelvis aligned)
-
-        Calculation Method
-        ------------------
-        Calculated as the difference between trunk_rotation_global and
-        pelvis_rotation_global, isolating trunk rotation relative to
-        the pelvis reference frame.
-
-        Clinical Relevance
-        ------------------
-        - Limited relative rotation (< 20° in gait): Associated with:
-          * Reduced counter-rotation
-          * Trunk stiffness
-          * Compensatory pelvic rotation
-        - Excessive relative rotation (> 40°): Associated with:
-          * Thoracic hypermobility
-          * Lumbar rotation stress
-
-        Returns
-        -------
-        Signal1D
-            Trunk rotation relative to pelvis in degrees.
-            Positive = right rotation relative to pelvis
-            Negative = left rotation relative to pelvis
-
-        See Also
-        --------
-        trunk_rotation_global : Trunk rotation in global frame
-        pelvis_rotation_global : Pelvis rotation in global frame
-        """
-        return self.trunk_rotation_global - self.pelvis_rotation_global
+        return Signal1D(data=angle, index=c7.index, unit="°")
 
     @property
     def neck_lateral_tilt(self):
@@ -3570,124 +4089,86 @@ class WholeBody(TimeseriesRecord):
         return Signal1D(data=angle, index=head.index, unit="°")
 
     @property
-    def neck_flexionextension_local(self):
+    def neck_flexionextension(self):
         """
-        Calculate neck flexion/extension relative to upper trunk orientation.
+        Calculate neck flexion/extension in sagittal plane.
 
-        The angle represents neck movement relative to the upper thoracic spine.
+        The angle represents the forward or backward deviation of the head
+        from vertical position, measured from neck_base to head_center.
 
         Interpretation
         --------------
-        - **Positive (+)**: Flexion (flessione cervicale)
-          The head moves forward/anterior relative to the trunk.
-          Chin approaches chest.
-        - **Negative (-)**: Extension (estensione cervicale)
-          The head moves backward/posterior relative to the trunk.
-          Head tilts back, looking upward.
-        - **0°**: Neutral position relative to trunk orientation
+        - **Positive (+)**: Forward flexion (flessione in avanti)
+          The head moves forward; chin moves toward chest.
+          Common in forward head posture, texting posture.
+        - **Negative (-)**: Backward extension (estensione indietro)
+          The head tilts backward; looking up.
+          Common in looking up, backward head tilt.
+        - **0°**: Neutral position (head vertical UP from neck_base, at 90° in sagittal plane)
 
         Calculation Method
         ------------------
-        Measured as the angular difference between:
-        - Neck vector: head_center-to-neck_base
-        - Trunk reference: C7-to-sc (sternoclavicular joint)
-        Both projected onto the sagittal plane.
+        Uses neck reference frame with:
+        - Origin: neck_base = midpoint(C7, sternoclavicular_junction)
+        - Y-axis: UP (pelvis_center to neck_base)
+        - Z-axis: FORWARD (C7 to sternoclavicular_junction)
+        - X-axis: LEFT (cross product Y × Z)
 
-        This gives movement relative to trunk orientation, useful for
-        analyzing neck posture independent of trunk lean.
+        The head_center position is transformed to the neck reference frame
+        and the angle is measured in the sagittal plane (Z-Y components).
+        Zero is defined when head is at 90° (vertical UP from neck_base).
+
+        Clinical Relevance
+        ------------------
+        - Excessive forward flexion (> +15-20°): Associated with:
+          * Forward head posture
+          * Upper cross syndrome
+          * Cervical spine strain
+          * Text neck syndrome
+        - Excessive extension (< -15°): Associated with:
+          * Compensatory posture
+          * Cervical hyperlordosis
 
         Returns
         -------
         Signal1D
-            Neck flexion/extension angle in degrees relative to trunk.
-            Positive = flexion (flessione, forward)
-            Negative = extension (estensione, backward)
+            Neck flexion/extension angle in degrees.
+            Positive = forward flexion (chin to chest)
+            Negative = backward extension (looking up)
+
+        See Also
+        --------
+        neck_lateral_tilt : Neck frontal plane tilt
+        trunk_rotation : Trunk transverse plane rotation
         """
+        # Get head and neck positions
         head = self.head_center
-        neck = self.neck_base
-        c7 = self._get_point("c7")
-        sc = self._get_point("sc")
+        neck_base = self.neck_base
 
-        # Get reference vector (C7 to sc) - upper trunk orientation
-        v_ref = (c7 - sc).to_numpy()
+        # Get neck reference frame
+        rmat = self.neck_referenceframe.rotation_matrix
 
-        # Get neck vector (neck base to head center)
-        v_neck = (head - neck).to_numpy()
+        # Head vector from neck_base origin
+        head_vec = (head - neck_base).to_numpy()
 
-        # Extract sagittal plane components (anteroposterior_axis, vertical_axis)
-        cols = head.columns
-        axes_labels = [self.anteroposterior_axis, self.vertical_axis]
-        col_map = [np.where(cols == i)[0][0] for i in axes_labels]
-        col_map = np.array(col_map)
+        # Transform to neck reference frame
+        head_rf = np.einsum("nij,nj->ni", rmat, head_vec)
 
-        # Calculate angles from vertical in sagittal plane
-        ref_angle = np.degrees(np.arctan2(v_ref[:, col_map[0]], v_ref[:, col_map[1]]))
-        neck_angle = np.degrees(
-            np.arctan2(v_neck[:, col_map[0]], v_neck[:, col_map[1]])
+        # Sagittal plane angle (Z-Y components)
+        # arctan2(Z, Y) gives angle from Y-axis (vertical)
+        head_angle = (
+            np.arctan2(head_rf[:, 2], head_rf[:, 1])
+            * 180
+            / np.pi
         )
 
-        # Relative angle: positive when head is more anterior than trunk
-        angle = neck_angle - ref_angle
+        # Zero at 90° (vertical UP from neck_base)
+        # Positive = forward flexion (head moves forward)
+        # Negative = backward extension (head moves backward)
+        flexion = head_angle - 90
 
-        return Signal1D(data=angle, index=head.index, unit="°")
-
-    @property
-    def neck_flexionextension_global(self):
-        """
-        Calculate neck flexion/extension relative to global vertical axis.
-
-        The angle represents absolute head/neck orientation in space.
-
-        Interpretation
-        --------------
-        - **Positive (+)**: Forward head position (protrazione/flessione globale)
-          The head is positioned anterior to vertical.
-          Common in forward head posture.
-        - **Negative (-)**: Backward head position (retrazione/estensione globale)
-          The head is positioned posterior to vertical.
-          Head tilted back.
-        - **0°**: Neutral position (head directly above neck base, vertical alignment)
-
-        Calculation Method
-        ------------------
-        Measured as the angle between the head_center-to-neck_base vector
-        and the global vertical axis in the sagittal plane.
-
-        This represents absolute neck orientation in space, independent of
-        trunk position. Useful for postural analysis and ergonomic assessment.
-
-        Note
-        ----
-        This differs from neck_flexionextension_local which measures neck
-        position relative to trunk. A person leaning forward may have
-        neck_flexionextension_global = +30° (head forward in space) but
-        neck_flexionextension_local = 0° (neck aligned with trunk).
-
-        Returns
-        -------
-        Signal1D
-            Neck flexion/extension angle in degrees relative to vertical.
-            Positive = forward/anterior position
-            Negative = backward/posterior position
-        """
-        head = self.head_center
-        neck = self.neck_base
-
-        # Get neck vector (from neck base to head center)
-        v_neck = (head - neck).to_numpy()
-
-        # Extract sagittal plane components (anteroposterior_axis, vertical_axis)
-        cols = head.columns
-        axes_labels = [self.anteroposterior_axis, self.vertical_axis]
-        col_map = [np.where(cols == i)[0][0] for i in axes_labels]
-        col_map = np.array(col_map)
-
-        # Calculate angle from vertical
-        # x = anteroposterior deviation, y = vertical component
-        x, y = v_neck[:, col_map].T
-        angle = np.degrees(np.arctan2(x, y))
-
-        return Signal1D(data=angle, index=head.index, unit="°")
+        # Return angle
+        return Signal1D(data=flexion, index=head.index, unit="°")
 
     @property
     def lumbar_lordosis(self):
@@ -3818,99 +4299,6 @@ class WholeBody(TimeseriesRecord):
         return Signal1D(data=angle, index=t5.index, unit="°")
 
     @property
-    def shoulder_lateraltilt_global(self):
-        """
-        Calculate shoulders lateral tilt (roll) in frontal plane.
-
-        The angle represents the left or right tilting of the shoulder girdle
-        relative to the global horizontal, measured in the frontal plane.
-
-        Interpretation
-        --------------
-        - **Positive (+)**: Right shoulder elevation
-          The left shoulder is lower than the right.
-          Common in right shoulder shrugging, right side lean.
-        - **Negative (-)**: Left shoulder elevation
-          The right shoulder is lower than the left.
-          Common in left shoulder shrugging, left side lean.
-        - **0°**: Neutral position (shoulders level)
-
-        Calculation Method
-        ------------------
-        Measured as the angle between the shoulder axis (from right shoulder
-        to left shoulder) and the global horizontal, projected onto the
-        frontal plane (lateral and vertical axes).
-
-        Clinical Relevance
-        ------------------
-        - Persistent asymmetry (> 5°): Associated with:
-          * Scoliosis
-          * Shoulder muscle imbalance
-          * Scapular dyskinesis
-
-        Returns
-        -------
-        Signal1D
-            Shoulder tilt angle in degrees.
-            Positive = right shoulder higher
-            Negative = left shoulder higher
-
-        See Also
-        --------
-        shoulder_lateraltilt_local : Shoulder tilt relative to trunk
-        trunk_lateralflexion_global : Trunk lateral flexion
-        """
-
-        # Define vector determining shoulder orientation
-        ml = self.left_shoulder - self.right_shoulder
-
-        # Consider only global frontal plane
-        cols = ml.columns
-        axes_labels = [self.lateral_axis, self.vertical_axis]
-        col_map = [np.where(cols == i)[0][0] for i in axes_labels]
-        col_map = np.array(col_map)
-
-        # Calculate angle
-        x, y = ml.copy().to_numpy()[:, col_map].T
-        angle = np.degrees(np.arctan2(y, x))
-
-        # Return angle
-        return Signal1D(data=angle, index=ml.index, unit="°")
-
-    @property
-    def shoulder_lateraltilt_local(self):
-        """
-        Calculate shoulders lateral tilt relative to trunk in frontal plane.
-
-        The angle represents shoulder tilt independent of trunk lean,
-        isolating shoulder girdle orientation relative to the spine.
-
-        Interpretation
-        --------------
-        - **Positive (+)**: Right shoulder elevated relative to trunk
-        - **Negative (-)**: Left shoulder elevated relative to trunk
-        - **0°**: Shoulders aligned with trunk lateral tilt
-
-        Calculation Method
-        ------------------
-        Calculated as the difference between shoulder_lateraltilt_global and
-        trunk_lateralflexion_global, removing trunk lean component.
-
-        Returns
-        -------
-        Signal1D
-            Shoulder tilt relative to trunk in degrees.
-            Positive = right shoulder higher relative to trunk
-            Negative = left shoulder higher relative to trunk
-
-        See Also
-        --------
-        shoulder_lateraltilt_global : Shoulder tilt in global frame
-        trunk_lateralflexion_global : Trunk lateral flexion
-        """
-        return self.shoulder_lateraltilt_global - self.trunk_lateralflexion_global
-
-    @property
     def left_shoulder_flexionextension(self):
         """
         Calculate left shoulder flexion/extension angle in sagittal plane.
@@ -3958,7 +4346,8 @@ class WholeBody(TimeseriesRecord):
         left_elbow_flexionextension : Left elbow flexion angle
         """
         # ottengo i parametri necessari
-        shoulder, rmat = self.left_shoulder_referenceframe
+        shoulder = self.left_shoulder
+        rmat = self.left_shoulder_referenceframe.rotation_matrix
         elbow = self.left_elbow
 
         # calcolo l'orientamento del braccio rispetto al sistema di riferimento
@@ -3971,7 +4360,13 @@ class WholeBody(TimeseriesRecord):
             self.vertical_axis,  # type: ignore
         )
 
-        return -90 - angle
+        # Transform to anatomical convention: 0° = neutral (arm hanging vertically)
+        # The reference frame Y-axis points upward
+        # For vertical arm (elbow below shoulder), arctan2 gives ~-90°
+        # Add 90° to make neutral position = 0°, then normalize to [0°, 360°]
+        angle_result = (angle.to_numpy() + 90) % 360
+
+        return Signal1D(data=angle_result, index=angle.index, unit="°")
 
     @property
     def right_shoulder_flexionextension(self):
@@ -4021,7 +4416,8 @@ class WholeBody(TimeseriesRecord):
         right_elbow_flexionextension : Right elbow flexion angle
         """
         # ottengo i parametri necessari
-        shoulder, rmat = self.right_shoulder_referenceframe
+        shoulder = self.right_shoulder
+        rmat = self.right_shoulder_referenceframe.rotation_matrix
         elbow = self.right_elbow
 
         # calcolo l'orientamento del braccio rispetto al sistema di riferimento
@@ -4034,7 +4430,13 @@ class WholeBody(TimeseriesRecord):
             self.vertical_axis,  # type: ignore
         )
 
-        return -90 - angle
+        # Transform to anatomical convention: 0° = neutral (arm hanging vertically)
+        # The reference frame Y-axis points upward
+        # For vertical arm (elbow below shoulder), arctan2 gives ~-90°
+        # Add 90° to make neutral position = 0°, then normalize to [0°, 360°]
+        angle_result = (angle.to_numpy() + 90) % 360
+
+        return Signal1D(data=angle_result, index=angle.index, unit="°")
 
     @property
     def left_shoulder_abductionadduction(self):
@@ -4084,7 +4486,8 @@ class WholeBody(TimeseriesRecord):
         left_scapular_protractionretraction : Left scapular position
         """
         # Get necessary parameters
-        shoulder, rmat = self.left_shoulder_referenceframe
+        shoulder = self.left_shoulder
+        rmat = self.left_shoulder_referenceframe.rotation_matrix
         elbow = self.left_elbow
 
         # Calculate arm orientation with respect to shoulder reference frame
@@ -4096,7 +4499,11 @@ class WholeBody(TimeseriesRecord):
             self.vertical_axis,  # type: ignore
         )
 
-        return 90 + angle
+        # Transform to anatomical convention: 0° = neutral (arm hanging vertically)
+        # arctan2 gives ~-90° for vertical downward vector
+        # Add 90° to make neutral = 0°, then normalize to [0°, 360°]
+        result = (angle.to_numpy() + 90) % 360
+        return Signal1D(data=result, index=angle.index, unit="°")
 
     @property
     def right_shoulder_abductionadduction(self):
@@ -4146,7 +4553,8 @@ class WholeBody(TimeseriesRecord):
         right_scapular_protractionretraction : Right scapular position
         """
         # Get necessary parameters
-        shoulder, rmat = self.right_shoulder_referenceframe
+        shoulder = self.right_shoulder
+        rmat = self.right_shoulder_referenceframe.rotation_matrix
         elbow = self.right_elbow
 
         # Calculate arm orientation with respect to shoulder reference frame
@@ -4158,9 +4566,11 @@ class WholeBody(TimeseriesRecord):
             self.vertical_axis,  # type: ignore
         )
 
-        # Correct angle sign
-        # TODO [RMSIN-448]: Need to correct case of angles greater than 90 degrees
-        return -1 * (90 + angle)
+        # Transform to anatomical convention: 0° = neutral (arm hanging vertically)
+        # arctan2 gives ~-90° for vertical downward vector
+        # Add 90° to make neutral = 0°, then normalize to [0°, 360°]
+        result = (angle.to_numpy() + 90) % 360
+        return Signal1D(data=result, index=angle.index, unit="°")
 
     @property
     def left_shoulder_internalexternalrotation(self):
@@ -4239,15 +4649,17 @@ class WholeBody(TimeseriesRecord):
         # Align vector to new reference frame
         vr = np.einsum("nij,nj->ni", rmat, va)
 
-        # Consider transverse plane fixed to the generated reference frame
-        cols = elbow_lat.columns
-        axes_labels = [self.lateral_axis, self.anteroposterior_axis]
-        col_map = [np.where(cols == i)[0][0] for i in axes_labels]
-        col_map = np.array(col_map)
-        x, y = vr[:, col_map].T
+        # Transverse plane components (lateral X and anteroposterior Z)
+        # After einsum, vr has shape (n, 3) with components [X, Y, Z] in the reference frame
+        x = vr[:, 0]  # Lateral component
+        y = vr[:, 2]  # Anteroposterior component
 
-        # Calculate angle of vector with respect to plane
+        # Calculate angle of vector with respect to transverse plane
         angle = np.degrees(np.arctan2(y, x))
+
+        # Invert sign to match clinical convention: positive = internal rotation, negative = external rotation
+        # Original implementation had opposite convention
+        angle = -angle
 
         # Return angle
         return Signal1D(data=angle, index=elbow_lat.index, unit="°")
@@ -4316,10 +4728,12 @@ class WholeBody(TimeseriesRecord):
         )
 
         # Get reference vector
-        va = (elbow_med - elbow_lat).to_numpy()
+        # Fixed: Changed from elbow_med - elbow_lat to elbow_lat - elbow_med to match left side
+        va = (elbow_lat - elbow_med).to_numpy()
 
         # Determine rotation matrix for reference frame
-        i = (proj - shoulder).to_numpy()
+        # Fixed: Changed from proj - shoulder to shoulder - proj to match left side
+        i = (shoulder - proj).to_numpy()
         i = i / np.linalg.norm(i, axis=1, keepdims=True)
         k = (shoulder - self.right_elbow).to_numpy()
         k = k / np.linalg.norm(k, axis=1, keepdims=True)
@@ -4329,18 +4743,135 @@ class WholeBody(TimeseriesRecord):
         # Align vector to new reference frame
         vr = np.einsum("nij,nj->ni", rmat, va)
 
-        # Consider transverse plane fixed to the generated reference frame
-        cols = elbow_lat.columns
-        axes_labels = [self.lateral_axis, self.anteroposterior_axis]
-        col_map = [np.where(cols == i)[0][0] for i in axes_labels]
-        col_map = np.array(col_map)
-        x, y = vr[:, col_map].T
+        # Transverse plane components (lateral X and anteroposterior Z)
+        # After einsum, vr has shape (n, 3) with components [X, Y, Z] in the reference frame
+        x = vr[:, 0]  # Lateral component
+        y = vr[:, 2]  # Anteroposterior component
 
-        # Calculate angle of vector with respect to plane
+        # Calculate angle of vector with respect to transverse plane
         angle = np.degrees(np.arctan2(y, x))
 
-        # Return angle
+        # Fixed: Removed compensatory negation after fixing reference frame and vector directions
+        # Invert sign to match clinical convention: positive = internal rotation, negative = external rotation
         return Signal1D(data=-angle, index=elbow_lat.index, unit="°")
+
+    @property
+    def shoulder_lateral_tilt(self):
+        """
+        Calculate shoulder lateral tilt (roll) in frontal plane using regression.
+
+        The angle represents the left or right tilting of the shoulder line
+        (connecting left and right shoulders) relative to horizontal,
+        measured in the frontal plane.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Right tilt (inclinazione destra delle spalle)
+          The right shoulder is higher than the left shoulder.
+          Common in right shoulder elevation.
+        - **Negative (-)**: Left tilt (inclinazione sinistra delle spalle)
+          The left shoulder is higher than the right shoulder.
+          Common in left shoulder elevation.
+        - **0°**: Neutral position (shoulders level, horizontal alignment)
+
+        Calculation Method
+        ------------------
+        Uses special shoulder tilt reference frame with:
+        - Origin: Neck base (midpoint of C7 and sternoclavicular junction)
+        - X-axis: LEFT (from right ASIS-PSIS midpoint to left ASIS-PSIS midpoint)
+        - Y-axis: UP (pelvis_center to neck_base)
+        - Z-axis: FORWARD (cross product)
+
+        Both shoulders are transformed to this reference frame, and a linear
+        regression through the origin is performed in the frontal plane (X-Y).
+        The slope of the regression line is converted to an angle.
+
+        Clinical Relevance
+        ------------------
+        - Excessive lateral tilt (> 5-10° static): Associated with:
+          * Shoulder muscle imbalance
+          * Scoliosis
+          * Unilateral shoulder pathology
+          * Asymmetric posture
+        - Compensates for:
+          * Trunk lateral flexion
+          * Pelvis lateral tilt
+
+        Returns
+        -------
+        Signal1D
+            Shoulder lateral tilt angle in degrees.
+            Positive = right tilt (right shoulder up)
+            Negative = left tilt (left shoulder up)
+
+        See Also
+        --------
+        trunk_lateralflexion_global : Trunk frontal plane flexion
+        pelvis_lateral_tilt : Pelvis frontal plane tilt
+        left_shoulder_elevationdepression : Left shoulder elevation
+        right_shoulder_elevationdepression : Right shoulder elevation
+        """
+        # Get shoulder positions
+        left_shoulder = self.left_shoulder
+        right_shoulder = self.right_shoulder
+
+        # Get neck base (origin of reference frame)
+        neck_base = self.neck_base
+
+        # Build shoulder tilt reference frame
+        # Get pelvis markers for X-axis
+        l_asis = self._get_point("left_asis")
+        r_asis = self._get_point("right_asis")
+        l_psis = self._get_point("left_psis")
+        r_psis = self._get_point("right_psis")
+
+        # X-axis: LEFT (from right midpoint to left midpoint)
+        left_mid = (l_asis + l_psis) / 2
+        right_mid = (r_asis + r_psis) / 2
+        x = (left_mid - right_mid).to_numpy()
+        x = x / np.linalg.norm(x, axis=1, keepdims=True)
+
+        # Y-axis: UP (pelvis_center to neck_base)
+        pelvis_center = self.pelvis_center
+        y = (neck_base - pelvis_center).to_numpy()
+        y = y / np.linalg.norm(y, axis=1, keepdims=True)
+
+        # Z-axis: FORWARD (cross product)
+        z = np.cross(x, y)
+
+        # Gram-Schmidt orthonormalization
+        rmat = gram_schmidt(x, y, z).transpose((0, 2, 1))
+
+        # Transform shoulders to reference frame (vectors from neck_base origin)
+        left_shoulder_vec = (left_shoulder - neck_base).to_numpy()
+        right_shoulder_vec = (right_shoulder - neck_base).to_numpy()
+
+        left_shoulder_rf = np.einsum("nij,nj->ni", rmat, left_shoulder_vec)
+        right_shoulder_rf = np.einsum("nij,nj->ni", rmat, right_shoulder_vec)
+
+        # Frontal plane coordinates (X-Y)
+        # For each frame, we have 2 points: left and right shoulder
+        # We stack them to get x_coords and y_coords arrays
+        x_coords = np.stack(
+            [left_shoulder_rf[:, 0], right_shoulder_rf[:, 0]],
+            axis=1,
+        )
+        y_coords = np.stack(
+            [left_shoulder_rf[:, 1], right_shoulder_rf[:, 1]],
+            axis=1,
+        )
+
+        # Linear regression through origin: slope = sum(x*y) / sum(x²)
+        # For each frame (row), calculate slope
+        slope = np.sum(x_coords * y_coords, axis=1) / np.sum(
+            x_coords * x_coords, axis=1
+        )
+
+        # Convert slope to angle
+        angle = np.arctan(slope) * 180 / np.pi
+
+        # Return angle
+        return Signal1D(data=angle, index=left_shoulder.index, unit="°")
 
     @property
     def left_scapular_protractionretraction(self):
@@ -4635,10 +5166,15 @@ class WholeBody(TimeseriesRecord):
 
         Calculation Method
         ------------------
-        Measured as the angle between the upper arm (shoulder-to-elbow) and
-        forearm (elbow-to-wrist) vectors. Calculated as 180° minus the angle
-        formed by the three points (wrist, elbow, shoulder), so that flexion
-        is positive and full extension is zero.
+        Uses left elbow reference frame with:
+        - Origin: Left elbow center (midpoint of lateral and medial elbow markers)
+        - X-axis: LEFT (elbow_lateral - elbow_medial)
+        - Y-axis: UP (elbow → shoulder)
+        - Z-axis: FORWARD (cross product)
+
+        The wrist position is transformed to the elbow reference frame and
+        the angle is measured in the sagittal plane (Z-Y components).
+        Zero is defined when wrist is at 270° (vertical DOWN, fully extended arm).
 
         Clinical Relevance
         ------------------
@@ -4656,21 +5192,35 @@ class WholeBody(TimeseriesRecord):
         Signal1D
             Elbow flexion/extension angle in degrees.
             Positive = flexion (bent elbow)
-            Negative = extension (hyperextension)
+            Range: [0°, 180°]
 
         See Also
         --------
         right_elbow_flexionextension : Right elbow flexion angle
         left_shoulder_flexionextension : Left shoulder flexion angle
         """
-        p1 = self.left_wrist
-        p2 = self.left_elbow
-        p3 = self.left_shoulder
-        return Signal1D(
-            data=180 - self._get_angle_between_three_points(p1, p2, p3),
-            index=p1.index,
-            unit="°",
+        elbow = self.left_elbow
+        wrist = self.left_wrist
+        rmat = self.left_elbow_referenceframe.rotation_matrix
+
+        # Wrist vector from elbow origin
+        wrist_vec = (wrist - elbow).to_numpy()
+
+        # Transform to elbow reference frame
+        wrist_rf = np.einsum("nij,nj->ni", rmat, wrist_vec)
+
+        # Sagittal plane angle (Z-Y components)
+        # Elbow flexion is measured from the extended position (wrist below elbow, Y negative)
+        # arctan2(-Z, -Y) gives angle from downward vertical (-Y axis)
+        # At extended (wrist straight down): Z≈0, Y<0 → angle ≈ 0°
+        # At flexed (wrist forward): Z>0, Y<0 → angle < 0°, so negate to get positive flexion
+        flexion = (
+            -np.arctan2(wrist_rf[:, 2], -wrist_rf[:, 1])
+            * 180
+            / np.pi
         )
+
+        return Signal1D(data=flexion, index=elbow.index, unit="°")
 
     @property
     def right_elbow_flexionextension(self):
@@ -4720,14 +5270,29 @@ class WholeBody(TimeseriesRecord):
         left_elbow_flexionextension : Left elbow flexion angle
         right_shoulder_flexionextension : Right shoulder flexion angle
         """
-        p1 = self.right_wrist
-        p2 = self.right_elbow
-        p3 = self.right_shoulder
-        return Signal1D(
-            data=180 - self._get_angle_between_three_points(p1, p2, p3),
-            index=p1.index,
-            unit="°",
+        elbow = self.right_elbow
+        wrist = self.right_wrist
+        rmat = self.right_elbow_referenceframe.rotation_matrix
+
+        # Wrist vector from elbow origin
+        wrist_vec = (wrist - elbow).to_numpy()
+
+        # Transform to elbow reference frame
+        wrist_rf = np.einsum("nij,nj->ni", rmat, wrist_vec)
+
+        # Sagittal plane angle (Z-Y components)
+        # Elbow flexion is measured from the extended position (wrist below elbow, Y negative)
+        # For left-handed frame: Z is negated to point forward
+        # arctan2(-Z, -Y) gives angle from downward vertical (-Y axis)
+        # At extended (wrist straight down): Z≈0, Y<0 → angle ≈ 0°
+        # At flexed (wrist forward): Z<0 (negated), Y<0 → angle > 0°, but we need to negate result
+        flexion = (
+            -np.arctan2(wrist_rf[:, 2], -wrist_rf[:, 1])
+            * 180
+            / np.pi
         )
+
+        return Signal1D(data=flexion, index=elbow.index, unit="°")
 
     def copy(self):
         return WholeBody(**{i: v.copy() for i, v in self.items()})  # type: ignore

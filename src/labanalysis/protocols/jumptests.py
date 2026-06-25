@@ -27,6 +27,7 @@ from ..constants import (
 from ..records.jumping import DropJump, SingleJump, RepeatedJumps
 from ..records.pipelines import get_default_processing_pipeline
 from ..records.records import ForcePlatform, TimeseriesRecord
+from ..records.referenceframes import ReferenceFrame
 from ..records.timeseries import EMGSignal, Point3D
 from ..signalprocessing import butterworth_filt, continuous_batches, fillna, rms_filt
 from ..utils import hex_to_rgba
@@ -578,13 +579,8 @@ class JumpTest(TestProtocol):
             vt = np.array([0, 1, 0])
             ap = np.cross(ml, vt)
             origin = (rt + lt) / 2
-            exe.change_reference_frame(
-                ml,
-                vt,
-                ap,
-                origin,
-                inplace=True,
-            )
+            ref_frame = ReferenceFrame(origin, ml, vt, ap)
+            exe.apply(ref_frame, inplace=True)
             if exe is None:
                 raise ValueError("reference frame alignment returned None")
 

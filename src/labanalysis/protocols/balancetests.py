@@ -15,6 +15,7 @@ from ..modelling import Ellipse
 from ..records.pipelines import get_default_processing_pipeline
 from ..records.posture import PronePosture, UprightPosture
 from ..records.records import ForcePlatform, TimeseriesRecord
+from ..records.referenceframes import ReferenceFrame
 from ..records.timeseries import EMGSignal, Point3D
 from ..utils import FloatArray1D
 from .normativedata import (
@@ -540,13 +541,8 @@ class UprightBalanceTest(TestProtocol):
             vt = np.array([0, 1, 0])
             ap = np.cross(ml, vt)
             origin = (rt + lt) / 2
-            exe.change_reference_frame(
-                ml,
-                vt,
-                ap,
-                origin,
-                inplace=True,
-            )
+            ref_frame = ReferenceFrame(origin, ml, vt, ap)
+            exe.apply(ref_frame, inplace=True)
             if exe is None:
                 raise ValueError("reference frame alignment returned None")
 
@@ -871,12 +867,8 @@ class PlankBalanceTest(TestProtocol):
         vt = np.array([0, 1, 0])
         ap = np.cross(ml, vt)
         origin = (rf + lf + rh + lh) / 4
-        exe = exe.change_reference_frame(
-            ml,
-            vt,
-            ap,
-            origin,
-            inplace=False,
+        ref_frame = ReferenceFrame(origin, ml, vt, ap)
+        exe = exe.apply(ref_frame, inplace=False
         )
         if exe is None:
             raise ValueError("reference frame alignment returned None")

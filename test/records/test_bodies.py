@@ -163,13 +163,15 @@ def test_ankle_referenceframe_with_missing_medial_markers():
     )
 
     # Test that reference frames can be calculated without error
-    left_ankle_origin, left_rmat = body.left_ankle_referenceframe
-    right_ankle_origin, right_rmat = body.right_ankle_referenceframe
+    left_rf = body.left_ankle_referenceframe
+    right_rf = body.right_ankle_referenceframe
 
-    assert left_ankle_origin is not None
-    assert right_ankle_origin is not None
-    assert left_rmat is not None
-    assert right_rmat is not None
+    assert left_rf is not None
+    assert right_rf is not None
+
+    # Get rotation matrices from reference frames
+    left_rmat = left_rf.rotation_matrix
+    right_rmat = right_rf.rotation_matrix
 
     # Check rotation matrix shape
     assert left_rmat.shape == (n_samples, 3, 3)
@@ -403,9 +405,9 @@ def test_foot_plane_with_all_markers():
     # Create foot markers
     body = create_wholebody_with_foot_markers(n_samples)
 
-    # Test left and right foot planes
-    left_plane = body.left_foot_plane
-    right_plane = body.right_foot_plane
+    # Test left and right foot planes (now private properties)
+    left_plane = body._left_foot_plane
+    right_plane = body._right_foot_plane
 
     assert left_plane is not None
     assert right_plane is not None
@@ -496,7 +498,7 @@ def test_ankle_angles_with_new_foot_plane():
 
 
 def test_neck_angles_with_head_center():
-    """Test neck_lateral_tilt, neck_flexionextension_local, neck_flexionextension_global."""
+    """Test neck_lateral_tilt and neck_flexionextension."""
     n_samples = 100
 
     # Create WholeBody with head and neck markers
@@ -504,21 +506,17 @@ def test_neck_angles_with_head_center():
 
     # Test neck angle properties
     lateral_tilt = body.neck_lateral_tilt
-    flex_local = body.neck_flexionextension_local
-    flex_global = body.neck_flexionextension_global
+    flexion = body.neck_flexionextension
 
     assert lateral_tilt is not None
-    assert flex_local is not None
-    assert flex_global is not None
+    assert flexion is not None
 
     assert isinstance(lateral_tilt, laban.Signal1D)
-    assert isinstance(flex_local, laban.Signal1D)
-    assert isinstance(flex_global, laban.Signal1D)
+    assert isinstance(flexion, laban.Signal1D)
 
     # Signal1D may have shape (n_samples,) or (n_samples, 1)
     assert lateral_tilt.shape[0] == n_samples
-    assert flex_local.shape[0] == n_samples
-    assert flex_global.shape[0] == n_samples
+    assert flexion.shape[0] == n_samples
 
 
 ## SECTION 4: Integration tests (Suite 3)

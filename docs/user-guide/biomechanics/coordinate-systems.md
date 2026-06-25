@@ -9,12 +9,14 @@ Biomechanical data is typically collected in a **global (laboratory) reference f
 - Defining custom coordinate systems using Gram-Schmidt orthonormalization
 - Transforming 3D data between reference frames
 - Working with anatomical reference frames (pelvis, trunk, limbs)
+- Using semantic axis naming for coordinate-system independence
 
 **Key Concepts:**
 - **Global frame**: Laboratory/world coordinates (fixed in space)
 - **Local frame**: Anatomical coordinates (moves with body segments)
 - **Transformation**: Converting data from one frame to another
 - **Orthonormalization**: Creating perpendicular unit vectors from non-orthogonal inputs
+- **Semantic axis naming**: Using anatomically meaningful names (`lateral_axis`, `vertical_axis`, `anteroposterior_axis`) instead of coordinate-specific names (X/Y/Z)
 
 ## Quick Reference
 
@@ -23,25 +25,20 @@ import labanalysis as laban
 import numpy as np
 
 # Create pelvis coordinate system from markers
-l_asis = body.left_asis   # Point3D
-r_asis = body.right_asis
-l_psis = body.left_psis
-r_psis = body.right_psis
+# Point3D objects can be used directly (new in v206)
+lateral_axis = body.right_asis - body.left_asis  # Point3D (mediolateral)
+vertical_axis = (body.left_asis + body.right_asis) / 2 - \
+                (body.left_psis + body.right_psis) / 2  # Point3D
 
-# Define pelvis axes
-i = (r_asis - l_asis).to_numpy()  # Mediolateral (left to right)
-j = ((l_asis + r_asis) / 2 - (l_psis + r_psis) / 2).to_numpy()  # Anteroposterior
-
-# Create orthonormal reference frame
-R_pelvis = laban.gram_schmidt(i, j, k=None)  # Returns (N, 3, 3)
+# Create reference frame with semantic axis naming
+pelvis_rf = laban.ReferenceFrame(
+    origin=body.pelvis_center,      # Point3D
+    lateral_axis=lateral_axis,       # Point3D from subtraction
+    vertical_axis=vertical_axis      # Point3D from arithmetic
+)
 
 # Transform marker to pelvis frame
-marker_pelvis = marker.change_reference_frame(
-    new_x=R_pelvis[:, :, 0],
-    new_y=R_pelvis[:, :, 1],
-    new_z=R_pelvis[:, :, 2],
-    new_origin=pelvis_center
-)
+marker_pelvis = pelvis_rf.apply(body.left_knee)  # Returns Point3D
 ```
 
 ## Global vs Local Reference Frames
@@ -451,8 +448,72 @@ if len(sign_flips) > 0:
     # Investigate marker data at these frames
 ```
 
+## Semantic Axis Naming and Coordinate Independence
+
+Starting with version 206, labanalysis uses **semantic axis naming** in the `ReferenceFrame` class to make code independent of the user's coordinate system configuration.
+
+### Why Semantic Naming?
+
+Traditional approaches have problems:
+- **Generic names** (`axis_1`, `axis_2`, `axis_3`) don't convey anatomical meaning
+- **Coordinate-specific names** (`x_axis`, `y_axis`, `z_axis`) assume a fixed mapping that may not match the user's setup
+
+**Example of the problem:**
+```python
+# If user configures vertical_axis="X" instead of "Z", this breaks:
+vertical_component = marker['Z']  # Wrong! Z might not be vertical
+```
+
+### The Solution: Semantic Parameters
+
+The `ReferenceFrame` class uses anatomically meaningful parameter names:
+- `lateral_axis` - Always means mediolateral direction
+- `vertical_axis` - Always means superior-inferior direction
+- `anteroposterior_axis` - Always means forward-backward direction
+
+```python
+import labanalysis as laban
+
+# Create reference frame with semantic parameters
+ref_frame = laban.ReferenceFrame(
+    origin=pelvis_center,
+    lateral_axis=mediolateral_vector,      # Semantic meaning clear
+    vertical_axis=superoinferior_vector    # Independent of global X/Y/Z
+)
+
+# After transformation, indices have guaranteed meaning:
+transformed = np.einsum("nij,nj->ni", ref_frame.rotation_matrix, vector)
+lateral = transformed[:, 0]          # ALWAYS lateral component
+vertical = transformed[:, 1]         # ALWAYS vertical component
+anteroposterior = transformed[:, 2]  # ALWAYS anteroposterior component
+```
+
+**Key insight**: The mapping of indices [0], [1], [2] to lateral/vertical/anteroposterior is **fixed by ReferenceFrame construction**, not by global coordinate conventions.
+
+### Working with Different Coordinate Systems
+
+Your code works the same regardless of user configuration:
+
+```python
+# User A configures: lateral="X", vertical="Y", anteroposterior="Z"
+# User B configures: lateral="Z", vertical="X", anteroposterior="Y"
+
+# Same code works for both:
+ref_frame = laban.ReferenceFrame(
+    origin=origin,
+    lateral_axis=some_vector_1,
+    vertical_axis=some_vector_2
+)
+
+# Results are always interpretable the same way:
+# Index 0 = lateral, Index 1 = vertical, Index 2 = anteroposterior
+```
+
+For more details, see [Tutorial: Custom Reference Frames](../../tutorials/09-custom-reference-frames.md).
+
 ## See Also
 
+- [Tutorial: Custom Reference Frames](../../tutorials/09-custom-reference-frames.md) - Complete guide to semantic axis API
 - [Signal Processing: Transformations](../signal-processing/transformations.md) - Detailed `change_reference_frame()` guide
 - [WholeBody Model](whole-body-model.md) - Pre-defined anatomical frames
 - [Joint Angles](joint-angles.md) - Angles calculated in local frames

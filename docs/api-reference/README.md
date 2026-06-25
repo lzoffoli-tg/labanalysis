@@ -26,6 +26,11 @@ Data structures for time-series and biomechanical data:
   - 36 joint angles
   - 8 computed properties
 
+- **[ReferenceFrame](records/referenceframes.md)** - Anatomical reference frames
+  - `ReferenceFrame` - Coordinate system transformations
+  - Semantic axis naming (lateral, vertical, anteroposterior)
+  - Point3D/Signal3D input support
+
 - **[Jumping](records/jumping.md)** - Jump analysis classes
   - `SingleJump` - Single jump movement
   - `DropJump` - Drop jump specialization

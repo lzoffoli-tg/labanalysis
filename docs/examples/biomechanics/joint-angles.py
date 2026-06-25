@@ -54,6 +54,29 @@ def main():
 
     print("✓ Extracted 8 joint angles")
 
+    # ===== INSPECT REFERENCE FRAMES (OPTIONAL) =====
+    # Joint angles are computed from anatomical reference frames.
+    # You can inspect these frames to understand the calculation basis.
+
+    # Example: Access the knee reference frame
+    left_knee_rf = body.left_knee_referenceframe
+
+    # The reference frame has semantic axes (coordinate-system independent):
+    # - lateral_axis: mediolateral direction
+    # - vertical_axis: superior-inferior direction
+    # - anteroposterior_axis: forward-backward direction
+    #
+    # These semantic names ensure code works regardless of the user's
+    # global coordinate configuration (e.g., vertical_axis="Y" or "Z")
+
+    print("\nReference frame semantic axes (first frame):")
+    print(f"  Lateral axis: {left_knee_rf.lateral_axis[0]}")
+    print(f"  Vertical axis: {left_knee_rf.vertical_axis[0]}")
+
+    # You can also manually transform vectors into the reference frame
+    # See: docs/tutorials/09-custom-reference-frames.md
+    # See: docs/examples/biomechanics/reference-frames.py
+
 
     # ===== 3. FILTER ANGLES (REMOVE NOISE) =====
     print("\nFiltering angles...")

@@ -140,6 +140,26 @@ def aligned_knees_wholebody():
     # Left leg - perfectly vertical (X = -10 for all joints)
     left_x = -10.0
 
+    # Add upper body markers (required for pelvis_referenceframe calculation)
+    sc = Point3D(
+        data=np.column_stack([
+            np.zeros(n_frames),
+            np.full(n_frames, 145.0),
+            np.full(n_frames, 5.0),
+        ]),
+        index=time_index,
+        columns=["X", "Y", "Z"],
+    )
+    c7 = Point3D(
+        data=np.column_stack([
+            np.zeros(n_frames),
+            np.full(n_frames, 150.0),
+            np.full(n_frames, -5.0),
+        ]),
+        index=time_index,
+        columns=["X", "Y", "Z"],
+    )
+
     # Pelvis/hip markers
     left_asis = Point3D(
         data=np.column_stack([
@@ -279,6 +299,8 @@ def aligned_knees_wholebody():
     )
 
     return WholeBody(
+        sc=sc,
+        c7=c7,
         left_asis=left_asis,
         right_asis=right_asis,
         left_psis=left_psis,
@@ -457,6 +479,26 @@ class TestHipAnglesSignConvention:
         n_frames = 10
         time_index = list(range(n_frames))
 
+        # Add upper body markers (required for pelvis_referenceframe)
+        sc = Point3D(
+            data=np.column_stack([
+                np.zeros(n_frames),
+                np.full(n_frames, 145.0),
+                np.full(n_frames, 5.0),
+            ]),
+            index=time_index,
+            columns=["X", "Y", "Z"],
+        )
+        c7 = Point3D(
+            data=np.column_stack([
+                np.zeros(n_frames),
+                np.full(n_frames, 150.0),
+                np.full(n_frames, -5.0),
+            ]),
+            index=time_index,
+            columns=["X", "Y", "Z"],
+        )
+
         # Create pelvis and hip
         left_asis = Point3D(
             data=np.column_stack([
@@ -525,6 +567,8 @@ class TestHipAnglesSignConvention:
         )
 
         body = WholeBody(
+            sc=sc,
+            c7=c7,
             left_asis=left_asis,
             right_asis=right_asis,
             left_psis=left_psis,
@@ -541,6 +585,26 @@ class TestHipAnglesSignConvention:
         """Test that hip abduction (thigh outward) returns positive angle."""
         n_frames = 10
         time_index = list(range(n_frames))
+
+        # Add upper body markers (required for pelvis_referenceframe)
+        sc = Point3D(
+            data=np.column_stack([
+                np.zeros(n_frames),
+                np.full(n_frames, 145.0),
+                np.full(n_frames, 5.0),
+            ]),
+            index=time_index,
+            columns=["X", "Y", "Z"],
+        )
+        c7 = Point3D(
+            data=np.column_stack([
+                np.zeros(n_frames),
+                np.full(n_frames, 150.0),
+                np.full(n_frames, -5.0),
+            ]),
+            index=time_index,
+            columns=["X", "Y", "Z"],
+        )
 
         # Create pelvis and hip
         left_asis = Point3D(
@@ -610,6 +674,8 @@ class TestHipAnglesSignConvention:
         )
 
         body = WholeBody(
+            sc=sc,
+            c7=c7,
             left_asis=left_asis,
             right_asis=right_asis,
             left_psis=left_psis,
