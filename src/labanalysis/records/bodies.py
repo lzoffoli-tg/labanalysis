@@ -440,18 +440,6 @@ class WholeBody(TimeseriesRecord):
 
         return cls(**mandatory, **extras)  # type: ignore
 
-    def to_dataframe(self):
-        out = [super().to_dataframe()]
-        for prop in self._angular_measures:
-            try:
-                df = getattr(self, prop).to_dataframe()
-                df.columns = pd.Index([prop + "_" + i for i in df.columns])
-                out += [df]
-            except Exception as exc:
-                continue
-
-        return pd.concat(out, axis=1)
-
     def _get_point(self, label: str):
         element = self.get(label)
         if element is None:

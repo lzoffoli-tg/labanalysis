@@ -34,13 +34,18 @@ def write_trc(
 ```python
 import labanalysis as laban
 from labanalysis.io.write import write_trc
+import pandas as pd
 
 # Load data
 data = laban.read_tdf("gait.tdf", marker_keys=[".*"])
-body = laban.WholeBody(**data)
 
-# Convert to DataFrame
-markers_df = body.to_dataframe(markers_only=True)
+# Combine markers into DataFrame
+marker_dfs = []
+for key, value in data.items():
+    if isinstance(value, laban.Point3D):
+        marker_dfs.append(value.to_dataframe())
+
+markers_df = pd.concat(marker_dfs, axis=1)
 
 # Export to TRC
 write_trc("gait_markers.trc", markers_df)
@@ -93,11 +98,18 @@ Until `write_trc()` and `write_mot()` are implemented, use DataFrame export:
 
 ```python
 import labanalysis as laban
+import pandas as pd
 
 # Load and convert
 data = laban.read_tdf("trial.tdf", marker_keys=[".*"])
-body = laban.WholeBody(**data)
-markers_df = body.to_dataframe(markers_only=True)
+
+# Combine markers
+marker_dfs = []
+for key, value in data.items():
+    if isinstance(value, laban.Point3D):
+        marker_dfs.append(value.to_dataframe())
+
+markers_df = pd.concat(marker_dfs, axis=1)
 
 # Export to CSV (intermediate format)
 markers_df.to_csv("markers.csv")

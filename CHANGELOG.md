@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [209] - 2026-06-26
+
+### Removed
+
+- **BREAKING**: Removed `to_dataframe()` method from `WholeBody` class (previously inherited from `TimeseriesRecord`)
+  - Users should access individual properties (e.g., `body.left_ankle`, `body.joint_angles`) and use their respective `to_dataframe()` methods
+  - This change simplifies the API and encourages working with specific data components rather than monolithic exports
+
 ## [207] - 2026-06-26
 
 ### Documentation

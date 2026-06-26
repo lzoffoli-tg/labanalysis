@@ -376,25 +376,24 @@ if asymmetry > 10:
     print("Warning: Significant bilateral asymmetry detected")
 ```
 
-## Export All Angles to DataFrame
+## Export Angles to DataFrame
 
 ```python
-# Convert all angles to pandas DataFrame
-df = body.to_dataframe()
+import pandas as pd
 
-# This includes all 38 angles plus marker positions
-print(df.columns)
-# Output: ['left_ankle_flexionextension_°', 'left_knee_flexionextension_°', ...]
+# Export specific angles
+ankle_df = body.left_ankle_flexionextension.to_dataframe()
+knee_df = body.left_knee_flexionextension.to_dataframe()
+hip_df = body.left_hip_flexionextension.to_dataframe()
+
+# Combine angles into one DataFrame
+angles_df = pd.concat([ankle_df, knee_df, hip_df], axis=1)
 
 # Export to Excel
-df.to_excel("joint_angles.xlsx")
+angles_df.to_excel("joint_angles.xlsx")
 
 # Export to CSV
-df.to_csv("joint_angles.csv")
-
-# Select only angle columns
-angle_cols = [col for col in df.columns if '_°' in col]
-df_angles = df[angle_cols]
+angles_df.to_csv("joint_angles.csv")
 ```
 
 ## Filtering Angles

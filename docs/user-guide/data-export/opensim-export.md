@@ -18,10 +18,14 @@ import labanalysis as laban
 from labanalysis.io.write import write_trc, write_mot
 
 # Export marker data to TRC
-markers_df = body.to_dataframe(markers_only=True)
-write_trc("output.trc", markers_df)
+data = laban.read_tdf("trial.tdf", marker_keys=["left_ankle"])
+marker = data['left_ankle']
+marker_df = marker.to_dataframe()
+write_trc("output.trc", marker_df)
 
 # Export force platform data to MOT
+fp_data = laban.read_tdf("trial.tdf", forceplatform_keys=["fp1"])
+force_platform = fp_data['fp1']
 grf_df = force_platform.to_dataframe()
 write_mot("output.mot", grf_df)
 ```
@@ -51,13 +55,19 @@ The input DataFrame must have:
 ```python
 import labanalysis as laban
 from labanalysis.io.write import write_trc
+import pandas as pd
 
 # Load data
 data = laban.read_tdf("gait_trial.tdf", marker_keys=[".*"])
-body = laban.WholeBody(**data)
 
-# Convert to DataFrame (markers only)
-markers_df = body.to_dataframe(markers_only=True)
+# Combine all markers into one DataFrame
+marker_dfs = []
+for marker_name, marker_data in data.items():
+    if isinstance(marker_data, laban.Point3D):
+        df = marker_data.to_dataframe()
+        marker_dfs.append(df)
+
+markers_df = pd.concat(marker_dfs, axis=1)
 
 # Export to TRC
 write_trc("gait_trial.trc", markers_df)
@@ -105,15 +115,13 @@ Frame#	Time	left_ankle		right_ankle		...
 ```python
 import labanalysis as laban
 from labanalysis.io.write import write_trc
+import pandas as pd
 
 # Load gait trial
 data = laban.read_tdf(
     "gait_trial.tdf",
     marker_keys=["left_.*", "right_.*", ".*asis", ".*psis"]
 )
-
-# Create WholeBody
-body = laban.WholeBody(**data)
 
 # Filter to specific markers for OpenSim model
 marker_subset = [
@@ -126,8 +134,14 @@ marker_subset = [
     's2', 'c7'
 ]
 
-# Extract markers as DataFrame
-markers_df = body.to_dataframe(signals=marker_subset)
+# Extract markers as DataFrames and combine
+marker_dfs = []
+for marker_name in marker_subset:
+    if marker_name in data:
+        df = data[marker_name].to_dataframe()
+        marker_dfs.append(df)
+
+markers_df = pd.concat(marker_dfs, axis=1)
 
 # Export to TRC
 write_trc("gait_opensim.trc", markers_df)
@@ -259,15 +273,18 @@ Complete workflow from TDF to OpenSim:
 ```python
 import labanalysis as laban
 from labanalysis.io.write import write_trc, write_mot
+import pandas as pd
 
 # Load trial
 data = laban.read_tdf("gait.tdf", marker_keys=[".*"], forceplatform_keys=[".*"])
 
-# Create body model
-body = laban.WholeBody(**data)
-
 # Export markers for IK
-markers_df = body.to_dataframe(markers_only=True)
+marker_dfs = []
+for key, value in data.items():
+    if isinstance(value, laban.Point3D):
+        marker_dfs.append(value.to_dataframe())
+
+markers_df = pd.concat(marker_dfs, axis=1)
 write_trc("gait_markers.trc", markers_df)
 
 # Export GRF for ID
@@ -285,6 +302,7 @@ print("  2. Run ID with gait_grf.mot")
 ```python
 import labanalysis as laban
 from labanalysis.io.write import write_trc
+import pandas as pd
 
 # Load running trial
 data = laban.read_tdf("running.tdf", marker_keys=[".*"])
@@ -292,8 +310,14 @@ running = laban.RunningExercise(algorithm='kinematics', **data)
 
 # Process each cycle
 for i, cycle in enumerate(running.cycles):
-    # Export each running step as separate TRC
-    markers_df = cycle.to_dataframe(markers_only=True)
+    # Extract markers from each cycle
+    marker_dfs = []
+    for attr_name in dir(cycle):
+        attr = getattr(cycle, attr_name)
+        if isinstance(attr, laban.Point3D):
+            marker_dfs.append(attr.to_dataframe())
+    
+    markers_df = pd.concat(marker_dfs, axis=1)
     write_trc(f"running_step_{i+1:02d}.trc", markers_df)
 
 print(f"Exported {len(running.cycles)} running steps")
@@ -305,6 +329,7 @@ print(f"Exported {len(running.cycles)} running steps")
 from pathlib import Path
 import labanalysis as laban
 from labanalysis.io.write import write_trc
+import pandas as pd
 
 # Process all trials in a directory
 tdf_files = Path("raw_data/").glob("*.tdf")
@@ -312,11 +337,17 @@ tdf_files = Path("raw_data/").glob("*.tdf")
 for tdf_file in tdf_files:
     # Load
     data = laban.read_tdf(str(tdf_file), marker_keys=[".*"])
-    body = laban.WholeBody(**data)
+    
+    # Combine markers
+    marker_dfs = []
+    for key, value in data.items():
+        if isinstance(value, laban.Point3D):
+            marker_dfs.append(value.to_dataframe())
+    
+    markers_df = pd.concat(marker_dfs, axis=1)
     
     # Export
     output_name = f"opensim_{tdf_file.stem}.trc"
-    markers_df = body.to_dataframe(markers_only=True)
     write_trc(output_name, markers_df)
     
     print(f"✓ {tdf_file.name} -> {output_name}")
@@ -359,7 +390,9 @@ OpenSim uses the **same convention** by default. No transformation needed.
 **Workaround**: Use manual DataFrame export:
 ```python
 # Export markers manually
-markers_df = body.to_dataframe(markers_only=True)
+import pandas as pd
+marker_dfs = [m.to_dataframe() for m in markers if isinstance(m, laban.Point3D)]
+markers_df = pd.concat(marker_dfs, axis=1)
 markers_df.to_csv("markers.csv")  # Use CSV as intermediate
 ```
 

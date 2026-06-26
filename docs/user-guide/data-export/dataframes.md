@@ -17,17 +17,17 @@ All labanalysis Record objects provide a `.to_dataframe()` method for converting
 import labanalysis as laban
 
 # Load data
-data = laban.read_tdf("trial.tdf", marker_keys=[".*"])
-body = laban.WholeBody(**data)
+data = laban.read_tdf("trial.tdf", forceplatform_keys=[".*"])
+fp = data['left_foot_ground_reaction_force']
 
 # Convert to DataFrame
-df = body.to_dataframe()
+df = fp.to_dataframe()
 
 # Export to CSV
-df.to_csv("trial_data.csv")
+df.to_csv("force_data.csv")
 
 # Export to Excel
-df.to_excel("trial_data.xlsx")
+df.to_excel("force_data.xlsx")
 ```
 
 ---
@@ -84,62 +84,6 @@ time
 0.01                          -5.1
 0.02                          -4.9
 ...
-```
-
----
-
-## WholeBody DataFrame Export
-
-### Export All Signals
-
-```python
-import labanalysis as laban
-
-data = laban.read_tdf("gait.tdf", marker_keys=[".*"], forceplatform_keys=[".*"])
-body = laban.WholeBody(**data)
-
-# Export everything
-df = body.to_dataframe()
-
-# DataFrame contains:
-# - All marker positions (X, Y, Z for each)
-# - All calculated angles
-# - All anthropometric measurements
-# - Force platform data
-```
-
-### Export Markers Only
-
-```python
-# Get only 3D marker positions
-markers_df = body.to_dataframe(markers_only=True)
-
-# MultiIndex columns:
-# Level 0: marker names
-# Level 1: ['X', 'Y', 'Z']
-# Level 2: units ['m']
-```
-
-### Export Specific Signals
-
-```python
-# Select specific signals
-signals = [
-    'left_ankle_flexionextension',
-    'right_ankle_flexionextension',
-    'left_knee_flexionextension',
-    'right_knee_flexionextension'
-]
-
-df = body.to_dataframe(signals=signals)
-```
-
-### Export with Custom Index Name
-
-```python
-# Rename time index
-df = body.to_dataframe()
-df.index.name = 'timestamp'
 ```
 
 ---
@@ -281,7 +225,8 @@ print(results_df)
 
 ```python
 # Basic CSV export
-df = body.to_dataframe()
+signal = laban.Signal1D(data=[1, 2, 3], index=[0, 1, 2], unit="N")
+df = signal.to_dataframe()
 df.to_csv("data.csv")
 
 # With custom options
@@ -298,13 +243,14 @@ df.to_csv(
 
 ```python
 # Single sheet
-df = body.to_dataframe()
+df = signal.to_dataframe()
 df.to_excel("data.xlsx", sheet_name='Trial1')
 
 # Multiple sheets
+import pandas as pd
 with pd.ExcelWriter("results.xlsx") as writer:
-    markers_df.to_excel(writer, sheet_name='Markers')
-    angles_df.to_excel(writer, sheet_name='Angles')
+    force_df.to_excel(writer, sheet_name='Force')
+    emg_df.to_excel(writer, sheet_name='EMG')
     summary_df.to_excel(writer, sheet_name='Summary')
 ```
 
@@ -312,7 +258,7 @@ with pd.ExcelWriter("results.xlsx") as writer:
 
 ```python
 # Parquet: faster, smaller files
-df = body.to_dataframe()
+df = signal.to_dataframe()
 df.to_parquet("data.parquet", compression='snappy')
 
 # Read back
@@ -324,7 +270,7 @@ df_loaded = pd.read_parquet("data.parquet")
 
 ```python
 # HDF5: good for hierarchical data
-df = body.to_dataframe()
+df = signal.to_dataframe()
 df.to_hdf("data.h5", key='trial1', mode='w')
 
 # Read back
@@ -391,17 +337,15 @@ import labanalysis as laban
 import pandas as pd
 import numpy as np
 
-# Load data
-data = laban.read_tdf("trial.tdf", marker_keys=[".*"])
-body = laban.WholeBody(**data)
+# Load force platform data
+data = laban.read_tdf("trial.tdf", forceplatform_keys=[".*"])
+fp = data['left_foot_ground_reaction_force']
 
 # Convert to DataFrame
-df = body.to_dataframe(markers_only=True)
+df = fp.to_dataframe()
 
-# Remove outliers (markers with Z < 0)
-for col in df.columns:
-    if col[1] == 'Z':  # Z coordinate
-        df.loc[df[col] < 0, col] = np.nan
+# Remove outliers (forces below threshold)
+df.loc[df['force_Z'] < 10, 'force_Z'] = np.nan
 
 # Fill missing values
 df_filled = df.fillna(method='linear')
@@ -544,16 +488,18 @@ for i in range(0, len(df), chunk_size):
 ### 2. Selective Export
 
 ```python
-# Only export what you need
-# Instead of:
-df_all = body.to_dataframe()  # All 90 properties!
+# Only export what you need from individual signals
+data = laban.read_tdf("trial.tdf", marker_keys=[".*"])
+body = laban.WholeBody(**data)
 
-# Do:
-df_angles = body.to_dataframe(signals=[
-    'left_ankle_flexionextension',
-    'left_knee_flexionextension',
-    'left_hip_flexionextension'
-])  # Only 3 signals
+# Export specific angles
+ankle_df = body.left_ankle_flexionextension.to_dataframe()
+knee_df = body.left_knee_flexionextension.to_dataframe()
+hip_df = body.left_hip_flexionextension.to_dataframe()
+
+# Combine if needed
+import pandas as pd
+df_angles = pd.concat([ankle_df, knee_df, hip_df], axis=1)
 ```
 
 ### 3. Compression
@@ -576,7 +522,10 @@ df.to_parquet("data.parquet", compression='snappy')
 
 **Solution**: Flatten columns
 ```python
-df = body.to_dataframe(markers_only=True)
+# Get marker data
+data = laban.read_tdf("trial.tdf", marker_keys=["left_ankle"])
+marker = data['left_ankle']
+df = marker.to_dataframe()
 
 # Flatten MultiIndex to single level
 df.columns = ['_'.join(col).strip() for col in df.columns.values]

@@ -407,24 +407,21 @@ df.to_csv('joint_angles.csv')
 
 #### Methods
 
-##### to_dataframe()
+##### Exporting Data
 
-Convert all angles to pandas DataFrame.
-
-```python
-def to_dataframe(self, angles_only: bool = True) -> pd.DataFrame
-```
-
-**Parameters:**
-- `angles_only` (bool): If True, include only joint angles. If False, include markers too.
-
-**Returns:**
-- `pd.DataFrame`: DataFrame with time index and angle/marker columns
+To export WholeBody data to DataFrames, access individual properties:
 
 **Example:**
 ```python
-df = body.to_dataframe(angles_only=True)
-df.to_excel("joint_angles.xlsx", index=False)
+import pandas as pd
+
+# Export specific angles
+ankle_df = body.left_ankle_flexionextension.to_dataframe()
+knee_df = body.left_knee_flexionextension.to_dataframe()
+
+# Combine multiple signals
+angles_df = pd.concat([ankle_df, knee_df], axis=1)
+angles_df.to_excel("joint_angles.xlsx", index=False)
 ```
 
 ## Usage Examples
