@@ -188,7 +188,7 @@ else:
 | Property | Description | Positive | Negative |
 |----------|-------------|----------|----------|
 | `trunk_flexionextension_global` | Sagittal flexion (global) | Flexion | Extension |
-| `trunk_lateralflexion_global` | Frontal flexion (global) | Left tilt | Right tilt |
+| `trunk_lateralflexion` | Frontal flexion (pelvis frame) | Right flexion | Left flexion |
 | `trunk_rotation_global` | Transverse rotation (global) | Right rotation | Left rotation |
 | `trunk_rotation_local` | Transverse rotation (relative to pelvis) | Right rotation | Left rotation |
 
@@ -293,9 +293,8 @@ else:
 
 | Property | Description | Positive | Negative |
 |----------|-------------|----------|----------|
-| `neck_lateral_tilt` | Frontal tilt | Right tilt | Left tilt |
-| `neck_flexionextension_local` | Sagittal (relative to trunk) | Flexion | Extension |
-| `neck_flexionextension_global` | Sagittal (global) | Forward | Backward |
+| `neck_lateralflexion` | Frontal lateral flexion | Right flexion | Left flexion |
+| `neck_flexionextension` | Sagittal flexion/extension | Flexion (forward) | Extension (backward) |
 
 **Example: Forward Head Posture Assessment**
 

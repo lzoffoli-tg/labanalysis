@@ -231,7 +231,7 @@ left_foot_plane = body.left_foot_plane  # Plane from 4 foot markers
 
 # Access individual joint angles
 knee_flexion = body.left_knee_flexionextension
-neck_tilt = body.neck_lateral_tilt
+neck_lateral = body.neck_lateralflexion
 neck_flex = body.neck_flexionextension
 
 # NEW: Access all segment lengths and widths in one Timeseries

@@ -266,7 +266,7 @@ print(f"Hip flexion: mean={hip_flex.data.mean():.1f}°, max={hip_flex.data.max()
 | Property | Type | Description | Positive | Negative | Neutral |
 |----------|------|-------------|----------|----------|---------|
 | `trunk_flexionextension_global` | Signal1D | Trunk sagittal flexion | Flexion (forward) | Extension (backward) | 0° |
-| `trunk_lateralflexion_global` | Signal1D | Trunk frontal flexion | Left tilt | Right tilt | 0° |
+| `trunk_lateralflexion` | Signal1D | Trunk frontal flexion (pelvis frame) | Right flexion | Left flexion | 0° |
 | `trunk_rotation_global` | Signal1D | Trunk transverse rotation (global) | Right rotation | Left rotation | 0° |
 | `trunk_rotation_local` | Signal1D | Trunk transverse rotation (relative to pelvis) | Right rotation | Left rotation | 0° |
 
@@ -313,13 +313,12 @@ print(f"Hip flexion: mean={hip_flex.data.mean():.1f}°, max={hip_flex.data.max()
 - vertical_axis: UP (elbow → shoulder)
 - anteroposterior_axis: FORWARD (cross product, Gram-Schmidt)
 
-##### Neck and Head Angles (3)
+##### Neck and Head Angles (2)
 
 | Property | Type | Description | Positive | Negative | Neutral |
 |----------|------|-------------|----------|----------|---------|
-| `neck_lateral_tilt` | Signal1D | Neck frontal tilt | Right tilt | Left tilt | 0° (centered) |
-| `neck_flexionextension_local` | Signal1D | Neck flexion (relative to trunk) | Flexion (forward) | Extension (backward) | 0° |
-| `neck_flexionextension_global` | Signal1D | Neck flexion (global) | Forward | Backward | 0° |
+| `neck_lateralflexion` | Signal1D | Neck frontal lateral flexion | Right flexion | Left flexion | 0° (centered) |
+| `neck_flexionextension` | Signal1D | Neck sagittal flexion/extension | Flexion (forward) | Extension (backward) | 0° |
 
 **Reference frames:**
 - Origin: Neck base (C7 marker or computed from shoulders)

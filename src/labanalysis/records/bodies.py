@@ -176,9 +176,9 @@ class WholeBody(TimeseriesRecord):
         "pelvis_anteroposterior_tilt",
         "pelvis_lateraltilt_global",
         "pelvis_rotation_global",
-        "trunk_lateralflexion_global",
+        "trunk_lateralflexion",
         "trunk_rotation",
-        "shoulder_lateral_tilt",
+        "shoulder_lateraltilt",
         "left_shoulder_abductionadduction",
         "right_shoulder_abductionadduction",
         "left_shoulder_flexionextension",
@@ -189,7 +189,7 @@ class WholeBody(TimeseriesRecord):
         "right_scapular_protractionretraction",
         "left_elbow_flexionextension",
         "right_elbow_flexionextension",
-        "neck_lateral_tilt",
+        "neck_lateralflexion",
         "neck_flexionextension",
         "lumbar_lordosis",
         "dorsal_kyphosis",
@@ -1400,9 +1400,9 @@ class WholeBody(TimeseriesRecord):
         --------------
         The reference frame has three semantic axes constructed from anatomical landmarks:
 
-        - **lateral_axis**: Mediolateral direction (construction details in code below)
-        - **vertical_axis**: Superior-inferior direction (construction details in code below)
-        - **anteroposterior_axis**: Anterior-posterior direction (construction details in code below)
+        - **lateral_axis**: Mediolateral direction (LEFT, from right to left ASIS-PSIS midpoints)
+        - **vertical_axis**: Superior-inferior direction (UP, from hip_center to pelvis_center)
+        - **anteroposterior_axis**: Anterior-posterior direction (FORWARD, Gram-Schmidt cross product)
 
         Note: The rotation matrix columns [0], [1], [2] correspond to lateral_axis, vertical_axis,
         and anteroposterior_axis respectively. These semantic meanings are fixed by construction,
@@ -1410,12 +1410,12 @@ class WholeBody(TimeseriesRecord):
 
         Origin
         ------
-        Pelvis center (use `self.pelvis_center` property)
+        Pelvis center (centroid of ASIS and PSIS markers)
 
         Construction
         ------------
         1. lateral_axis: LEFT (from right midpoint to left midpoint)
-        2. vertical_axis: UP (pelvis_center → neck_base)
+        2. vertical_axis: UP (hip_center → pelvis_center)
         3. anteroposterior_axis: FORWARD (Gram-Schmidt cross product)
         4. Apply Gram-Schmidt orthonormalization
 
@@ -1427,10 +1427,8 @@ class WholeBody(TimeseriesRecord):
         See Also
         --------
         pelvis_center : Pelvis center (origin of this frame)
-        neck_base : Neck base (used for Y-axis)
-        left_hip_referenceframe : Left hip reference frame (based on pelvis)
-        right_hip_referenceframe : Right hip reference frame (based on pelvis)
-        pelvis_lateral_tilt : Pelvis lateral tilt using this frame
+        hip_center : Hip center (used for vertical axis)
+        trunk_lateralflexion : Trunk lateral flexion using this frame
         pelvis_anteroposterior_tilt : Pelvis anteroposterior tilt using this frame
         trunk_rotation : Trunk rotation using this frame
         """
@@ -1445,15 +1443,15 @@ class WholeBody(TimeseriesRecord):
         right_mid = (r_asis + r_psis) / 2
         centroid = (l_asis + r_asis + l_psis + r_psis) / 4
 
-        # Get neck_base for vertical_axis construction
-        neck_base = self.neck_base
+        # Get hip_center for vertical_axis construction
+        hip_center = self.hip_center
 
         # Construct lateral_axis: LEFT (right midpoint to left midpoint)
         axis_x = (left_mid - right_mid).to_numpy()
         axis_x = axis_x / np.linalg.norm(axis_x, axis=1, keepdims=True)
 
-        # Construct vertical_axis: UP (pelvis_center to neck_base)
-        axis_y = (neck_base - centroid).to_numpy()
+        # Construct vertical_axis: UP (hip_center to pelvis_center)
+        axis_y = (centroid - hip_center).to_numpy()
         axis_y = axis_y / np.linalg.norm(axis_y, axis=1, keepdims=True)
 
         # Construct anteroposterior_axis: FORWARD (cross product)
@@ -1761,7 +1759,7 @@ class WholeBody(TimeseriesRecord):
         neck_base : Neck base (origin of this frame)
         pelvis_center : Pelvis center (used for Y-axis)
         neck_flexionextension : Neck flexion angle using this frame
-        neck_lateral_tilt : Neck lateral tilt using this frame
+        neck_lateralflexion : Neck lateral flexion using this frame
         pelvis_rotation : Pelvis rotation using this frame
         """
         neck_base = self.neck_base
@@ -1789,20 +1787,26 @@ class WholeBody(TimeseriesRecord):
 
     @property
     def _pelvis_plane(self):
+        """
+        Calculate pelvis plane using least squares method.
 
-        # extract the normal as the vertical axis denoted by the rotation
-        # matrix of the pelvis reference frame
-        centroid = self.pelvis_center
-        rmat = self.pelvis_referenceframe.rotation_matrix
-        normal = rmat[:, 1, :]
+        This avoids circular dependency: pelvis_referenceframe needs hip_center,
+        hip_center needs left/right_hip, which need pelvis_height, which needs
+        _pelvis_plane. We use least squares plane fitting instead.
+        """
+        # get the pelvis references
+        l_asis = self._get_point("left_asis")
+        r_asis = self._get_point("right_asis")
+        l_psis = self._get_point("left_psis")
+        r_psis = self._get_point("right_psis")
 
-        # get the "d" coefficient
-        d = np.atleast_2d(-np.sum(normal * centroid.to_numpy(), axis=1)).T
+        # generate the pelvis plane by least squares
+        plane = self._get_least_squares_plane_coefs(l_asis, r_asis, l_psis, r_psis)
 
         # return the timeseries
         return Timeseries(
-            data=np.hstack([normal, d]),
-            index=centroid.index,
+            data=plane,
+            index=l_asis.index,
             columns=["a", "b", "c", "d"],
             unit="a.u.",
         )
@@ -2209,7 +2213,9 @@ class WholeBody(TimeseriesRecord):
         neck_base = self.neck_base
 
         # Calculate distance
-        index = np.unique(np.concatenate([pelvis_center.index, neck_base.index])).tolist()
+        index = np.unique(
+            np.concatenate([pelvis_center.index, neck_base.index])
+        ).tolist()
         data = np.asarray(neck_base - pelvis_center)
         data = np.sum(data**2, axis=1) ** 0.5
         return Signal1D(data=data, index=index, unit=pelvis_center.unit)
@@ -2392,6 +2398,40 @@ class WholeBody(TimeseriesRecord):
             self._get_point("right_throcanter"),
             offsets,
             self._pelvis_plane,
+        )
+
+    @property
+    def hip_center(self):
+        """
+        Calculate hip center as midpoint between left and right hip joint centers.
+
+        The hip joint centers are computed using De Leva (1996) regression from
+        pelvis markers and trochanters.
+
+        Returns
+        -------
+        Point3D
+            Hip center position (midpoint between left_hip and right_hip)
+
+        See Also
+        --------
+        left_hip : Left hip joint center (De Leva 1996)
+        right_hip : Right hip joint center (De Leva 1996)
+        pelvis_center : Pelvis center (centroid of ASIS/PSIS markers)
+        """
+        left = self.left_hip
+        right = self.right_hip
+
+        # Calculate midpoint
+        data = (left.to_numpy() + right.to_numpy()) / 2
+
+        # Use index from left_hip (should match right_hip)
+        index = left.index
+
+        return Point3D(
+            data=data,
+            index=index,
+            columns=left.columns,
         )
 
     @property
@@ -3815,7 +3855,7 @@ class WholeBody(TimeseriesRecord):
         --------
         pelvis_anteroposteriortilt_global : Pelvis sagittal plane tilt
         pelvis_rotation_global : Pelvis transverse plane rotation
-        trunk_lateralflexion_global : Trunk frontal plane flexion
+        trunk_lateralflexion : Trunk frontal plane flexion
         """
 
         # Get pelvis points projected into least squares plane
@@ -3984,70 +4024,74 @@ class WholeBody(TimeseriesRecord):
         return Signal1D(data=angle, index=l_asis.index, unit="°")
 
     @property
-    def trunk_lateralflexion_global(self):
+    def trunk_lateralflexion(self):
         """
-        Calculate trunk lateral flexion (side bending) in frontal plane.
+        Calculate trunk lateral flexion in frontal plane of pelvis reference frame.
 
-        The angle represents the left or right side bending of the trunk
-        relative to the global vertical, measured from pelvis base to C7.
+        The angle represents the lateral deviation of the trunk (neck_base) from
+        vertical relative to the pelvis, measured in the pelvis reference frame.
 
         Interpretation
         --------------
-        - **Positive (+)**: Left lateral flexion (flessione laterale sinistra)
-          The trunk bends to the left; C7 moves laterally left.
-          Common in left side-bending movements.
-        - **Negative (-)**: Right lateral flexion (flessione laterale destra)
-          The trunk bends to the right; C7 moves laterally right.
-          Common in right side-bending movements.
-        - **0°**: Neutral position (trunk vertical, C7 centered over pelvis)
+        - **Positive (+)**: Right lateral flexion (flessione laterale destra)
+          The trunk bends to the right; neck_base moves laterally right.
+        - **Negative (-)**: Left lateral flexion (flessione laterale sinistra)
+          The trunk bends to the left; neck_base moves laterally left.
+        - **0°**: Neutral position (neck_base centered above pelvis_center)
+
+        Note: Neutral position is at ~90° before zero correction. Angle < 90°
+        indicates left lateral flexion, angle > 90° indicates right lateral flexion.
 
         Calculation Method
         ------------------
-        Uses the spine vector from PSIS midpoint to C7, projected onto the global
-        frontal plane (defined by lateral_axis and vertical_axis).
+        Uses the trunk segment vector from pelvis_center to neck_base, transformed
+        into the pelvis reference frame and projected onto the frontal plane
+        (defined by lateral_axis and vertical_axis of pelvis reference frame).
 
-        The angle is calculated using the global coordinate components:
-        - self.lateral_axis = global lateral direction
-        - self.vertical_axis = global vertical direction
-
-        The result is arctan2(vertical_component, lateral_component) - 90°, giving
-        the deviation from vertical. Positive values indicate left lateral flexion
-        (C7 moved laterally left).
+        The angle is calculated as:
+        - arctan2(vertical_component, lateral_component) - 90°
+        - Neutral position (neck_base directly above pelvis_center) gives ~90° before
+          correction, which becomes 0° after subtracting 90°.
 
         Returns
         -------
         Signal1D
             Trunk lateral flexion angle in degrees.
-            Positive = left lateral flexion
-            Negative = right lateral flexion
+            Positive = right lateral flexion
+            Negative = left lateral flexion
 
         See Also
         --------
-        trunk_flexionextension_global : Trunk sagittal plane flexion
-        trunk_rotation_global : Trunk transverse plane rotation
-        pelvis_lateraltilt_global : Pelvis frontal plane tilt
+        trunk_rotation : Trunk transverse plane rotation
+        pelvis_anteroposterior_tilt : Pelvis sagittal plane tilt
+        neck_lateralflexion : Neck frontal plane lateral flexion
+        pelvis_referenceframe : Reference frame used for this calculation
         """
+        neck_base = self.neck_base
+        pelvis_center = self.pelvis_center
+        rmat = self.pelvis_referenceframe.rotation_matrix
 
-        # Get pelvis points projected into least squares plane
-        l_asis, r_asis, l_psis, r_psis = self._get_projected_pelvis_points()
+        # Calculate angle in pelvis reference frame's frontal plane
+        # Frontal plane: lateral_axis (X) and vertical_axis (Y)
+        # Using arctan2(y, x) convention: arctan2(vertical, lateral)
+        angle, lateral_comp, vertical_comp = (
+            self._get_angle_by_point_on_reference_frame_and_plane(
+                neck_base,
+                pelvis_center,
+                rmat,
+                self.lateral_axis,  # First arg (x in arctan2)
+                self.vertical_axis,  # Second arg (y in arctan2)
+            )
+        )
 
-        # Get vector defining spine (rachis)
-        c7 = self._get_point("c7").to_numpy()
-        base = ((l_psis + r_psis) / 2).to_numpy()
-        vt = c7 - base
+        # The helper method returns arctan2(second_axis, first_axis)
+        # So this gives arctan2(vertical, lateral)
+        # At neutral (neck_base directly above): lateral≈0, vertical>0 → angle≈90°
+        # Apply zero correction: subtract 90° so that vertical = 0°
+        # Positive = right flexion, Negative = left flexion
+        lateralflexion = angle.to_numpy() - 90
 
-        # Consider only global frontal plane
-        cols = l_psis.columns
-        axes_labels = [self.lateral_axis, self.vertical_axis]
-        col_map = [np.where(cols == i)[0][0] for i in axes_labels]
-        col_map = np.array(col_map)
-
-        # Calculate angle
-        x, y = vt[:, col_map].T
-        angle = np.degrees(np.arctan2(y, x))
-
-        # Return angle
-        return Signal1D(data=angle - 90, index=l_psis.index, unit="°")
+        return Signal1D(data=lateralflexion, index=neck_base.index, unit="°")
 
     @property
     def trunk_rotation(self):
@@ -4097,7 +4141,7 @@ class WholeBody(TimeseriesRecord):
 
         See Also
         --------
-        trunk_lateralflexion_global : Trunk frontal plane flexion
+        trunk_lateralflexion : Trunk frontal plane flexion
         pelvis_rotation : Pelvis transverse plane rotation
         shoulder_lateral_tilt : Shoulder frontal plane tilt
         """
@@ -4132,62 +4176,75 @@ class WholeBody(TimeseriesRecord):
         return Signal1D(data=angle, index=c7.index, unit="°")
 
     @property
-    def neck_lateral_tilt(self):
+    def neck_lateralflexion(self):
         """
-        Calculate neck lateral tilt (lateral flexion) in frontal plane.
+        Calculate neck lateral flexion in frontal plane of neck reference frame.
 
-        The angle represents the lateral deviation of the head from vertical.
+        The angle represents the lateral deviation of the head from vertical,
+        measured relative to the neck reference frame.
 
         Interpretation
         --------------
-        - **Positive (+)**: Right lateral tilt (inclinazione laterale destra)
+        - **Positive (+)**: Right lateral flexion (flessione laterale destra)
           The head tilts toward the right shoulder.
-        - **Negative (-)**: Left lateral tilt (inclinazione laterale sinistra)
+        - **Negative (-)**: Left lateral flexion (flessione laterale sinistra)
           The head tilts toward the left shoulder.
-        - **0°**: Neutral position (head centered, no lateral tilt)
+        - **0°**: Neutral position (head centered above neck_base)
 
         Calculation Method
         ------------------
-        Uses the head_center to neck_base vector projected onto the global frontal
-        plane (defined by lateral_axis and vertical_axis).
+        Uses the head_center to neck_base vector transformed into the neck
+        reference frame and projected onto the frontal plane (defined by
+        lateral_axis and vertical_axis of the neck reference frame).
 
-        The angle is calculated using the global coordinate components:
-        - self.lateral_axis = global lateral direction
-        - self.vertical_axis = global vertical direction
-
-        The result is arctan2(lateral_component, vertical_component), giving the
-        lateral deviation from vertical. Positive values indicate right tilt.
+        The angle is calculated as:
+        - arctan2(vertical_component, lateral_component) - 90°
+        - Neutral position (head directly above neck_base) gives ~90° before
+          correction, which becomes 0° after subtracting 90°.
+        - Positive values indicate right lateral flexion.
 
         Returns
         -------
         Signal1D
-            Neck lateral tilt angle in degrees.
-            Positive = right tilt (destra)
-            Negative = left tilt (sinistra)
+            Neck lateral flexion angle in degrees.
+            Positive = right lateral flexion (destra)
+            Negative = left lateral flexion (sinistra)
+
+        See Also
+        --------
+        neck_flexionextension : Neck sagittal plane flexion/extension
+        neck_referenceframe : Reference frame used for this calculation
         """
         head = self.head_center
-        neck = self.neck_base
+        neck_base = self.neck_base
+        rmat = self.neck_referenceframe.rotation_matrix
 
-        # Get neck vector (from neck base to head center)
-        v_neck = (head - neck).to_numpy()
+        # Calculate angle in neck reference frame's frontal plane
+        # Frontal plane: lateral_axis (X) and vertical_axis (Y)
+        # Using arctan2(y, x) convention: arctan2(vertical, lateral)
+        angle, lateral_comp, vertical_comp = (
+            self._get_angle_by_point_on_reference_frame_and_plane(
+                head,
+                neck_base,
+                rmat,
+                self.lateral_axis,  # First arg (x in arctan2)
+                self.vertical_axis,  # Second arg (y in arctan2)
+            )
+        )
 
-        # Extract frontal plane components (lateral_axis, vertical_axis)
-        cols = head.columns
-        axes_labels = [self.lateral_axis, self.vertical_axis]
-        col_map = [np.where(cols == i)[0][0] for i in axes_labels]
-        col_map = np.array(col_map)
+        # The helper method returns arctan2(second_axis, first_axis)
+        # So this gives arctan2(vertical, lateral)
+        # At neutral (head directly above): lateral≈0, vertical>0 → angle≈90°
+        # Apply zero correction: subtract 90° so that vertical = 0°
+        # Positive = right flexion, Negative = left flexion
+        lateralflexion = angle.to_numpy() - 90
 
-        # Calculate angle from vertical
-        # x = lateral deviation, y = vertical component
-        x, y = v_neck[:, col_map].T
-        angle = np.degrees(np.arctan2(x, y))
-
-        return Signal1D(data=angle, index=head.index, unit="°")
+        return Signal1D(data=lateralflexion, index=head.index, unit="°")
 
     @property
     def neck_flexionextension(self):
         """
-        Calculate neck flexion/extension in sagittal plane.
+        Calculate neck flexion/extension in sagittal plane of neck reference frame.
 
         The angle represents the forward or backward deviation of the head
         from vertical position, measured from neck_base to head_center.
@@ -4214,13 +4271,11 @@ class WholeBody(TimeseriesRecord):
         projected onto the sagittal plane (defined by anteroposterior_axis and
         vertical_axis).
 
-        The calculation uses rotation matrix indices:
-        - rotation_matrix[:, :, 2] = anteroposterior_axis component
-        - rotation_matrix[:, :, 1] = vertical_axis component
-
-        The angle is arctan2(anteroposterior_component, vertical_component) - 90°,
-        where zero corresponds to the head positioned vertically above neck_base.
-        Positive values indicate forward flexion (chin toward chest).
+        The angle is calculated as:
+        - arctan2(vertical_component, anteroposterior_component) - 90°
+        - Neutral position (head directly above neck_base) gives ~90° before
+          correction, which becomes 0° after subtracting 90°.
+        - Positive values indicate forward flexion (chin toward chest).
 
         Returns
         -------
@@ -4231,35 +4286,34 @@ class WholeBody(TimeseriesRecord):
 
         See Also
         --------
-        neck_lateral_tilt : Neck frontal plane tilt
+        neck_lateralflexion : Neck frontal plane lateral flexion
         trunk_rotation : Trunk transverse plane rotation
         """
-        # Get head and neck positions
         head = self.head_center
         neck_base = self.neck_base
-
-        # Get neck reference frame
         rmat = self.neck_referenceframe.rotation_matrix
 
-        # Head vector from neck_base origin
-        head_vec = (head - neck_base).to_numpy()
+        # Calculate angle in neck reference frame's sagittal plane
+        # Sagittal plane: anteroposterior_axis (Z) and vertical_axis (Y)
+        # Using arctan2(y, x) convention: arctan2(vertical, anteroposterior)
+        angle, ap_comp, vertical_comp = (
+            self._get_angle_by_point_on_reference_frame_and_plane(
+                head,
+                neck_base,
+                rmat,
+                self.anteroposterior_axis,  # First arg (x in arctan2)
+                self.vertical_axis,  # Second arg (y in arctan2)
+            )
+        )
 
-        # Transform to neck reference frame
-        head_rf = np.einsum("nij,nj->ni", rmat, head_vec)
+        # The helper method returns arctan2(second_axis, first_axis)
+        # So this gives arctan2(vertical, anteroposterior)
+        # At neutral (head directly above): anteroposterior≈0, vertical>0 → angle≈90°
+        # Apply zero correction: subtract 90° so that vertical = 0°
+        # Positive = flexion (forward), Negative = extension (backward)
+        flexionextension = angle.to_numpy() - 90
 
-        # Extract components in reference frame coordinates
-        # Index [2] = anteroposterior_axis component (by ReferenceFrame construction)
-        # Index [1] = vertical_axis component (by ReferenceFrame construction)
-        # arctan2 of anteroposterior and vertical components gives flexion/extension angle
-        head_angle = np.arctan2(head_rf[:, 2], head_rf[:, 1]) * 180 / np.pi
-
-        # Zero at 90° (vertical UP from neck_base)
-        # Positive = forward flexion (head moves forward)
-        # Negative = backward extension (head moves backward)
-        flexion = head_angle - 90
-
-        # Return angle
-        return Signal1D(data=flexion, index=head.index, unit="°")
+        return Signal1D(data=flexionextension, index=head.index, unit="°")
 
     @property
     def lumbar_lordosis(self):
@@ -5339,19 +5393,34 @@ class WholeBody(TimeseriesRecord):
         ['left_foot_height', 'right_foot_height', 'left_leg_length', 'shoulder_width', ...]
         """
         length_properties = [
-            'left_foot_height', 'right_foot_height',
-            'left_foot_length', 'right_foot_length',
-            'left_foot_width', 'right_foot_width',
-            'left_ankle_width', 'right_ankle_width',
-            'left_leg_length', 'right_leg_length',
-            'left_thigh_length', 'right_thigh_length',
-            'left_knee_width', 'right_knee_width',
-            'left_lower_limb_length', 'right_lower_limb_length',
-            'left_arm_length', 'right_arm_length',
-            'left_forearm_length', 'right_forearm_length',
-            'left_elbow_width', 'right_elbow_width',
-            'left_upper_limb_length', 'right_upper_limb_length',
-            'shoulder_width', 'hip_width', 'trunk_length', 'pelvis_height',
+            "left_foot_height",
+            "right_foot_height",
+            "left_foot_length",
+            "right_foot_length",
+            "left_foot_width",
+            "right_foot_width",
+            "left_ankle_width",
+            "right_ankle_width",
+            "left_leg_length",
+            "right_leg_length",
+            "left_thigh_length",
+            "right_thigh_length",
+            "left_knee_width",
+            "right_knee_width",
+            "left_lower_limb_length",
+            "right_lower_limb_length",
+            "left_arm_length",
+            "right_arm_length",
+            "left_forearm_length",
+            "right_forearm_length",
+            "left_elbow_width",
+            "right_elbow_width",
+            "left_upper_limb_length",
+            "right_upper_limb_length",
+            "shoulder_width",
+            "hip_width",
+            "trunk_length",
+            "pelvis_height",
         ]
 
         # Collect all available length measurements
@@ -5378,12 +5447,19 @@ class WholeBody(TimeseriesRecord):
                 continue
 
         if not data_list:
-            raise ValueError("No segment lengths could be computed. Check that required markers are provided.")
+            raise ValueError(
+                "No segment lengths could be computed. Check that required markers are provided."
+            )
 
         # Stack all columns into 2D array
         data_2d = np.column_stack(data_list)
 
-        return Timeseries(data=data_2d, index=common_index, columns=column_names, unit=common_unit)
+        return Timeseries(
+            data=data_2d,
+            index=common_index,
+            columns=column_names,
+            unit=common_unit,
+        )
 
     @property
     def joint_angles(self) -> Timeseries:
@@ -5426,33 +5502,48 @@ class WholeBody(TimeseriesRecord):
         """
         angle_properties = [
             # Ankle angles
-            'left_ankle_flexionextension', 'right_ankle_flexionextension',
-            'left_ankle_inversioneversion', 'right_ankle_inversioneversion',
+            "left_ankle_flexionextension",
+            "right_ankle_flexionextension",
+            "left_ankle_inversioneversion",
+            "right_ankle_inversioneversion",
             # Knee angles
-            'left_knee_flexionextension', 'right_knee_flexionextension',
-            'left_knee_varusvalgus', 'right_knee_varusvalgus',
+            "left_knee_flexionextension",
+            "right_knee_flexionextension",
+            "left_knee_varusvalgus",
+            "right_knee_varusvalgus",
             # Hip angles
-            'left_hip_flexionextension', 'right_hip_flexionextension',
-            'left_hip_abductionadduction', 'right_hip_abductionadduction',
-            'left_hip_internalexternalrotation', 'right_hip_internalexternalrotation',
+            "left_hip_flexionextension",
+            "right_hip_flexionextension",
+            "left_hip_abductionadduction",
+            "right_hip_abductionadduction",
+            "left_hip_internalexternalrotation",
+            "right_hip_internalexternalrotation",
             # Pelvis angles
-            'pelvis_anteroposterior_tilt',
+            "pelvis_anteroposterior_tilt",
             # Trunk angles
-            'trunk_rotation',
+            "trunk_rotation",
             # Shoulder angles
-            'left_shoulder_flexionextension', 'right_shoulder_flexionextension',
-            'left_shoulder_abductionadduction', 'right_shoulder_abductionadduction',
-            'left_shoulder_internalexternalrotation', 'right_shoulder_internalexternalrotation',
-            'shoulder_lateraltilt',
-            'left_shoulder_elevationdepression', 'right_shoulder_elevationdepression',
+            "left_shoulder_flexionextension",
+            "right_shoulder_flexionextension",
+            "left_shoulder_abductionadduction",
+            "right_shoulder_abductionadduction",
+            "left_shoulder_internalexternalrotation",
+            "right_shoulder_internalexternalrotation",
+            "shoulder_lateraltilt",
+            "left_shoulder_elevationdepression",
+            "right_shoulder_elevationdepression",
             # Scapular angles
-            'left_scapular_protractionretraction', 'right_scapular_protractionretraction',
+            "left_scapular_protractionretraction",
+            "right_scapular_protractionretraction",
             # Elbow angles
-            'left_elbow_flexionextension', 'right_elbow_flexionextension',
+            "left_elbow_flexionextension",
+            "right_elbow_flexionextension",
             # Neck angles
-            'neck_flexionextension', 'neck_lateral_tilt',
+            "neck_flexionextension",
+            "neck_lateralflexion",
             # Spine curvature
-            'lumbar_lordosis', 'dorsal_kyphosis',
+            "lumbar_lordosis",
+            "dorsal_kyphosis",
         ]
 
         # Collect all available angle measurements
@@ -5479,12 +5570,19 @@ class WholeBody(TimeseriesRecord):
                 continue
 
         if not data_list:
-            raise ValueError("No joint angles could be computed. Check that required markers are provided.")
+            raise ValueError(
+                "No joint angles could be computed. Check that required markers are provided."
+            )
 
         # Stack all columns into 2D array
         data_2d = np.column_stack(data_list)
 
-        return Timeseries(data=data_2d, index=common_index, columns=column_names, unit=common_unit)
+        return Timeseries(
+            data=data_2d,
+            index=common_index,
+            columns=column_names,
+            unit=common_unit,
+        )
 
     def copy(self):
         return WholeBody(**{i: v.copy() for i, v in self.items()})  # type: ignore

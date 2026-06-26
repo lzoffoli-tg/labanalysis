@@ -498,24 +498,24 @@ def test_ankle_angles_with_new_foot_plane():
 
 
 def test_neck_angles_with_head_center():
-    """Test neck_lateral_tilt and neck_flexionextension."""
+    """Test neck_lateralflexion and neck_flexionextension."""
     n_samples = 100
 
     # Create WholeBody with head and neck markers
     body = create_wholebody_with_cranial_markers(n_samples)
 
     # Test neck angle properties
-    lateral_tilt = body.neck_lateral_tilt
+    lateral_flexion = body.neck_lateralflexion
     flexion = body.neck_flexionextension
 
-    assert lateral_tilt is not None
+    assert lateral_flexion is not None
     assert flexion is not None
 
-    assert isinstance(lateral_tilt, laban.Signal1D)
+    assert isinstance(lateral_flexion, laban.Signal1D)
     assert isinstance(flexion, laban.Signal1D)
 
     # Signal1D may have shape (n_samples,) or (n_samples, 1)
-    assert lateral_tilt.shape[0] == n_samples
+    assert lateral_flexion.shape[0] == n_samples
     assert flexion.shape[0] == n_samples
 
 
