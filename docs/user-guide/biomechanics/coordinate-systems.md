@@ -45,11 +45,13 @@ marker_pelvis = pelvis_rf.apply(body.left_knee)  # Returns Point3D
 
 ### Global (Laboratory) Frame
 
-The global frame is fixed in space, typically defined by the motion capture system:
+The global frame is fixed in space, typically defined by the motion capture system.
 
-- **X-axis**: Often mediolateral (left → right)
-- **Y-axis**: Often vertical (ground → ceiling)
-- **Z-axis**: Often anteroposterior (back → front)
+**IMPORTANT**: The following axis assignments are common GLOBAL frame conventions only. Local (anatomical) reference frames may have different axis assignments. Always use semantic axis names (`lateral_axis`, `vertical_axis`, `anteroposterior_axis`) when working with local frames.
+
+- **X-axis**: Often mediolateral (left → right) in global frame
+- **Y-axis**: Often vertical (ground → ceiling) in global frame
+- **Z-axis**: Often anteroposterior (back → front) in global frame
 
 ```python
 # Markers in global frame
@@ -63,12 +65,16 @@ z_global = marker_global['Z']  # Anteroposterior
 
 ### Local (Anatomical) Frame
 
-Local frames move with body segments, making angles and movements more interpretable:
+Local frames move with body segments, making angles and movements more interpretable.
 
 **Example: Pelvis frame**
-- **X-axis**: Mediolateral (right hip → left hip)
-- **Y-axis**: Vertical (inferior → superior)
-- **Z-axis**: Anteroposterior (posterior → anterior)
+
+Use semantic axis names to define the frame:
+- **lateral_axis**: Mediolateral direction (right hip → left hip)
+- **vertical_axis**: Superior-inferior direction (inferior → superior)
+- **anteroposterior_axis**: Anterior-posterior direction (posterior → anterior)
+
+**Note**: Do not assume X/Y/Z letters have fixed anatomical meanings in local frames. The `ReferenceFrame` class maps semantic axis names to appropriate indices regardless of the global coordinate system configuration.
 
 **Why use local frames?**
 - Joint angles become independent of global orientation
@@ -91,11 +97,11 @@ R = laban.gram_schmidt(
 ```
 
 **Process:**
-1. **i-axis**: Normalized from input `i`
-2. **k-axis**: Perpendicular to `i` and `j` (cross product)
-3. **j-axis**: Perpendicular to both `i` and `k` (cross product)
+1. **First column (from `i`)**: Normalized from input `i`
+2. **Third column (from cross product)**: Perpendicular to `i` and `j` (cross product i×j)
+3. **Second column (from cross product)**: Perpendicular to both first and third columns (cross product)
 
-Result: Right-handed orthonormal frame with i, j, k as columns.
+Result: Right-handed orthonormal frame with three perpendicular unit vectors as columns. Use semantic parameter names (`lateral_axis`, `vertical_axis`, `anteroposterior_axis`) when creating `ReferenceFrame` objects to ensure columns have consistent anatomical meaning.
 
 ### Example: Create Pelvis Frame
 
@@ -119,9 +125,9 @@ j = ((l_asis + r_asis) / 2 - (l_psis + r_psis) / 2).to_numpy()  # AP
 R_pelvis = laban.gram_schmidt(i, j, k=None)
 
 # R_pelvis shape: (N_samples, 3, 3)
-# R_pelvis[:, :, 0] = i-axis (mediolateral)
-# R_pelvis[:, :, 1] = j-axis (anteroposterior, orthonormalized)
-# R_pelvis[:, :, 2] = k-axis (vertical, from i×j)
+# Column 0 = lateral_axis (mediolateral direction)
+# Column 1 = anteroposterior_axis (anteroposterior direction, orthonormalized)
+# Column 2 = vertical_axis (superior-inferior direction, from i×j cross product)
 ```
 
 ### Example: Create Thigh Frame
@@ -142,9 +148,9 @@ i = pelvis_ml  # Approximate mediolateral
 # Create orthonormal thigh frame
 R_thigh = laban.gram_schmidt(i, k=k, j=None)
 
-# R_thigh[:, :, 2] = longitudinal (hip → knee)
-# R_thigh[:, :, 0] = mediolateral (orthonormalized)
-# R_thigh[:, :, 1] = anteroposterior (from k×i)
+# Column 2 = longitudinal axis (proximal-distal direction, hip → knee)
+# Column 0 = lateral_axis (mediolateral direction, orthonormalized)
+# Column 1 = anteroposterior_axis (anterior-posterior direction, from cross product)
 ```
 
 ## Reference Frame Transformations
@@ -164,16 +170,16 @@ pelvis_center = (body.left_asis + body.right_asis +
 
 # Transform
 marker_pelvis = marker_global.change_reference_frame(
-    new_x=R_pelvis[:, :, 0],  # New x-axis direction
-    new_y=R_pelvis[:, :, 1],  # New y-axis direction
-    new_z=R_pelvis[:, :, 2],  # New z-axis direction
+    new_x=R_pelvis[:, :, 0],  # lateral_axis direction
+    new_y=R_pelvis[:, :, 1],  # anteroposterior_axis direction
+    new_z=R_pelvis[:, :, 2],  # vertical_axis direction
     new_origin=pelvis_center  # New origin point
 )
 
 # Now marker_pelvis is in pelvis coordinates
-# marker_pelvis['X'] = mediolateral position relative to pelvis
-# marker_pelvis['Y'] = anteroposterior position relative to pelvis
-# marker_pelvis['Z'] = vertical position relative to pelvis
+# marker_pelvis['X'] = mediolateral position relative to pelvis (lateral_axis component)
+# marker_pelvis['Y'] = anteroposterior position relative to pelvis (anteroposterior_axis component)
+# marker_pelvis['Z'] = vertical position relative to pelvis (vertical_axis component)
 ```
 
 ### Transform Signal3D
@@ -185,16 +191,16 @@ Same syntax works for `Signal3D` (forces, velocities, etc.):
 force_global = fp.force  # Signal3D in global frame
 
 force_pelvis = force_global.change_reference_frame(
-    new_x=R_pelvis[:, :, 0],
-    new_y=R_pelvis[:, :, 1],
-    new_z=R_pelvis[:, :, 2],
+    new_x=R_pelvis[:, :, 0],  # lateral_axis
+    new_y=R_pelvis[:, :, 1],  # anteroposterior_axis
+    new_z=R_pelvis[:, :, 2],  # vertical_axis
     new_origin=pelvis_center  # Origin shift (optional for forces)
 )
 
 # Now force components are in pelvis axes
-# force_pelvis['X'] = mediolateral force (pelvis frame)
-# force_pelvis['Y'] = anteroposterior force (pelvis frame)
-# force_pelvis['Z'] = vertical force (pelvis frame)
+# force_pelvis['X'] = mediolateral force (lateral_axis component in pelvis frame)
+# force_pelvis['Y'] = anteroposterior force (anteroposterior_axis component in pelvis frame)
+# force_pelvis['Z'] = vertical force (vertical_axis component in pelvis frame)
 ```
 
 ## Common Anatomical Frames
@@ -210,14 +216,14 @@ def create_pelvis_frame(body):
     # Center
     center = (l_asis + r_asis + l_psis + r_psis) / 4
     
-    # i-axis: right ASIS → left ASIS (mediolateral)
-    i = ((l_asis + l_psis) / 2 - center).to_numpy()
+    # lateral_axis: right ASIS → left ASIS (mediolateral direction)
+    lateral = ((l_asis + l_psis) / 2 - center).to_numpy()
     
-    # k-axis: mid-ASIS → mid-PSIS (approximate vertical)
-    k = ((l_asis + r_asis) / 2 - center).to_numpy()
+    # vertical_axis: mid-ASIS → mid-PSIS (approximate superior-inferior direction)
+    vertical = ((l_asis + r_asis) / 2 - center).to_numpy()
     
     # Orthonormalize
-    R = laban.gram_schmidt(i, k=k)
+    R = laban.gram_schmidt(lateral, k=vertical)
     
     return center, R
 
@@ -369,8 +375,8 @@ Reference frames change over time (e.g., pelvis rotates during gait). The rotati
 # R_pelvis[100, :, :] = rotation matrix at 101st time point
 
 # Axes vary over time
-x_axis_t0 = R_pelvis[0, :, 0]  # X-axis at t=0
-x_axis_t100 = R_pelvis[100, :, 0]  # X-axis at t=100 (may be different)
+first_column_t0 = R_pelvis[0, :, 0]  # First column (e.g., lateral_axis) at t=0
+first_column_t100 = R_pelvis[100, :, 0]  # First column at t=100 (may point in different direction)
 ```
 
 ### Extracting Euler Angles from Rotation Matrix
@@ -430,8 +436,8 @@ print(f"Angle between i and j: {angle.mean():.1f}° ± {angle.std():.1f}°")
 # Right-handed (default)
 R = laban.gram_schmidt(i, j)
 
-# Convert to left-handed by flipping k-axis
-R[:, :, 2] = -R[:, :, 2]  # Flip vertical axis
+# Convert to left-handed by flipping third column
+R[:, :, 2] = -R[:, :, 2]  # Flip third axis (e.g., vertical_axis)
 ```
 
 ### Issue: Reference Frame Flipping Over Time

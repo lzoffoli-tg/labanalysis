@@ -229,14 +229,24 @@ head_center = body.head_center          # Centroid of 4 cranial markers
 neck_base = body.neck_base              # Midpoint between SC and C7
 left_foot_plane = body.left_foot_plane  # Plane from 4 foot markers
 
-# Access joint angles (36 available)
+# Access individual joint angles
 knee_flexion = body.left_knee_flexionextension
 neck_tilt = body.neck_lateral_tilt
-neck_flex = body.neck_flexionextension_global
+neck_flex = body.neck_flexionextension
 
-# Access all available angular measures
-all_angles = body._angular_measures
-print(f"Available angles: {len(all_angles)}")  # 36 joint angles
+# NEW: Access all segment lengths and widths in one Timeseries
+all_lengths = body.segment_lengths
+print(f"Available dimensions: {len(all_lengths.columns)}")
+# Includes: foot heights/lengths/widths, limb lengths, body dimensions (shoulder_width, hip_width, trunk_length, pelvis_height)
+
+# NEW: Access all joint angles in one Timeseries
+all_angles = body.joint_angles
+print(f"Available angles: {len(all_angles.columns)}")
+# Includes: ankle, knee, hip, pelvis, trunk, shoulder, elbow, neck angles, and spine curvature
+
+# Export all biomechanical data to pandas DataFrame
+df = all_lengths.to_dataframe().join(all_angles.to_dataframe())
+# df.to_csv('biomechanical_data.csv')
 ```
 
 ---

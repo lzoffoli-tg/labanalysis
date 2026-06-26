@@ -74,14 +74,13 @@ def main():
     print(f"  Vertical axis: {pelvis_rf.vertical_axis[0]}")
     print()
 
-    # The rotation matrix has axes as columns:
-    # Column 0 = lateral_axis
-    # Column 1 = vertical_axis
-    # Column 2 = anteroposterior_axis
+    # The rotation matrix has semantic axes as columns:
+    # These columns represent directions in the global coordinate system
     print(f"Rotation matrix shape: {pelvis_rf.rotation_matrix.shape}")
-    print(f"  Column 0 (lateral): {pelvis_rf.rotation_matrix[0, :, 0]}")
-    print(f"  Column 1 (vertical): {pelvis_rf.rotation_matrix[0, :, 1]}")
-    print(f"  Column 2 (anteroposterior): {pelvis_rf.rotation_matrix[0, :, 2]}")
+    print("Rotation matrix columns (semantic axes in global coordinates):")
+    print(f"  Column 0 = lateral_axis: {pelvis_rf.rotation_matrix[0, :, 0]}")
+    print(f"  Column 1 = vertical_axis: {pelvis_rf.rotation_matrix[0, :, 1]}")
+    print(f"  Column 2 = anteroposterior_axis: {pelvis_rf.rotation_matrix[0, :, 2]}")
     print()
 
     # Check handedness (left vs right side frames)
@@ -108,10 +107,11 @@ def main():
     left_hip_vec = left_hip_global - pelvis_rf.origin
     left_hip_pelvis = np.einsum("nij,nj->ni", pelvis_rf.rotation_matrix, left_hip_vec)
 
+    # Components extracted by index correspond to semantic axes:
     print("Left hip in pelvis reference frame:")
-    print(f"  Lateral component (mediolateral): {left_hip_pelvis[:, 0].mean():.3f} m")
-    print(f"  Vertical component (superior-inferior): {left_hip_pelvis[:, 1].mean():.3f} m")
-    print(f"  Anteroposterior component: {left_hip_pelvis[:, 2].mean():.3f} m")
+    print(f"  Index [0] = lateral_axis component: {left_hip_pelvis[:, 0].mean():.3f} m")
+    print(f"  Index [1] = vertical_axis component: {left_hip_pelvis[:, 1].mean():.3f} m")
+    print(f"  Index [2] = anteroposterior_axis component: {left_hip_pelvis[:, 2].mean():.3f} m")
     print()
 
     # The einsum formula: "nij,nj->ni"
@@ -156,10 +156,11 @@ def main():
     knee_vec = (body.left_knee - body.left_hip).to_numpy()
     knee_local = np.einsum("nij,nj->ni", thigh_rf.rotation_matrix, knee_vec)
 
+    # Components extracted by index correspond to semantic axes:
     print("Knee in thigh reference frame:")
-    print(f"  Lateral offset: {knee_local[:, 0].mean():.3f} m")
-    print(f"  Vertical distance (thigh length): {knee_local[:, 1].mean():.3f} m")
-    print(f"  Anteroposterior offset: {knee_local[:, 2].mean():.3f} m")
+    print(f"  Index [0] = lateral_axis component: {knee_local[:, 0].mean():.3f} m")
+    print(f"  Index [1] = vertical_axis component (thigh length): {knee_local[:, 1].mean():.3f} m")
+    print(f"  Index [2] = anteroposterior_axis component: {knee_local[:, 2].mean():.3f} m")
     print()
 
     # ====================================================================
@@ -208,12 +209,15 @@ def main():
     print("  Index [2] ALWAYS = anteroposterior_axis component")
     print()
     print("This mapping is fixed by ReferenceFrame construction,")
-    print("NOT by global coordinate configuration (X/Y/Z).")
+    print("NOT by global X/Y/Z coordinate configuration.")
     print()
-    print("Your code works the same whether the user configures:")
-    print("  - vertical_axis='Y' (default)")
-    print("  - vertical_axis='X' (non-standard)")
-    print("  - vertical_axis='Z' (alternative)")
+    print("The global X/Y/Z values of axes depend on frame orientation;")
+    print("semantic meaning (lateral/vertical/anteroposterior) is what matters.")
+    print()
+    print("Your code works the same whether global coordinates are configured as:")
+    print("  - global Y = vertical (default)")
+    print("  - global X = vertical (non-standard)")
+    print("  - global Z = vertical (alternative)")
     print()
 
     # ====================================================================

@@ -29,7 +29,8 @@ def neutral_spine_wholebody():
     n_frames = 10
     time_index = list(range(n_frames))
 
-    # Coordinate system: X=lateral, Y=vertical, Z=anteroposterior
+    # Global coordinate system used for synthetic markers: X=lateral, Y=vertical, Z=anteroposterior
+    # Note: Local reference frame axes may differ - see ReferenceFrame construction for semantic mapping
     # Slight posterior curvature at thoracic, anterior at lumbar for normal curves
 
     # C7: cervical, highest, slightly posterior

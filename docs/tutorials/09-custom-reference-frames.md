@@ -55,6 +55,7 @@ ref_frame = laban.ReferenceFrame(
 print(f"Lateral axis: {ref_frame.lateral_axis[0]}")
 print(f"Vertical axis: {ref_frame.vertical_axis[0]}")
 print(f"Anteroposterior axis: {ref_frame.rotation_matrix[0, :, 2]}")
+# Note: These are semantic axes - their global X/Y/Z values depend on frame orientation
 ```
 
 **Output:**
@@ -123,10 +124,11 @@ pelvis_rf = laban.ReferenceFrame(
     vertical_axis=pelvis_vertical     # Semantic: anteroposterior (will be orthogonalized)
 )
 
-# You KNOW what each axis means, regardless of global coordinate system
-print("Lateral axis represents: mediolateral direction (left → right)")
-print("Vertical axis represents: superior-inferior direction (down → up)")
-print("Anteroposterior axis represents: posterior → anterior direction (back → front)")
+# You KNOW what each axis means semantically, regardless of global X/Y/Z configuration
+print("Lateral axis: mediolateral direction (left → right)")
+print("Vertical axis: superior-inferior direction (down → up)")
+print("Anteroposterior axis: posterior → anterior direction (back → front)")
+print("These semantic meanings are independent of global coordinate system")
 ```
 
 ## Step 3: Transforming Vectors with einsum
@@ -147,9 +149,10 @@ knee_vec = knee_global - origin  # Vector from hip to knee
 knee_local = np.einsum("nij,nj->ni", rmat, knee_vec)
 
 # Now knee_local has components in hip reference frame:
-lateral_component = knee_local[:, 0]  # Mediolateral position
-vertical_component = knee_local[:, 1]  # Superior-inferior position
-anteroposterior_component = knee_local[:, 2]  # Anterior-posterior position
+# Indices map to semantic axes by construction:
+lateral_component = knee_local[:, 0]  # Index 0 = lateral_axis component
+vertical_component = knee_local[:, 1]  # Index 1 = vertical_axis component
+anteroposterior_component = knee_local[:, 2]  # Index 2 = anteroposterior_axis component
 
 print(f"Knee lateral offset: {lateral_component.mean():.3f} m")
 print(f"Knee vertical distance (thigh length): {vertical_component.mean():.3f} m")
@@ -193,15 +196,13 @@ print("Pelvis reference frame axes:")
 print(f"  Lateral axis (first frame): {pelvis_rf.lateral_axis[0]}")
 print(f"  Vertical axis (first frame): {pelvis_rf.vertical_axis[0]}")
 
-# The rotation matrix has axes as columns:
-# Column 0 = lateral_axis
-# Column 1 = vertical_axis
-# Column 2 = anteroposterior_axis
-
+# The rotation matrix has semantic axes as columns:
+# These columns represent directions in the global coordinate system
 print(f"\nRotation matrix shape: {pelvis_rf.rotation_matrix.shape}")
-print(f"Column 0 (lateral): {pelvis_rf.rotation_matrix[0, :, 0]}")
-print(f"Column 1 (vertical): {pelvis_rf.rotation_matrix[0, :, 1]}")
-print(f"Column 2 (anteroposterior): {pelvis_rf.rotation_matrix[0, :, 2]}")
+print("Rotation matrix columns (semantic axes in global coordinates):")
+print(f"  Column 0 = lateral_axis: {pelvis_rf.rotation_matrix[0, :, 0]}")
+print(f"  Column 1 = vertical_axis: {pelvis_rf.rotation_matrix[0, :, 1]}")
+print(f"  Column 2 = anteroposterior_axis: {pelvis_rf.rotation_matrix[0, :, 2]}")
 
 # Transform left hip position to pelvis frame
 left_hip_global = body.left_hip.to_numpy()

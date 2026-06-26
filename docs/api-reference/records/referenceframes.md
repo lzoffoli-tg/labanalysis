@@ -66,7 +66,8 @@ class ReferenceFrame:
     anteroposterior_axis : np.ndarray or None
         Input anteroposterior axis (if provided), shape (N, 3)
     rotation_matrix : np.ndarray
-        Rotation matrix (N, 3, 3). Columns are [lateral, vertical, anteroposterior].
+        Rotation matrix (N, 3, 3). Columns represent semantic axes:
+        Column 0 = lateral_axis, Column 1 = vertical_axis, Column 2 = anteroposterior_axis.
     
     Examples
     --------
@@ -176,20 +177,20 @@ def rotation_matrix(self) -> np.ndarray
 **Returns:**
 - `np.ndarray`: Rotation matrix, shape (N, 3, 3)
 
-**Column structure:**
-- Column 0: lateral_axis
-- Column 1: vertical_axis  
-- Column 2: anteroposterior_axis
+**Column structure (semantic axes):**
+- Column 0 = lateral_axis (mediolateral direction)
+- Column 1 = vertical_axis (superior-inferior direction)  
+- Column 2 = anteroposterior_axis (anterior-posterior direction)
 
 **Example:**
 ```python
 rf = laban.ReferenceFrame([0, 0, 0], [1, 0, 0], [0, 1, 0])
 R = rf.rotation_matrix[0]
 
-# Extract axes from rotation matrix
-lateral = R[:, 0]      # First column
-vertical = R[:, 1]     # Second column
-anteroposterior = R[:, 2]  # Third column
+# Extract semantic axes from rotation matrix
+lateral_axis = R[:, 0]           # Column 0
+vertical_axis = R[:, 1]          # Column 1
+anteroposterior_axis = R[:, 2]   # Column 2
 ```
 
 #### Methods
@@ -264,8 +265,10 @@ fz_pelvis = fp_pelvis.force['Fz']  # Anteroposterior
 In-place transformation:
 ```python
 # Modify Timeseries in place
-signal = laban.Signal3D(data, index, unit='m', columns=['X', 'Y', 'Z'])
+# Note: Column labels can be anything; semantic meaning comes from indices after transformation
+signal = laban.Signal3D(data, index, unit='m', columns=['GlobalX', 'GlobalY', 'GlobalZ'])
 rf.apply(signal, inplace=True)  # signal modified, returns None
+# After transformation: [:, 0]=lateral, [:, 1]=vertical, [:, 2]=anteroposterior
 ```
 
 ##### apply_inverse()
@@ -427,21 +430,25 @@ hip_pelvis = pelvis_rf.apply(body.left_hip)  # (1000, 3) in pelvis frame
 
 Semantic naming works regardless of global coordinate system:
 ```python
-# User's lab uses X=vertical instead of Z=vertical
-# Code still works because we use semantic names
+# Works with ANY global coordinate convention
+# (e.g., X=vertical, Y=anteroposterior, Z=lateral - or any other mapping)
+# Code remains unchanged because we use semantic axis names
 
 ref_frame = laban.ReferenceFrame(
     origin=origin,
-    lateral_axis=some_lateral_vector,   # Doesn't matter which axis this aligns with
-    vertical_axis=some_vertical_vector
+    lateral_axis=some_lateral_vector,      # Anatomical direction, not X/Y/Z
+    vertical_axis=some_vertical_vector     # Anatomical direction, not X/Y/Z
 )
 
-# After transformation, indices are ALWAYS semantic
+# After transformation, column indices are ALWAYS semantic
 transformed = ref_frame.apply(data)
 
-lateral_component = transformed[:, 0]      # ALWAYS lateral
-vertical_component = transformed[:, 1]     # ALWAYS vertical
-anteroposterior_component = transformed[:, 2]  # ALWAYS anteroposterior
+lateral_component = transformed[:, 0]           # ALWAYS mediolateral
+vertical_component = transformed[:, 1]          # ALWAYS superior-inferior
+anteroposterior_component = transformed[:, 2]   # ALWAYS anterior-posterior
+
+# Never use axis letters (X/Y/Z) - they vary between labs
+# Always use semantic column indices (0=lateral, 1=vertical, 2=anteroposterior)
 ```
 
 ## Advanced Topics
@@ -470,18 +477,22 @@ Result: `[e1, e2, e3]` form an orthonormal basis.
 
 ### Rotation Matrix Structure
 
+The rotation matrix stores semantic axes as columns, independent of the global coordinate system:
+
 ```python
 rotation_matrix = [
-    [e1_x, e2_x, e3_x],  # Row 0: components along global X
-    [e1_y, e2_y, e3_y],  # Row 1: components along global Y
-    [e1_z, e2_z, e3_z]   # Row 2: components along global Z
+    [lateral_x,  vertical_x,  anteroposterior_x],  # Global coordinate components
+    [lateral_y,  vertical_y,  anteroposterior_y],  # (rows represent global axes,
+    [lateral_z,  vertical_z,  anteroposterior_z]   #  but naming depends on lab setup)
 ]
 ```
 
-Where:
-- `e1` = lateral_axis (column 0)
-- `e2` = vertical_axis (column 1)
-- `e3` = anteroposterior_axis (column 2)
+**Semantic column meanings (coordinate-system independent):**
+- Column 0 = lateral_axis (mediolateral direction)
+- Column 1 = vertical_axis (superior-inferior direction)
+- Column 2 = anteroposterior_axis (anterior-posterior direction)
+
+**Important:** The rows represent global coordinate components, but their anatomical meaning varies between labs. Always reference columns by semantic axis names, not by letter (X/Y/Z).
 
 ### Left vs Right Handedness
 

@@ -18,9 +18,9 @@ def create_test_wholebody(n_samples=100):
     # Pelvis markers (form a rectangle in frontal plane)
     left_asis = laban.Point3D(
         data=np.column_stack([
-            -0.1 + 0.01 * np.sin(2 * np.pi * t),  # X: left
-            0.9 + 0.02 * np.cos(2 * np.pi * t),   # Y: high
-            0.0 + 0.01 * np.sin(4 * np.pi * t)    # Z: neutral
+            -0.1 + 0.01 * np.sin(2 * np.pi * t),  # Global X: left
+            0.9 + 0.02 * np.cos(2 * np.pi * t),   # Global Y: high
+            0.0 + 0.01 * np.sin(4 * np.pi * t)    # Global Z: neutral
         ]),
         index=np.arange(n_samples),
         columns=["X", "Y", "Z"],
@@ -40,7 +40,7 @@ def create_test_wholebody(n_samples=100):
         data=np.column_stack([
             -0.08 + 0.01 * np.sin(2 * np.pi * t),
             0.85 + 0.02 * np.cos(2 * np.pi * t),
-            -0.15 + 0.01 * np.sin(4 * np.pi * t)  # Z: backward
+            -0.15 + 0.01 * np.sin(4 * np.pi * t)  # Global Z: backward
         ]),
         index=np.arange(n_samples),
         columns=["X", "Y", "Z"],
@@ -81,7 +81,7 @@ def create_test_wholebody(n_samples=100):
     left_knee_lat = laban.Point3D(
         data=np.column_stack([
             -0.18 + 0.01 * np.sin(2 * np.pi * t),
-            0.50 + 0.05 * np.cos(2 * np.pi * t),  # Flex/extend
+            0.50 + 0.05 * np.cos(2 * np.pi * t),  # Knee flex/extend motion
             0.05 + 0.01 * np.sin(4 * np.pi * t)
         ]),
         index=np.arange(n_samples),
@@ -362,7 +362,8 @@ def test_rotation_matrices_shape_and_orthonormality():
         'left_ankle_referenceframe',
     ]
 
-    # Right side frames: left-handed (det(R) = -1, Z points FORWARD)
+    # Right side frames: left-handed (det(R) = -1)
+    # Note: Axis directions are defined by semantic parameter names, not global X/Y/Z
     right_rf_properties = [
         'right_knee_referenceframe',
         'right_hip_referenceframe',
