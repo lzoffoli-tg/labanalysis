@@ -35,12 +35,12 @@ right_psis = laban.Point3D(
 )
 
 # Hip markers
-left_throcanter = laban.Point3D(
+left_trochanter = laban.Point3D(
     data=np.array([[-0.15, 0.85, 0.00]] * n_frames),
     index=time_index,
     columns=["X", "Y", "Z"],
 )
-right_throcanter = laban.Point3D(
+right_trochanter = laban.Point3D(
     data=np.array([[0.15, 0.85, 0.00]] * n_frames),
     index=time_index,
     columns=["X", "Y", "Z"],
@@ -116,7 +116,7 @@ l2 = laban.Point3D(
 body = laban.WholeBody(
     left_asis=left_asis, right_asis=right_asis,
     left_psis=left_psis, right_psis=right_psis,
-    left_throcanter=left_throcanter, right_throcanter=right_throcanter,
+    left_trochanter=left_trochanter, right_trochanter=right_trochanter,
     left_knee_lateral=left_knee_lat, left_knee_medial=left_knee_med,
     right_knee_lateral=right_knee_lat, right_knee_medial=right_knee_med,
     left_ankle_lateral=left_ankle_lat, left_ankle_medial=left_ankle_med,

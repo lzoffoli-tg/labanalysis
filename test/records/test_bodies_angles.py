@@ -306,8 +306,8 @@ def aligned_knees_wholebody():
         right_asis=right_asis,
         left_psis=left_psis,
         right_psis=right_psis,
-        left_throcanter=left_troch,
-        right_throcanter=right_troch,
+        left_trochanter=left_troch,
+        right_trochanter=right_troch,
         left_knee_medial=left_knee_med,
         left_knee_lateral=left_knee_lat,
         right_knee_medial=right_knee_med,
@@ -574,7 +574,7 @@ class TestHipAnglesSignConvention:
             right_asis=right_asis,
             left_psis=left_psis,
             right_psis=right_psis,
-            left_throcanter=left_troch,
+            left_trochanter=left_troch,
             left_knee_medial=left_knee_med,
             left_knee_lateral=left_knee_lat,
         )
@@ -681,7 +681,7 @@ class TestHipAnglesSignConvention:
             right_asis=right_asis,
             left_psis=left_psis,
             right_psis=right_psis,
-            left_throcanter=left_troch,
+            left_trochanter=left_troch,
             left_knee_medial=left_knee_med,
             left_knee_lateral=left_knee_lat,
         )

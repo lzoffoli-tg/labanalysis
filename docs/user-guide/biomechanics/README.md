@@ -16,9 +16,10 @@ labanalysis provides comprehensive tools for biomechanical analysis:
 
 | Topic | Description | Guide |
 |-------|-------------|-------|
-| **[WholeBody Model](whole-body-model.md)** | Full body with 86 properties | Complete model guide |
+| **[Quick Reference](quick-reference.md)** | ⚡ Interpretazione rapida angoli e segmenti | Reference card |
+| **[WholeBody Model](whole-body-model.md)** | Full body with 104+ properties | Complete model guide |
 | **[Force Platforms](force-platforms.md)** | GRF and COP analysis | Force analysis guide |
-| **[Joint Angles](joint-angles.md)** | 36 joint angles | Angle calculation guide |
+| **[Joint Angles](joint-angles.md)** | 37 joint angles | Angle calculation guide |
 | **[Coordinate Systems](coordinate-systems.md)** | Reference frames | Transformation guide |
 | **[EMG Signals](emg-signals.md)** | Muscle activation | EMG processing guide |
 
@@ -304,11 +305,12 @@ emg_normalized = (envelope / emg_mvc_max) * 100  # % MVC
 
 Detailed guides for each topic:
 
-1. **[WholeBody Model](whole-body-model.md)** - Complete model with 86 properties
-2. **[Force Platforms](force-platforms.md)** - GRF analysis and COP calculations
-3. **[Joint Angles](joint-angles.md)** - All 36 joint angles explained
-4. **[Coordinate Systems](coordinate-systems.md)** - Reference frames and transformations
-5. **[EMG Signals](emg-signals.md)** - Electromyography processing
+1. **[Quick Reference](quick-reference.md)** - ⚡ Guida rapida interpretazione angoli e segmenti
+2. **[WholeBody Model](whole-body-model.md)** - Complete model with 104+ properties
+3. **[Force Platforms](force-platforms.md)** - GRF analysis and COP calculations
+4. **[Joint Angles](joint-angles.md)** - All 37 joint angles explained
+5. **[Coordinate Systems](coordinate-systems.md)** - Reference frames and transformations
+6. **[EMG Signals](emg-signals.md)** - Electromyography processing
 
 ## See Also
 

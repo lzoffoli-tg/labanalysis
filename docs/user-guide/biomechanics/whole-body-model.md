@@ -1,13 +1,13 @@
 # WholeBody Model
 
-Complete guide to the WholeBody biomechanical model with 104+ properties including 38 angular measures, anatomical markers, joint centers, and reference frames.
+Complete guide to the WholeBody biomechanical model with 104+ properties including 37 angular measures, anatomical markers, joint centers, and reference frames.
 
 ## Overview
 
 The `WholeBody` class is a comprehensive full-body biomechanical model that automatically calculates joint angles and segment properties from 3D marker positions. It's the most feature-rich class in labanalysis for kinematic analysis.
 
 **Key Features:**
-- 38 joint angular measures (Signal1D) - all ISB-compliant
+- 42 joint angular measures (Signal1D) - all ISB-compliant
 - Anatomical marker positions (Point3D)
 - Joint centers and reference frames
 - Segment properties (mass, length, etc.)

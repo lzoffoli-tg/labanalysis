@@ -10,7 +10,7 @@ Complete end-to-end workflow for analyzing full body motion capture data using l
 
 - Load motion capture data with anatomical markers
 - Create WholeBody model from marker data
-- Access 104+ computed properties (38 angular measures, joint centers, reference frames, anthropometrics)
+- Access 104+ computed properties (37 angular measures, joint centers, reference frames, anthropometrics)
 - Analyze gait kinematics across stride cycles
 - Visualize joint angle time series
 - Export kinematic data for further analysis
@@ -703,9 +703,9 @@ Limb Length Discrepancy (mm)................ 4.2
 ## Key Takeaways
 
 ### WholeBody Model Features
-- **Automatic Computation**: 88 properties computed from raw markers
+- **Automatic Computation**: 91 properties computed from raw markers
   - 42 anatomical markers
-  - 38 joint angles (flexion/extension, abduction/adduction, rotation)
+  - 37 joint angles (flexion/extension, abduction/adduction, rotation)
   - 8 computed properties (joint centers, reference frames)
 - **Lazy Evaluation**: Properties calculated only when accessed
 - **Unit Consistency**: All distances in meters, angles in degrees

@@ -1,10 +1,10 @@
 # Joint Angles
 
-Guide to accessing and analyzing the 38 joint angles automatically calculated by the WholeBody class.
+Guide to accessing and analyzing the 37 joint angles automatically calculated by the WholeBody class.
 
 ## Overview
 
-The `WholeBody` class automatically calculates 38 joint angles from 3D marker positions. All angles follow biomechanical conventions with consistent sign interpretations across the body.
+The `WholeBody` class automatically calculates 37 joint angles from 3D marker positions. All angles follow biomechanical conventions with consistent sign interpretations across the body.
 
 **Angle Categories:**
 - **Lower Limb** (8): Ankle (4) + Knee (4) + Hip (6) = 14 angles
@@ -143,23 +143,28 @@ print(f"Squat classification: {depth}")
 
 ## Pelvis & Trunk Angles
 
-### Pelvis Angles (3)
+### Pelvis Angles (7)
 
-All pelvis angles measured in global reference frame.
+Pelvis angles available in both global (earth-fixed) and local (body-segment) reference frames.
 
 | Property | Description | Positive | Negative | Neutral |
 |----------|-------------|----------|----------|---------|
-| `pelvis_anteroposteriortilt_global` | Sagittal tilt | Posterior tilt | Anterior tilt | 0° |
-| `pelvis_lateraltilt_global` | Frontal tilt | Right tilt (right hip drop) | Left tilt (left hip drop) | 0° |
-| `pelvis_rotation_global` | Transverse rotation | Right rotation | Left rotation | 0° |
+| `pelvis_anteroposterior_tilt_global` | Sagittal tilt | Posterior tilt | Anterior tilt | 0° |
+| `pelvis_lateraltilt_global` | Frontal tilt (global) | Left hip higher | Right hip higher | 0° |
+| `pelvis_lateraltilt_local` | Frontal tilt (trunk-relative) | Left hip higher | Right hip higher | 0° |
+| `pelvis_rotation_global` | Transverse rotation (global) | Left hip forward | Right hip forward | 0° |
+| `pelvis_rotation_local` | Transverse rotation (neck-relative) | Left hip forward | Right hip forward | 0° |
 
-**Note**: All pelvis angles are 0° in neutral position (level, aligned pelvis).
+**Note**: 
+- Global measurements are relative to gravity (earth-fixed coordinate system)
+- Local measurements are relative to trunk orientation (body-segment coordinate system)
+- All pelvis angles are 0° in neutral position (level, aligned pelvis)
 
 **Example: Pelvic Tilt Assessment**
 
 ```python
 # Get anterior/posterior pelvic tilt
-pelvic_tilt = body.pelvis_anteroposteriortilt_global
+pelvic_tilt = body.pelvis_anteroposterior_tilt_global
 
 # Analyze static posture
 mean_tilt = pelvic_tilt.data.mean()
@@ -171,16 +176,25 @@ elif mean_tilt > 10:
 else:
     print(f"Neutral pelvic tilt: {mean_tilt:.1f}°")
 
-# Get lateral pelvic tilt
-lateral_tilt = body.pelvis_lateraltilt_global
-mean_lateral = lateral_tilt.data.mean()
+# Get lateral pelvic tilt (global = absolute space orientation)
+lateral_tilt_global = body.pelvis_lateraltilt_global
+mean_lateral_global = lateral_tilt_global.data.mean()
 
-if abs(mean_lateral) < 2:
-    print(f"Level pelvis: {mean_lateral:.1f}°")
-elif mean_lateral > 5:
-    print(f"Right pelvic tilt: {mean_lateral:.1f}° (right hip drop)")
+# Get lateral pelvic tilt (local = relative to trunk)
+lateral_tilt_local = body.pelvis_lateraltilt_local
+mean_lateral_local = lateral_tilt_local.data.mean()
+
+if abs(mean_lateral_global) < 2:
+    print(f"Level pelvis (global): {mean_lateral_global:.1f}°")
+elif mean_lateral_global > 0:
+    print(f"Left hip higher (global): {mean_lateral_global:.1f}°")
 else:
-    print(f"Left pelvic tilt: {abs(mean_lateral):.1f}° (left hip drop)")
+    print(f"Right hip higher (global): {abs(mean_lateral_global):.1f}°")
+
+# Compare global vs local to assess trunk compensation
+difference = abs(mean_lateral_global - mean_lateral_local)
+if difference > 5:
+    print(f"Significant trunk compensation detected: {difference:.1f}° difference")
 ```
 
 ### Trunk Angles (4)
@@ -195,12 +209,12 @@ else:
 **Example: Trunk-Pelvis Dissociation During Gait**
 
 ```python
-# Get trunk and pelvis rotation
-trunk_rot = body.trunk_rotation_global
-pelvis_rot = body.pelvis_rotation_global
+# Get trunk and pelvis rotation (both global)
+trunk_rot_global = body.trunk_rotation_global
+pelvis_rot_global = body.pelvis_rotation_global
 
 # Calculate dissociation (trunk relative to pelvis)
-dissociation = trunk_rot.data - pelvis_rot.data
+dissociation = trunk_rot_global.data - pelvis_rot_global.data
 
 # Or use the pre-calculated local rotation
 trunk_local = body.trunk_rotation_local  # Same as dissociation
@@ -222,10 +236,15 @@ elif max_dissociation > 15:
 
 | Property | Description | Positive | Negative |
 |----------|-------------|----------|----------|
-| `shoulder_lateraltilt_global` | Shoulder elevation (global) | Right tilt | Left tilt |
-| `shoulder_lateraltilt_local` | Shoulder elevation (relative to trunk) | Right tilt | Left tilt |
+| `shoulder_lateraltilt_global` | Shoulder elevation (global) | Left shoulder higher | Right shoulder higher |
+| `shoulder_lateraltilt_local` | Shoulder elevation (trunk-relative) | Left shoulder higher | Right shoulder higher |
 | `left_scapular_protractionretraction` | Scapular position (transverse) | Protraction | Retraction |
 | `right_scapular_protractionretraction` | Scapular position (transverse) | Protraction | Retraction |
+
+**Note**: 
+- Global measurements show shoulder orientation relative to gravity
+- Local measurements show shoulder orientation relative to trunk axis
+- Useful for assessing postural compensation patterns
 
 **Example: Scapular Protraction Analysis**
 
@@ -486,4 +505,4 @@ knee_angle_filtered = laban.butterworth_filt(
 
 ---
 
-**38 Joint Angles**: Comprehensive kinematic analysis from 3D marker data using biomechanical conventions.
+**42 Joint Angles**: Comprehensive kinematic analysis from 3D marker data using biomechanical conventions.

@@ -88,8 +88,8 @@ def test_ankle_joint_center_with_missing_medial_markers():
     left_knee_lat = create_mock_point3d(n_samples, offset=2.0)
     right_knee_lat = create_mock_point3d(n_samples, offset=3.0)
 
-    left_throcanter = create_mock_point3d(n_samples, offset=4.0)
-    right_throcanter = create_mock_point3d(n_samples, offset=5.0)
+    left_trochanter = create_mock_point3d(n_samples, offset=4.0)
+    right_trochanter = create_mock_point3d(n_samples, offset=5.0)
 
     left_asis = create_mock_point3d(n_samples, offset=6.0)
     right_asis = create_mock_point3d(n_samples, offset=7.0)
@@ -104,8 +104,8 @@ def test_ankle_joint_center_with_missing_medial_markers():
         # No medial ankle markers
         left_knee_lateral=left_knee_lat,
         right_knee_lateral=right_knee_lat,
-        left_throcanter=left_throcanter,
-        right_throcanter=right_throcanter,
+        left_trochanter=left_trochanter,
+        right_trochanter=right_trochanter,
         left_asis=left_asis,
         right_asis=right_asis,
         left_psis=left_psis,
@@ -138,8 +138,8 @@ def test_ankle_referenceframe_with_missing_medial_markers():
     left_knee_lat = create_mock_point3d(n_samples, offset=2.0)
     right_knee_lat = create_mock_point3d(n_samples, offset=3.0)
 
-    left_throcanter = create_mock_point3d(n_samples, offset=4.0)
-    right_throcanter = create_mock_point3d(n_samples, offset=5.0)
+    left_trochanter = create_mock_point3d(n_samples, offset=4.0)
+    right_trochanter = create_mock_point3d(n_samples, offset=5.0)
 
     left_asis = create_mock_point3d(n_samples, offset=6.0)
     right_asis = create_mock_point3d(n_samples, offset=7.0)
@@ -154,8 +154,8 @@ def test_ankle_referenceframe_with_missing_medial_markers():
         # No medial ankle markers
         left_knee_lateral=left_knee_lat,
         right_knee_lateral=right_knee_lat,
-        left_throcanter=left_throcanter,
-        right_throcanter=right_throcanter,
+        left_trochanter=left_trochanter,
+        right_trochanter=right_trochanter,
         left_asis=left_asis,
         right_asis=right_asis,
         left_psis=left_psis,
@@ -220,8 +220,8 @@ def test_knee_elbow_wrist_with_missing_medial_markers():
     right_shoulder_ant = create_mock_point3d(n_samples, offset=10.0)
     right_shoulder_post = create_mock_point3d(n_samples, offset=11.0)
 
-    left_throcanter = create_mock_point3d(n_samples, offset=12.0)
-    right_throcanter = create_mock_point3d(n_samples, offset=13.0)
+    left_trochanter = create_mock_point3d(n_samples, offset=12.0)
+    right_trochanter = create_mock_point3d(n_samples, offset=13.0)
 
     left_asis = create_mock_point3d(n_samples, offset=14.0)
     right_asis = create_mock_point3d(n_samples, offset=15.0)
@@ -243,8 +243,8 @@ def test_knee_elbow_wrist_with_missing_medial_markers():
         left_shoulder_posterior=left_shoulder_post,
         right_shoulder_anterior=right_shoulder_ant,
         right_shoulder_posterior=right_shoulder_post,
-        left_throcanter=left_throcanter,
-        right_throcanter=right_throcanter,
+        left_trochanter=left_trochanter,
+        right_trochanter=right_trochanter,
         left_asis=left_asis,
         right_asis=right_asis,
         left_psis=left_psis,
@@ -286,8 +286,8 @@ def test_ankle_with_both_markers():
 
     left_knee_lat = create_mock_point3d(n_samples, offset=2.0)
 
-    left_throcanter = create_mock_point3d(n_samples, offset=4.0)
-    right_throcanter = create_mock_point3d(n_samples, offset=5.0)
+    left_trochanter = create_mock_point3d(n_samples, offset=4.0)
+    right_trochanter = create_mock_point3d(n_samples, offset=5.0)
 
     left_asis = create_mock_point3d(n_samples, offset=6.0)
     right_asis = create_mock_point3d(n_samples, offset=7.0)
@@ -300,8 +300,8 @@ def test_ankle_with_both_markers():
         left_ankle_lateral=left_ankle_lat,
         left_ankle_medial=left_ankle_med,
         left_knee_lateral=left_knee_lat,
-        left_throcanter=left_throcanter,
-        right_throcanter=right_throcanter,
+        left_trochanter=left_trochanter,
+        right_trochanter=right_trochanter,
         left_asis=left_asis,
         right_asis=right_asis,
         left_psis=left_psis,
@@ -567,8 +567,8 @@ def test_all_angular_measures_accessible():
         right_knee_lateral=create_mock_point3d(n_samples, offset=11.0),
         right_knee_medial=create_mock_point3d(n_samples, offset=11.5),
         # Hip markers
-        left_throcanter=create_mock_point3d(n_samples, offset=12.0),
-        right_throcanter=create_mock_point3d(n_samples, offset=13.0),
+        left_trochanter=create_mock_point3d(n_samples, offset=12.0),
+        right_trochanter=create_mock_point3d(n_samples, offset=13.0),
         # Pelvis markers
         left_asis=create_mock_point3d(n_samples, offset=14.0),
         right_asis=create_mock_point3d(n_samples, offset=15.0),

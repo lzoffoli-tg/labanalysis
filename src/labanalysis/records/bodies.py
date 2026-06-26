@@ -13,6 +13,59 @@ from .timeseries import *
 __all__ = ["WholeBody"]
 
 
+def _auto_populate_angular_measures(cls):
+    """
+    Class decorator to auto-populate _angular_measures.
+
+    Discovers angular measure properties by introspecting the class
+    and identifying properties with biomechanical angle keywords in their names.
+
+    Parameters
+    ----------
+    cls : class
+        The class to decorate (WholeBody)
+
+    Returns
+    -------
+    class
+        The decorated class with _angular_measures attribute set
+    """
+    # Biomechanical keywords that identify angular properties
+    angle_keywords = [
+        "flexion",
+        "extension",
+        "rotation",
+        "abduction",
+        "adduction",
+        "tilt",
+        "valgus",
+        "varus",
+        "inversion",
+        "eversion",
+        "protraction",
+        "retraction",
+        "lordosis",
+        "kyphosis",
+    ]
+
+    angular_props = []
+    for name in dir(cls):
+        if name.startswith("_"):
+            continue
+        try:
+            attr = getattr(cls, name, None)
+            if not isinstance(attr, property):
+                continue
+            if any(kw in name.lower() for kw in angle_keywords):
+                angular_props.append(name)
+        except:
+            pass
+
+    cls._angular_measures = sorted(angular_props)
+    return cls
+
+
+@_auto_populate_angular_measures
 class WholeBody(TimeseriesRecord):
     """
     Full body biomechanical model with anatomical landmarks and joint angles.
@@ -64,9 +117,9 @@ class WholeBody(TimeseriesRecord):
         Right medial femoral epicondyle marker.
     right_knee_lateral : Point3D, optional
         Right lateral femoral epicondyle marker.
-    left_throcanter : Point3D, optional
+    left_trochanter : Point3D, optional
         Left greater trochanter marker.
-    right_throcanter : Point3D, optional
+    right_trochanter : Point3D, optional
         Right greater trochanter marker.
     left_asis : Point3D, optional
         Left anterior superior iliac spine marker.
@@ -128,7 +181,8 @@ class WholeBody(TimeseriesRecord):
     Attributes
     ----------
     _angular_measures : list of str
-        List of all available joint angle properties.
+        Auto-discovered list of all angular measure properties, populated
+        by the class decorator based on naming conventions.
 
     Notes
     -----
@@ -158,43 +212,6 @@ class WholeBody(TimeseriesRecord):
     >>> hip_abd = body.left_hip_abductionadduction
     """
 
-    _angular_measures = [
-        "left_ankle_flexionextension",
-        "right_ankle_flexionextension",
-        "left_ankle_inversioneversion",
-        "right_ankle_inversioneversion",
-        "left_knee_flexionextension",
-        "right_knee_flexionextension",
-        "left_knee_varusvalgus",
-        "right_knee_varusvalgus",
-        "left_hip_flexionextension",
-        "right_hip_flexionextension",
-        "left_hip_abductionadduction",
-        "right_hip_abductionadduction",
-        "left_hip_internalexternalrotation",
-        "right_hip_internalexternalrotation",
-        "pelvis_anteroposterior_tilt",
-        "pelvis_lateraltilt_global",
-        "pelvis_rotation_global",
-        "trunk_lateralflexion",
-        "trunk_rotation",
-        "shoulder_lateraltilt",
-        "left_shoulder_abductionadduction",
-        "right_shoulder_abductionadduction",
-        "left_shoulder_flexionextension",
-        "right_shoulder_flexionextension",
-        "left_shoulder_internalexternalrotation",
-        "right_shoulder_internalexternalrotation",
-        "left_scapular_protractionretraction",
-        "right_scapular_protractionretraction",
-        "left_elbow_flexionextension",
-        "right_elbow_flexionextension",
-        "neck_lateralflexion",
-        "neck_flexionextension",
-        "lumbar_lordosis",
-        "dorsal_kyphosis",
-    ]
-
     def __init__(
         self,
         left_hand_ground_reaction_force: ForcePlatform | None = None,
@@ -217,8 +234,8 @@ class WholeBody(TimeseriesRecord):
         left_knee_lateral: Point3D | None = None,
         right_knee_medial: Point3D | None = None,
         right_knee_lateral: Point3D | None = None,
-        right_throcanter: Point3D | None = None,
-        left_throcanter: Point3D | None = None,
+        right_trochanter: Point3D | None = None,
+        left_trochanter: Point3D | None = None,
         left_asis: Point3D | None = None,
         right_asis: Point3D | None = None,
         left_psis: Point3D | None = None,
@@ -271,8 +288,8 @@ class WholeBody(TimeseriesRecord):
                 left_knee_lateral=left_knee_lateral,
                 right_knee_medial=right_knee_medial,
                 right_knee_lateral=right_knee_lateral,
-                left_throcanter=left_throcanter,
-                right_throcanter=right_throcanter,
+                left_trochanter=left_trochanter,
+                right_trochanter=right_trochanter,
                 left_asis=left_asis,
                 right_asis=right_asis,
                 left_psis=left_psis,
@@ -329,8 +346,8 @@ class WholeBody(TimeseriesRecord):
         left_knee_lateral: str | None = None,
         right_knee_medial: str | None = None,
         right_knee_lateral: str | None = None,
-        right_throcanter: str | None = None,
-        left_throcanter: str | None = None,
+        right_trochanter: str | None = None,
+        left_trochanter: str | None = None,
         left_asis: str | None = None,
         right_asis: str | None = None,
         left_psis: str | None = None,
@@ -381,8 +398,8 @@ class WholeBody(TimeseriesRecord):
             "left_knee_lateral": left_knee_lateral,
             "right_knee_medial": right_knee_medial,
             "right_knee_lateral": right_knee_lateral,
-            "right_throcanter": right_throcanter,
-            "left_throcanter": left_throcanter,
+            "right_trochanter": right_trochanter,
+            "left_trochanter": left_trochanter,
             "left_asis": left_asis,
             "right_asis": right_asis,
             "left_psis": left_psis,
@@ -1417,7 +1434,7 @@ class WholeBody(TimeseriesRecord):
         pelvis_center : Pelvis center (origin of this frame)
         hip_center : Hip center (used for vertical axis)
         trunk_lateralflexion : Trunk lateral flexion using this frame
-        pelvis_anteroposterior_tilt : Pelvis anteroposterior tilt using this frame
+        pelvis_anteroposterior_tilt_global : Pelvis anteroposterior tilt using this frame
         trunk_rotation : Trunk rotation using this frame
         """
         # Get pelvis points
@@ -1814,14 +1831,14 @@ class WholeBody(TimeseriesRecord):
         pelvis_plane = self._pelvis_plane
         try:
             l_height = self._get_point_to_plane_distance(
-                self._get_point("left_throcanter"),
+                self._get_point("left_trochanter"),
                 pelvis_plane,
             )
         except Exception as l:
             l_height = None
         try:
             r_height = self._get_point_to_plane_distance(
-                self._get_point("right_throcanter"),
+                self._get_point("right_trochanter"),
                 pelvis_plane,
             )
         except Exception as r:
@@ -2170,8 +2187,8 @@ class WholeBody(TimeseriesRecord):
         Signal1D
             Distance in meters between greater trochanter markers.
         """
-        l_troch = self._get_point("left_throcanter")
-        r_troch = self._get_point("right_throcanter")
+        l_troch = self._get_point("left_trochanter")
+        r_troch = self._get_point("right_trochanter")
         index = np.unique(np.concatenate([l_troch.index, r_troch.index])).tolist()
         data = np.asarray(l_troch - r_troch)
         data = np.sum(data**2, axis=1) ** 0.5
@@ -2361,7 +2378,7 @@ class WholeBody(TimeseriesRecord):
             unit=p0.unit,
         )
         return self._get_translated_point_along_plane(
-            self._get_point("left_throcanter"),
+            self._get_point("left_trochanter"),
             offsets,
             self._pelvis_plane,
         )
@@ -2383,7 +2400,7 @@ class WholeBody(TimeseriesRecord):
             unit=p0.unit,
         )
         return self._get_translated_point_along_plane(
-            self._get_point("right_throcanter"),
+            self._get_point("right_trochanter"),
             offsets,
             self._pelvis_plane,
         )
@@ -3808,22 +3825,21 @@ class WholeBody(TimeseriesRecord):
 
         Interpretation
         --------------
-        - **Positive (+)**: Right tilt (inclinazione destra del bacino)
-          The right side of the pelvis drops lower than the left.
+        - **Positive (+)**: Left hip higher than right hip (inclinazione sinistra del bacino)
+          The left hip joint center is elevated relative to the right.
+          Common in left hip drop compensation or scoliosis.
+        - **Negative (-)**: Right hip higher than left hip (inclinazione destra del bacino)
+          The right hip joint center is elevated relative to the left.
           Common in right hip drop, Trendelenburg gait.
-        - **Negative (-)**: Left tilt (inclinazione sinistra del bacino)
-          The left side of the pelvis drops lower than the right.
-          Common in left hip drop.
-        - **0°**: Neutral position (pelvis level, ASIS points horizontally aligned)
+        - **0°**: Neutral position (hip joints level in frontal plane)
 
         Calculation Method
         ------------------
-        Uses projected pelvis points (ASIS and PSIS markers projected onto the pelvis
-        least-squares plane) to define the pelvis lateral axis.
+        Uses hip joint centers (computed using De Leva 1996 regression) to define
+        the hip-to-hip vector.
 
-        The lateral axis vector (from right pelvis midpoint to left pelvis midpoint)
-        is projected onto the global frontal plane (defined by lateral_axis and
-        vertical_axis in the global coordinate system).
+        The vector from right hip to left hip is projected onto the global frontal
+        plane (defined by lateral_axis and vertical_axis in the global coordinate system).
 
         The angle is calculated using the global coordinate components:
         - self.lateral_axis = global lateral direction
@@ -3836,34 +3852,132 @@ class WholeBody(TimeseriesRecord):
         -------
         Signal1D
             Pelvis lateral tilt angle in degrees.
-            Positive = right tilt (right hip drop)
-            Negative = left tilt (left hip drop)
+            Positive = left hip higher than right hip
+            Negative = right hip higher than left hip
 
         See Also
         --------
-        pelvis_anteroposteriortilt_global : Pelvis sagittal plane tilt
+        pelvis_anteroposterior_tilt_global : Pelvis sagittal plane tilt
         pelvis_rotation_global : Pelvis transverse plane rotation
         trunk_lateralflexion : Trunk frontal plane flexion
         """
 
-        # Get pelvis points projected into least squares plane
-        l_asis, r_asis, l_psis, r_psis = self._get_projected_pelvis_points()
+        # Get hip joint centers
+        left_hip = self.left_hip
+        right_hip = self.right_hip
 
-        # Define vector determining lateral axis of pelvis (left to right)
-        ml = ((r_asis + r_psis) / 2 - (l_asis + l_psis) / 2).to_numpy()
+        # Calculate hip-to-hip vector (right to left)
+        hip_vector = (left_hip - right_hip).to_numpy()
 
-        # Consider only global frontal plane
-        cols = l_asis.columns
-        axes_labels = [self.lateral_axis, self.vertical_axis]
-        col_map = [np.where(cols == i)[0][0] for i in axes_labels]
-        col_map = np.array(col_map)
+        # Project onto global frontal plane (lateral_axis, vertical_axis)
+        cols = left_hip.columns
+        lateral_idx = np.where(cols == self.lateral_axis)[0][0]
+        vertical_idx = np.where(cols == self.vertical_axis)[0][0]
 
-        # Calculate angle
-        x, y = ml[:, col_map].T
-        angle = np.degrees(np.arctan2(y, x))
+        lateral_comp = hip_vector[:, lateral_idx]
+        vertical_comp = hip_vector[:, vertical_idx]
 
-        # Return angle
-        return Signal1D(data=angle, index=l_asis.index, unit="°")
+        # arctan2(vertical, lateral): positive when left hip is higher
+        angle = np.degrees(np.arctan2(vertical_comp, lateral_comp))
+
+        return Signal1D(data=angle, index=left_hip.index, unit="°")
+
+    @property
+    def pelvis_lateraltilt_local(self):
+        """
+        Calculate pelvis lateral tilt in local reference plane.
+
+        The angle represents the left or right side tilting of the pelvis
+        measured in a plane defined by the pelvis lateral axis and the
+        vertical axis from pelvis center to C7.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Left hip higher than right hip
+          The left hip joint center is elevated relative to the right
+          when measured in the local reference plane.
+        - **Negative (-)**: Right hip higher than left hip
+          The right hip joint center is elevated relative to the left
+          when measured in the local reference plane.
+        - **0°**: Neutral position (hip joints level in local plane)
+
+        Calculation Method
+        ------------------
+        Uses hip joint centers (computed using De Leva 1996 regression) to define
+        the hip-to-hip vector.
+
+        The local reference plane is defined in the pelvis reference frame's
+        frontal plane (lateral and vertical components):
+        1. Transform pelvis_center and C7 to pelvis reference frame
+        2. Extract frontal plane components (lateral and vertical)
+        3. Define vertical axis from pelvis_center to C7 in this plane
+        4. Orthonormalize lateral and vertical axes using Gram-Schmidt
+
+        The hip-to-hip vector is projected onto this orthonormalized plane, and
+        the angle is calculated as arctan2(vertical_component, lateral_component).
+
+        Returns
+        -------
+        Signal1D
+            Pelvis lateral tilt angle in degrees.
+            Positive = left hip higher than right hip
+            Negative = right hip higher than left hip
+
+        See Also
+        --------
+        pelvis_lateraltilt_global : Pelvis lateral tilt in global frontal plane
+        pelvis_rotation_local : Pelvis rotation in neck's transverse plane
+        pelvis_referenceframe : Pelvis local reference frame
+        """
+        # Get the points
+        lhip = self.left_hip
+        rhip = self.right_hip
+        pc = self.pelvis_center
+        c7 = self._get_point("c7")
+
+        # align to pelvis reference frame
+        rf = self.pelvis_referenceframe
+        lhip = rf.apply(lhip)
+        rhip = rf.apply(rhip)
+        pc = rf.apply(pc)
+        c7 = rf.apply(c7)
+
+        # define the vertical axis
+        vax = c7 - pc.to_numpy()
+        vax.loc[vax.index, vax.anteroposterior_axis] = 0
+        vax = vax / np.linalg.norm(vax)
+
+        # define the new reference frame
+        lax = vax.copy()
+        lax.loc[lax.index, lax.lateral_axis] = vax.loc[
+            vax.index, vax.vertical_axis
+        ].to_numpy()
+        lax.loc[lax.index, lax.vertical_axis] = -vax.loc[
+            vax.index, vax.lateral_axis
+        ].to_numpy()
+        ori = lax.copy() * 0
+        aax = ori.copy()
+        aax.loc[aax.index, aax.anteroposterior_axis] = 1
+        rf2 = ReferenceFrame(
+            ori,
+            lax,
+            vax,
+            aax,
+        )
+
+        # rotate the left hip into this frame
+        lh = rf2.apply(lhip)
+        rh = rf2.apply(rhip)
+
+        # Calculate hip-to-hip vector (right to left)
+        hip_vector = lh - rh
+
+        # Calculate angle: positive when left hip is higher
+        vc = hip_vector[self.vertical_axis].to_numpy().flatten()
+        lc = hip_vector[self.lateral_axis].to_numpy().flatten()
+        angle = np.degrees(np.arctan2(vc, lc))
+
+        return Signal1D(data=angle, index=lhip.index, unit="°")
 
     @property
     def pelvis_rotation_global(self):
@@ -3876,22 +3990,21 @@ class WholeBody(TimeseriesRecord):
 
         Interpretation
         --------------
-        - **Positive (+)**: Right rotation (rotazione destra del bacino)
-          The pelvis rotates clockwise (viewed from above).
-          The left hip moves forward relative to the right hip.
-        - **Negative (-)**: Left rotation (rotazione sinistra del bacino)
+        - **Positive (+)**: Left hip forward relative to right hip (rotazione sinistra del bacino)
+          The left hip joint center is more anterior than the right.
           The pelvis rotates counterclockwise (viewed from above).
-          The right hip moves forward relative to the left hip.
-        - **0°**: Neutral position (pelvis aligned with forward direction)
+        - **Negative (-)**: Right hip forward relative to left hip (rotazione destra del bacino)
+          The right hip joint center is more anterior than the left.
+          The pelvis rotates clockwise (viewed from above).
+        - **0°**: Neutral position (hip joints aligned in transverse plane)
 
         Calculation Method
         ------------------
-        Uses projected pelvis points (ASIS and PSIS markers projected onto the pelvis
-        least-squares plane) to define the pelvis lateral axis.
+        Uses hip joint centers (computed using De Leva 1996 regression) to define
+        the hip-to-hip vector.
 
-        The lateral axis vector (from right pelvis midpoint to left pelvis midpoint)
-        is projected onto the global transverse plane (defined by lateral_axis and
-        anteroposterior_axis in the global coordinate system).
+        The vector from right hip to left hip is projected onto the global transverse
+        plane (defined by lateral_axis and anteroposterior_axis in the global coordinate system).
 
         The angle is calculated using the global coordinate components:
         - self.lateral_axis = global lateral direction
@@ -3904,70 +4017,135 @@ class WholeBody(TimeseriesRecord):
         -------
         Signal1D
             Pelvis rotation angle in degrees.
-            Positive = right rotation
-            Negative = left rotation
+            Positive = left hip forward relative to right hip
+            Negative = right hip forward relative to left hip
 
         See Also
         --------
-        pelvis_anteroposteriortilt_global : Pelvis sagittal plane tilt
+        pelvis_anteroposterior_tilt_global : Pelvis sagittal plane tilt
         pelvis_lateraltilt_global : Pelvis frontal plane tilt
-        trunk_rotation_global : Trunk transverse plane rotation
+        trunk_rotation : Trunk transverse plane rotation
         """
 
-        # Get pelvis points projected into least squares plane
-        l_asis, r_asis, l_psis, r_psis = self._get_projected_pelvis_points()
+        # Get hip joint centers
+        left_hip = self.left_hip
+        right_hip = self.right_hip
 
-        # Define vector determining lateral axis of pelvis (left to right)
-        ml = ((r_asis + r_psis) / 2 - (l_asis + l_psis) / 2).to_numpy()
+        # Calculate hip-to-hip vector (right to left)
+        hip_vector = (left_hip - right_hip).to_numpy()
 
-        # Consider only global transverse plane
-        cols = l_asis.columns
-        axes_labels = [self.lateral_axis, self.anteroposterior_axis]
-        col_map = [np.where(cols == i)[0][0] for i in axes_labels]
-        col_map = np.array(col_map)
+        # Project onto global transverse plane (lateral_axis, anteroposterior_axis)
+        cols = left_hip.columns
+        lateral_idx = np.where(cols == self.lateral_axis)[0][0]
+        ap_idx = np.where(cols == self.anteroposterior_axis)[0][0]
 
-        # Calculate angle
-        x, y = ml[:, col_map].T
-        angle = np.degrees(np.arctan2(y, x))
+        lateral_comp = hip_vector[:, lateral_idx]
+        ap_comp = hip_vector[:, ap_idx]
 
-        # Return angle
-        return Signal1D(data=angle, index=l_asis.index, unit="°")
+        # arctan2(anteroposterior, lateral): positive when left hip is forward
+        angle = np.degrees(np.arctan2(ap_comp, lateral_comp))
+
+        return Signal1D(data=angle, index=left_hip.index, unit="°")
 
     @property
-    def pelvis_anteroposterior_tilt(self):
+    def pelvis_rotation_local(self):
         """
-        Calculate pelvis anteroposterior tilt (pitch) in sagittal plane.
+        Calculate pelvis rotation in neck's transverse plane.
+
+        The angle represents the left or right rotational orientation of
+        the pelvis measured in the transverse plane of the neck reference
+        frame.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Left hip forward relative to right hip
+          The left hip joint center is more anterior than the right
+          when measured in the neck's transverse plane.
+        - **Negative (-)**: Right hip forward relative to left hip
+          The right hip joint center is more anterior than the left
+          when measured in the neck's transverse plane.
+        - **0°**: Neutral position (hip joints aligned in neck's transverse plane)
+
+        Calculation Method
+        ------------------
+        Uses hip joint centers (computed using De Leva 1996 regression) to define
+        the hip-to-hip vector.
+
+        The vector from right hip to left hip is transformed into the neck
+        reference frame coordinate system. The transverse plane components
+        (lateral and anteroposterior) are extracted, and the angle is
+        calculated as arctan2(anteroposterior_component, lateral_component).
+
+        The neck reference frame is defined with:
+        - Origin at neck_base (midpoint between SC and C7)
+        - Vertical axis: pelvis_center → neck_base (UP)
+        - Anteroposterior axis: C7 → SC (FORWARD)
+        - Lateral axis: cross product (LEFT)
+
+        Returns
+        -------
+        Signal1D
+            Pelvis rotation angle in degrees.
+            Positive = left hip forward relative to right hip
+            Negative = right hip forward relative to left hip
+
+        See Also
+        --------
+        pelvis_rotation_global : Pelvis rotation in global transverse plane
+        pelvis_lateraltilt_local : Pelvis lateral tilt in local reference plane
+        neck_referenceframe : Neck local reference frame
+        """
+        # Get hip joint centers
+        left_hip = self.left_hip
+        right_hip = self.right_hip
+
+        # Calculate hip-to-hip vector (right to left)
+        hip_vector = (left_hip - right_hip).to_numpy()
+
+        # Transform to neck reference frame
+        neck_rframe = self.neck_referenceframe
+        neck_rmat = neck_rframe.rotation_matrix
+        hip_vector_rf = np.einsum("nij,nj->ni", neck_rmat, hip_vector)
+
+        # Extract transverse plane components
+        # Index [0] = lateral_axis, [2] = anteroposterior_axis
+        lateral_comp = hip_vector_rf[:, 0]
+        ap_comp = hip_vector_rf[:, 2]
+
+        # Calculate angle: positive when left hip is forward
+        angle = np.degrees(np.arctan2(ap_comp, lateral_comp))
+
+        return Signal1D(data=angle, index=left_hip.index, unit="°")
+
+    @property
+    def pelvis_anteroposterior_tilt_global(self):
+        """
+        Calculate pelvis anteroposterior tilt (pitch) in global sagittal plane.
 
         The angle represents the forward or backward tilting of the pelvis
-        relative to neutral position, measured in the sagittal plane.
+        relative to the global vertical, measured in the global sagittal plane.
 
         Interpretation
         --------------
         - **Positive (+)**: Anterior tilt (antiversione del bacino)
-          ASIS markers are lower/more forward than PSIS markers.
+          ASIS markers are lower/more forward than PSIS markers relative to gravity.
           Lumbar lordosis typically increases.
           Common in hyperlordosis, tight hip flexors.
         - **Negative (-)**: Posterior tilt (retroversione del bacino)
-          PSIS markers are lower/more forward than ASIS markers.
+          PSIS markers are lower/more forward than ASIS markers relative to gravity.
           Lumbar lordosis typically decreases.
           Common in hypolordosis, tight hamstrings.
-        - **0°**: Neutral position (ASIS and PSIS at same height)
+        - **0°**: Neutral position (ASIS and PSIS at same height in global frame)
 
         Calculation Method
         ------------------
-        Uses pelvis reference frame with:
-        - Origin: Pelvis center (centroid of 4 ASIS/PSIS markers)
-        - lateral_axis: LEFT (right midpoint → left midpoint)
-        - vertical_axis: UP (pelvis_center → neck_base)
-        - anteroposterior_axis: FORWARD (cross product, Gram-Schmidt)
+        Measures the angle of the pelvis plane (defined by ASIS-PSIS vector)
+        relative to the global sagittal plane (vertical and anteroposterior axes).
 
-        The tilt vector (PSIS midpoint → ASIS midpoint) is transformed to the pelvis
-        reference frame and projected onto the sagittal plane (defined by
-        anteroposterior_axis and vertical_axis).
-
-        The calculation uses rotation matrix indices:
-        - rotation_matrix[:, :, 2] = anteroposterior_axis component
-        - rotation_matrix[:, :, 1] = vertical_axis component
+        The tilt vector from PSIS midpoint to ASIS midpoint is projected onto
+        the global sagittal plane:
+        - self.anteroposterior_axis = global forward direction
+        - self.vertical_axis = global vertical direction (gravity)
 
         The angle is arctan2(anteroposterior_component, vertical_component), where
         positive values indicate anterior tilt (ASIS forward/lower than PSIS).
@@ -3981,8 +4159,8 @@ class WholeBody(TimeseriesRecord):
 
         See Also
         --------
-        pelvis_lateral_tilt : Pelvis frontal plane tilt
-        pelvis_rotation : Pelvis transverse plane rotation
+        pelvis_lateraltilt_global : Pelvis frontal plane tilt
+        pelvis_rotation_global : Pelvis transverse plane rotation
         lumbar_lordosis : Lumbar spine curvature
         """
         # Get pelvis markers
@@ -3991,24 +4169,23 @@ class WholeBody(TimeseriesRecord):
         l_psis = self._get_point("left_psis")
         r_psis = self._get_point("right_psis")
 
-        # Get pelvis reference frame
-        rmat = self.pelvis_referenceframe.rotation_matrix
-
         # Calculate tilt vector (PSIS midpoint to ASIS midpoint)
         psis_mid = (l_psis + r_psis) / 2
         asis_mid = (l_asis + r_asis) / 2
         tilt_vec = (asis_mid - psis_mid).to_numpy()
 
-        # Transform to pelvis reference frame
-        tilt_vec_rf = np.einsum("nij,nj->ni", rmat, tilt_vec)  # type: ignore
+        # Project onto global sagittal plane (anteroposterior_axis, vertical_axis)
+        cols = l_asis.columns
+        ap_idx = np.where(cols == self.anteroposterior_axis)[0][0]
+        vertical_idx = np.where(cols == self.vertical_axis)[0][0]
 
-        # Extract components in reference frame coordinates
-        # Index [2] = anteroposterior_axis component (by ReferenceFrame construction)
-        # Index [1] = vertical_axis component (by ReferenceFrame construction)
-        # arctan2 of anteroposterior and vertical components gives tilt angle
-        angle = np.arctan2(tilt_vec_rf[:, 2], tilt_vec_rf[:, 1]) * 180 / np.pi
+        ap_comp = tilt_vec[:, ap_idx]
+        vertical_comp = tilt_vec[:, vertical_idx]
 
-        # Return angle
+        # arctan2(-vertical, anteroposterior): positive when ASIS is lower (anterior tilt)
+        # Negative vertical component means ASIS lower than PSIS (downward vector)
+        angle = np.degrees(np.arctan2(-vertical_comp, ap_comp))
+
         return Signal1D(data=angle, index=l_asis.index, unit="°")
 
     @property
@@ -4051,7 +4228,7 @@ class WholeBody(TimeseriesRecord):
         See Also
         --------
         trunk_rotation : Trunk transverse plane rotation
-        pelvis_anteroposterior_tilt : Pelvis sagittal plane tilt
+        pelvis_anteroposterior_tilt_global : Pelvis sagittal plane tilt
         neck_lateralflexion : Neck frontal plane lateral flexion
         pelvis_referenceframe : Reference frame used for this calculation
         """
@@ -4848,79 +5025,163 @@ class WholeBody(TimeseriesRecord):
         return Signal1D(data=angle, index=elbow.index, unit="°")
 
     @property
-    def shoulder_lateraltilt(self):
+    def shoulder_lateraltilt_global(self):
         """
-        Calculate shoulder lateral tilt angle in frontal plane of neck reference frame.
+        Calculate shoulder lateral tilt in global frontal plane.
 
-        The angle represents the tilt of the line connecting left and right shoulders
-        relative to horizontal, measured in the frontal plane of the neck reference frame.
+        The angle represents the left or right side tilting of the shoulders
+        relative to the global horizontal, measured in the frontal plane.
 
         Interpretation
         --------------
-        - **Positive (+)**: Left shoulder higher (spalla sinistra più alta)
-          The left shoulder is elevated relative to the right shoulder.
-          Common in left shoulder elevation or right shoulder depression.
-        - **Negative (-)**: Right shoulder higher (spalla destra più alta)
-          The right shoulder is elevated relative to the left shoulder.
-          Common in right shoulder elevation or left shoulder depression.
-        - **0°**: Neutral position (shoulders level, horizontal alignment)
+        - **Positive (+)**: Left shoulder higher than right shoulder
+          The left shoulder joint center is elevated relative to the right.
+        - **Negative (-)**: Right shoulder higher than left shoulder
+          The right shoulder joint center is elevated relative to the left.
+        - **0°**: Neutral position (shoulders level in frontal plane)
 
         Calculation Method
         ------------------
-        Uses neck reference frame with:
-        - Origin: neck_base = midpoint(C7, sternoclavicular_junction)
-        - vertical_axis: UP (pelvis_center → neck_base)
-        - anteroposterior_axis: FORWARD (C7 → sternoclavicular_junction)
-        - lateral_axis: LEFT (cross product vertical × anteroposterior, Gram-Schmidt)
+        Uses shoulder joint centers to define the shoulder-to-shoulder vector.
 
-        Both left and right shoulder positions are transformed to the neck reference
-        frame using the apply method. The difference vector (left_shoulder - right_shoulder)
-        is then projected onto the frontal plane (defined by lateral_axis and vertical_axis).
+        The vector from right shoulder to left shoulder is projected onto the global frontal
+        plane (defined by lateral_axis and vertical_axis in the global coordinate system).
 
-        The calculation extracts:
-        - delta_lateral: left_rf[lateral_axis] - right_rf[lateral_axis]
-        - delta_vertical: left_rf[vertical_axis] - right_rf[vertical_axis]
+        The angle is calculated using the global coordinate components:
+        - self.lateral_axis = global lateral direction
+        - self.vertical_axis = global vertical direction
 
-        The angle is arctan2(delta_vertical, delta_lateral). Positive values indicate
-        the left shoulder is higher than the right.
+        The result is arctan2(vertical_component, lateral_component), giving the
+        tilt angle relative to horizontal.
 
         Returns
         -------
         Signal1D
             Shoulder lateral tilt angle in degrees.
-            Positive = left shoulder higher
-            Negative = right shoulder higher
+            Positive = left shoulder higher than right shoulder
+            Negative = right shoulder higher than left shoulder
 
         See Also
         --------
-        left_shoulder_elevationdepression : Left shoulder elevation/depression
-        right_shoulder_elevationdepression : Right shoulder elevation/depression
-        neck_referenceframe : Neck reference frame used for this calculation
+        shoulder_lateraltilt_local : Shoulder lateral tilt in neck reference plane
+        pelvis_lateraltilt_global : Pelvis lateral tilt in global frontal plane
         """
-        # Get shoulder positions and neck reference frame
+        # Get shoulder joint centers
         left_shoulder = self.left_shoulder
         right_shoulder = self.right_shoulder
-        neck_rf = self.neck_referenceframe
 
-        # Transform shoulders to neck reference frame using apply method
-        left_rf = neck_rf.apply(left_shoulder)
-        right_rf = neck_rf.apply(right_shoulder)
+        # Calculate shoulder-to-shoulder vector (right to left)
+        shoulder_vector = (left_shoulder - right_shoulder).to_numpy()
 
-        # Calculate difference vector from right to left shoulder in frontal plane
-        # lateral_axis component: left shoulder should have positive value, right negative
-        # vertical_axis component: positive = up
-        delta_lateral = (
-            left_rf[left_rf.lateral_axis] - right_rf[right_rf.lateral_axis]
-        ).to_numpy()
-        delta_vertical = (
-            left_rf[left_rf.vertical_axis] - right_rf[right_rf.vertical_axis]
-        ).to_numpy()
+        # Project onto global frontal plane (lateral_axis, vertical_axis)
+        cols = left_shoulder.columns
+        lateral_idx = np.where(cols == self.lateral_axis)[0][0]
+        vertical_idx = np.where(cols == self.vertical_axis)[0][0]
 
-        # Calculate angle: arctan2 of vertical and lateral components gives shoulder tilt
-        # Positive angle = left shoulder higher (positive delta_vertical with positive delta_lateral)
-        angle = np.degrees(np.arctan2(delta_vertical, delta_lateral))
+        lateral_comp = shoulder_vector[:, lateral_idx]
+        vertical_comp = shoulder_vector[:, vertical_idx]
+
+        # arctan2(vertical, lateral): positive when left shoulder is higher
+        angle = np.degrees(np.arctan2(vertical_comp, lateral_comp))
 
         return Signal1D(data=angle, index=left_shoulder.index, unit="°")
+
+    @property
+    def shoulder_lateraltilt_local(self):
+        """
+        Calculate shoulder lateral tilt in local reference plane.
+
+        The angle represents the left or right side tilting of the shoulders
+        measured in a plane defined by the neck lateral axis and the
+        vertical axis from neck_base to head (or C7 to head marker if available).
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Left shoulder higher than right shoulder
+          The left shoulder joint center is elevated relative to the right
+          when measured in the local reference plane.
+        - **Negative (-)**: Right shoulder higher than left shoulder
+          The right shoulder joint center is elevated relative to the left
+          when measured in the local reference plane.
+        - **0°**: Neutral position (shoulders level in local plane)
+
+        Calculation Method
+        ------------------
+        Uses shoulder joint centers to define the shoulder-to-shoulder vector.
+
+        The local reference plane is defined in the neck reference frame's
+        frontal plane (lateral and vertical components):
+        1. Transform neck_base and pelvis_center to neck reference frame
+        2. Extract frontal plane components (lateral and vertical)
+        3. Define vertical axis from pelvis_center to neck_base in this plane
+        4. Rotate 90° to obtain lateral axis
+        5. Create new reference frame with these orthonormalized axes
+
+        The shoulder-to-shoulder vector is projected onto this plane, and
+        the angle is calculated as arctan2(vertical_component, lateral_component).
+
+        Returns
+        -------
+        Signal1D
+            Shoulder lateral tilt angle in degrees.
+            Positive = left shoulder higher than right shoulder
+            Negative = right shoulder higher than left shoulder
+
+        See Also
+        --------
+        shoulder_lateraltilt_global : Shoulder lateral tilt in global frontal plane
+        pelvis_lateraltilt_local : Pelvis lateral tilt in local reference plane
+        neck_referenceframe : Neck local reference frame
+        """
+        # Get the points
+        lshoulder = self.left_shoulder
+        rshoulder = self.right_shoulder
+        neck_base = self.neck_base
+        pc = self.pelvis_center
+
+        # align to neck reference frame
+        rf = self.neck_referenceframe
+        lshoulder = rf.apply(lshoulder)
+        rshoulder = rf.apply(rshoulder)
+        neck_base = rf.apply(neck_base)
+        pc = rf.apply(pc)
+
+        # define the vertical axis (pelvis_center → neck_base projected on frontal plane)
+        vax = neck_base - pc.to_numpy()
+        vax.loc[vax.index, vax.anteroposterior_axis] = 0
+        vax = vax / np.linalg.norm(vax)
+
+        # define the new reference frame (rotate 90° to get lateral axis)
+        lax = vax.copy()
+        lax.loc[lax.index, lax.lateral_axis] = vax.loc[
+            vax.index, vax.vertical_axis
+        ].to_numpy()
+        lax.loc[lax.index, lax.vertical_axis] = -vax.loc[
+            vax.index, vax.lateral_axis
+        ].to_numpy()
+        ori = lax.copy() * 0
+        aax = ori.copy()
+        aax.loc[aax.index, aax.anteroposterior_axis] = 1
+        rf2 = ReferenceFrame(
+            ori,
+            lax,
+            vax,
+            aax,
+        )
+
+        # rotate the shoulders into this frame
+        ls = rf2.apply(lshoulder)
+        rs = rf2.apply(rshoulder)
+
+        # Calculate shoulder-to-shoulder vector (right to left)
+        shoulder_vector = ls - rs
+
+        # Calculate angle: positive when left shoulder is higher
+        vc = shoulder_vector[self.vertical_axis].to_numpy().flatten()
+        lc = shoulder_vector[self.lateral_axis].to_numpy().flatten()
+        angle = np.degrees(np.arctan2(vc, lc))
+
+        return Signal1D(data=angle, index=lshoulder.index, unit="°")
 
     @property
     def left_scapular_protractionretraction(self):
@@ -5507,7 +5768,7 @@ class WholeBody(TimeseriesRecord):
             "left_hip_internalexternalrotation",
             "right_hip_internalexternalrotation",
             # Pelvis angles
-            "pelvis_anteroposterior_tilt",
+            "pelvis_anteroposterior_tilt_global",
             # Trunk angles
             "trunk_rotation",
             # Shoulder angles
@@ -5517,7 +5778,6 @@ class WholeBody(TimeseriesRecord):
             "right_shoulder_abductionadduction",
             "left_shoulder_internalexternalrotation",
             "right_shoulder_internalexternalrotation",
-            "shoulder_lateraltilt",
             "left_shoulder_elevationdepression",
             "right_shoulder_elevationdepression",
             # Scapular angles

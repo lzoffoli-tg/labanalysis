@@ -45,12 +45,12 @@ def wholebody_neutral():
     )
 
     # Hip markers
-    left_throcanter = laban.Point3D(
+    left_trochanter = laban.Point3D(
         data=np.array([[-0.15, 0.85, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    right_throcanter = laban.Point3D(
+    right_trochanter = laban.Point3D(
         data=np.array([[0.15, 0.85, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
@@ -173,8 +173,8 @@ def wholebody_neutral():
         right_asis=right_asis,
         left_psis=left_psis,
         right_psis=right_psis,
-        left_throcanter=left_throcanter,
-        right_throcanter=right_throcanter,
+        left_trochanter=left_trochanter,
+        right_trochanter=right_trochanter,
         left_knee_lateral=left_knee_lat,
         left_knee_medial=left_knee_med,
         right_knee_lateral=right_knee_lat,
@@ -207,8 +207,8 @@ def wholebody_knee_flexed():
     right_asis = laban.Point3D(data=np.array([[0.10, 0.90, 0.00]]), index=[0], columns=["X", "Y", "Z"])
     left_psis = laban.Point3D(data=np.array([[-0.08, 0.85, -0.15]]), index=[0], columns=["X", "Y", "Z"])
     right_psis = laban.Point3D(data=np.array([[0.08, 0.85, -0.15]]), index=[0], columns=["X", "Y", "Z"])
-    left_throcanter = laban.Point3D(data=np.array([[-0.15, 0.85, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    right_throcanter = laban.Point3D(data=np.array([[0.15, 0.85, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    left_trochanter = laban.Point3D(data=np.array([[-0.15, 0.85, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    right_trochanter = laban.Point3D(data=np.array([[0.15, 0.85, 0.00]]), index=[0], columns=["X", "Y", "Z"])
 
     # Knees stay in place
     left_knee_lat = laban.Point3D(data=np.array([[-0.18, 0.50, 0.00]]), index=[0], columns=["X", "Y", "Z"])
@@ -237,7 +237,7 @@ def wholebody_knee_flexed():
 
     body = laban.WholeBody(
         left_asis=left_asis, right_asis=right_asis, left_psis=left_psis, right_psis=right_psis,
-        left_throcanter=left_throcanter, right_throcanter=right_throcanter,
+        left_trochanter=left_trochanter, right_trochanter=right_trochanter,
         left_knee_lateral=left_knee_lat, left_knee_medial=left_knee_med,
         right_knee_lateral=right_knee_lat, right_knee_medial=right_knee_med,
         left_ankle_lateral=left_ankle_lat, left_ankle_medial=left_ankle_med,
@@ -259,8 +259,8 @@ def wholebody_elbow_flexed():
     right_asis = laban.Point3D(data=np.array([[0.10, 0.90, 0.00]]), index=[0], columns=["X", "Y", "Z"])
     left_psis = laban.Point3D(data=np.array([[-0.08, 0.85, -0.15]]), index=[0], columns=["X", "Y", "Z"])
     right_psis = laban.Point3D(data=np.array([[0.08, 0.85, -0.15]]), index=[0], columns=["X", "Y", "Z"])
-    left_throcanter = laban.Point3D(data=np.array([[-0.15, 0.85, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    right_throcanter = laban.Point3D(data=np.array([[0.15, 0.85, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    left_trochanter = laban.Point3D(data=np.array([[-0.15, 0.85, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    right_trochanter = laban.Point3D(data=np.array([[0.15, 0.85, 0.00]]), index=[0], columns=["X", "Y", "Z"])
     left_knee_lat = laban.Point3D(data=np.array([[-0.18, 0.50, 0.00]]), index=[0], columns=["X", "Y", "Z"])
     left_knee_med = laban.Point3D(data=np.array([[-0.12, 0.50, 0.00]]), index=[0], columns=["X", "Y", "Z"])
     right_knee_lat = laban.Point3D(data=np.array([[0.18, 0.50, 0.00]]), index=[0], columns=["X", "Y", "Z"])
@@ -291,7 +291,7 @@ def wholebody_elbow_flexed():
 
     body = laban.WholeBody(
         left_asis=left_asis, right_asis=right_asis, left_psis=left_psis, right_psis=right_psis,
-        left_throcanter=left_throcanter, right_throcanter=right_throcanter,
+        left_trochanter=left_trochanter, right_trochanter=right_trochanter,
         left_knee_lateral=left_knee_lat, left_knee_medial=left_knee_med,
         right_knee_lateral=right_knee_lat, right_knee_medial=right_knee_med,
         left_ankle_lateral=left_ankle_lat, left_ankle_medial=left_ankle_med,

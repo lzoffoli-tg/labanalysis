@@ -6,7 +6,7 @@ Full-body biomechanical models with automated joint angle calculation.
 
 ### WholeBody
 
-Complete full-body biomechanical model with 104+ properties including 38 angular measures, anatomical markers, joint centers, and reference frames.
+Complete full-body biomechanical model with 104+ properties including 37 angular measures, anatomical markers, joint centers, and reference frames.
 
 **Source**: `src/labanalysis/records/bodies.py`
 
@@ -15,7 +15,7 @@ class WholeBody:
     """
     Full-body biomechanical model with automatic joint angle calculation.
     
-    Provides access to 42 anatomical marker positions (Point3D), 38 joint 
+    Provides access to 42 anatomical marker positions (Point3D), 42 joint 
     angles (Signal1D), and 8 computed properties. Joint angles are calculated
     using biomechanical conventions following ISB recommendations.
     
@@ -245,13 +245,15 @@ hip_flex = body.left_hip_flexionextension
 print(f"Hip flexion: mean={hip_flex.data.mean():.1f}°, max={hip_flex.data.max():.1f}°")
 ```
 
-##### Pelvis Angles (3)
+##### Pelvis Angles (7)
 
 | Property | Type | Description | Positive | Negative | Neutral |
 |----------|------|-------------|----------|----------|---------|
-| `pelvis_anteroposteriortilt_global` | Signal1D | Pelvis sagittal tilt | Posterior tilt | Anterior tilt | 0° |
-| `pelvis_lateraltilt_global` | Signal1D | Pelvis frontal tilt | Right tilt (right hip drop) | Left tilt (left hip drop) | 0° (level) |
-| `pelvis_rotation_global` | Signal1D | Pelvis transverse rotation | Right rotation | Left rotation | 0° (aligned) |
+| `pelvis_anteroposterior_tilt_global` | Signal1D | Pelvis sagittal tilt | Anterior tilt | Posterior tilt | 0° |
+| `pelvis_lateraltilt_global` | Signal1D | Pelvis frontal tilt (global) | Left hip higher | Right hip higher | 0° (level) |
+| `pelvis_lateraltilt_local` | Signal1D | Pelvis frontal tilt (trunk-relative) | Left hip higher | Right hip higher | 0° (level) |
+| `pelvis_rotation_global` | Signal1D | Pelvis transverse rotation (global) | Left hip forward | Right hip forward | 0° (aligned) |
+| `pelvis_rotation_local` | Signal1D | Pelvis transverse rotation (neck-relative) | Left hip forward | Right hip forward | 0° (aligned) |
 
 **Reference frames:**
 - Origin: Pelvis center (computed from ASIS and PSIS markers)
@@ -276,8 +278,8 @@ print(f"Hip flexion: mean={hip_flex.data.mean():.1f}°, max={hip_flex.data.max()
 
 | Property | Type | Description | Positive | Negative | Neutral |
 |----------|------|-------------|----------|----------|---------|
-| `shoulder_lateraltilt_global` | Signal1D | Shoulder frontal tilt (global) | Right tilt | Left tilt | 0° (level) |
-| `shoulder_lateraltilt_local` | Signal1D | Shoulder frontal tilt (relative to trunk) | Right tilt | Left tilt | 0° (level) |
+| `shoulder_lateraltilt_global` | Signal1D | Shoulder frontal tilt (global) | Left shoulder higher | Right shoulder higher | 0° (level) |
+| `shoulder_lateraltilt_local` | Signal1D | Shoulder frontal tilt (relative to trunk) | Left shoulder higher | Right shoulder higher | 0° (level) |
 | `left_scapular_protractionretraction` | Signal1D | Left scapular transverse position | Protraction (forward) | Retraction (backward) | 0° |
 | `right_scapular_protractionretraction` | Signal1D | Right scapular transverse position | Protraction (forward) | Retraction (backward) | 0° |
 

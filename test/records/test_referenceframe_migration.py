@@ -57,7 +57,7 @@ def create_test_wholebody(n_samples=100):
     )
 
     # Hip markers (De Leva estimation based on ASIS/trochanter)
-    left_throcanter = laban.Point3D(
+    left_trochanter = laban.Point3D(
         data=np.column_stack([
             -0.15 + 0.01 * np.sin(2 * np.pi * t),
             0.85 + 0.02 * np.cos(2 * np.pi * t),
@@ -67,7 +67,7 @@ def create_test_wholebody(n_samples=100):
         columns=["X", "Y", "Z"],
     )
 
-    right_throcanter = laban.Point3D(
+    right_trochanter = laban.Point3D(
         data=np.column_stack([
             0.15 + 0.01 * np.sin(2 * np.pi * t),
             0.85 + 0.02 * np.cos(2 * np.pi * t),
@@ -289,8 +289,8 @@ def create_test_wholebody(n_samples=100):
         right_asis=right_asis,
         left_psis=left_psis,
         right_psis=right_psis,
-        left_throcanter=left_throcanter,
-        right_throcanter=right_throcanter,
+        left_trochanter=left_trochanter,
+        right_trochanter=right_trochanter,
         left_knee_lateral=left_knee_lat,
         left_knee_medial=left_knee_med,
         right_knee_lateral=right_knee_lat,
