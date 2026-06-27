@@ -583,7 +583,7 @@ marker_m = marker.to_unit('m')
 ## See Also
 
 - [Data Loading Guide](../user-guide/data-loading/) - Practical loading examples
-- [I/O API Reference](../api-reference/io/) - Function documentation
+- [I/O API Reference](../api/io/) - Function documentation
 - [OpenSim Export](../user-guide/data-export/opensim-export.md) - Export workflows
 
 ---

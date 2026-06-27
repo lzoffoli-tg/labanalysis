@@ -630,7 +630,7 @@ Range: -1 to +1
 ## See Also
 
 - [Biomechanics References](biomechanics.md) - Scientific literature
-- [API Reference - Equations](../api-reference/equations/) - Implementation details
+- [API Reference - Equations](../api/equations/) - Implementation details
 - [User Guide - Signal Processing](../user-guide/signal-processing/) - Practical applications
 
 ---
