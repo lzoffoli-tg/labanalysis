@@ -4476,7 +4476,7 @@ class WholeBody(TimeseriesRecord):
         # At neutral (head directly above): anteroposterior≈0, vertical>0 → angle≈90°
         # Apply zero correction: subtract 90° so that vertical = 0°
         # Positive = flexion (forward), Negative = extension (backward)
-        flexionextension = angle.to_numpy() - 90
+        flexionextension = 90 - angle.to_numpy()
 
         return Signal1D(data=flexionextension, index=head.index, unit="°")
 

@@ -166,6 +166,7 @@ __pycache__
 # IDE and editor temp files (keep specific patterns, not .*)
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~
