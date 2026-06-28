@@ -11,6 +11,149 @@ from .single_jump import SingleJump
 
 
 class RepeatedJumps(WholeBody):
+    """
+    Repeated jumps exercise for fatigue assessment and endurance evaluation.
+
+    RepeatedJumps analyzes continuous jumping sequences to assess neuromuscular
+    fatigue, mechanical power decline, and coordination degradation over multiple
+    jump repetitions. The class automatically detects individual jumps from
+    continuous data and tracks performance changes across the sequence.
+
+    The exercise is used for:
+    - Anaerobic fatigue profiling
+    - Jump endurance assessment
+    - Training load monitoring
+    - Return-to-play testing
+    - Coordination stability evaluation
+
+    Parameters
+    ----------
+    bodymass_kg : float
+        Participant's body mass in kilograms.
+    straight_legs : bool, optional
+        Whether jumps performed with straight legs (true) or knee flexion allowed
+        (false). Affects jump mechanics and fatigue patterns. Default is False.
+    free_hands : bool, optional
+        Whether arm swing is allowed (true) or hands on hips (false).
+        Default is False.
+    excluded_jumps : list of int, optional
+        Indices of jumps to exclude from analysis (e.g., failed attempts).
+        Default is empty list.
+    left_foot_ground_reaction_force : ForcePlatform, optional
+        Force platform data for left foot. Default is None.
+    right_foot_ground_reaction_force : ForcePlatform, optional
+        Force platform data for right foot. Default is None.
+    left_hand_ground_reaction_force : ForcePlatform, optional
+        Force platform for left hand (for prone jump variations). Default is None.
+    right_hand_ground_reaction_force : ForcePlatform, optional
+        Force platform for right hand (for prone jump variations). Default is None.
+    **markers : Point3D
+        Biomechanical markers for full-body kinematics (same as WholeBody).
+
+    Attributes
+    ----------
+    bodymass_kg : float
+        Participant's body mass.
+    straight_legs : bool
+        Whether straight-leg jumps protocol.
+    free_hands : bool
+        Whether arm swing allowed.
+    excluded_jumps : list of int
+        Indices of excluded jumps.
+    jumps : list of SingleJump
+        Individual jump objects extracted from continuous data.
+    fatigue_index : float
+        Performance decline percentage: 100 * (best - worst) / best.
+
+    Properties
+    ----------
+    bodymass_kg : float
+        Participant body mass in kg.
+    straight_legs : bool
+        Straight-leg jump protocol flag.
+    free_hands : bool
+        Free arm swing flag.
+    excluded_jumps : list of int
+        Excluded jump indices.
+    jumps : list of SingleJump
+        Detected individual jumps (excluding specified indices).
+
+    Methods
+    -------
+    copy()
+        Return independent copy of repeated jumps.
+    from_tdf(file, bodymass_kg, ...)
+        Load repeated jumps from BTS TDF file.
+    set_bodymass_kg(bodymass_kg)
+        Set participant body mass.
+    set_straight_legs(straight)
+        Set straight-leg protocol flag.
+    set_free_hands(free)
+        Set free arm swing flag.
+    set_excluded_jumps(jumps)
+        Set indices of jumps to exclude from analysis.
+
+    Notes
+    -----
+    Jump Detection:
+    Individual jumps automatically detected from continuous force data using:
+    - Contact detection: Vertical force > 30N threshold
+    - Flight detection: Minimum flight time > 50ms
+    - Separation: Adjacent jumps split at force minima
+
+    Performance Metrics (per jump):
+    - Jump height (cm): Calculated from flight time
+    - Contact time (ms): Ground contact duration
+    - Flight time (ms): Aerial phase duration
+    - Reactive strength index: height / contact_time
+    - Peak power (W): Maximum mechanical power output
+
+    Fatigue Analysis:
+    - Track jump height decline over sequence
+    - Monitor contact time increase (fatigue sign)
+    - Calculate fatigue index: (max - min) / max * 100
+    - Identify drop-off point (>10% decline threshold)
+
+    Protocol Variations:
+    - Straight-leg jumps: Emphasize ankle plantarflexors, minimize knee contribution
+    - Bent-knee jumps: Allow full lower-limb coordination
+    - Hands-on-hips: Isolate lower limb contribution
+    - Free arm swing: Maximize jump performance
+
+    Examples
+    --------
+    >>> import labanalysis as laban
+    >>>
+    >>> # Load 15-second repeated jump test
+    >>> rj = laban.RepeatedJumps.from_tdf(
+    ...     file="repeated_jumps_15s.tdf",
+    ...     bodymass_kg=75.0,
+    ...     straight_legs=False,
+    ...     free_hands=False,
+    ...     left_foot_ground_reaction_force="left_fp"
+    ... )
+    >>>
+    >>> # Access individual jumps
+    >>> print(f"Total jumps: {len(rj.jumps)}")
+    >>> for i, jump in enumerate(rj.jumps, 1):
+    ...     print(f"Jump {i}: {jump.jump_height:.1f} cm, CT: {jump.contact_time*1000:.0f} ms")
+    >>>
+    >>> # Fatigue analysis
+    >>> heights = [j.jump_height for j in rj.jumps]
+    >>> fatigue_index = (max(heights) - min(heights)) / max(heights) * 100
+    >>> print(f"Fatigue index: {fatigue_index:.1f}%")
+    >>>
+    >>> # Exclude failed jump (e.g., jump 5)
+    >>> rj.set_excluded_jumps([4])  # 0-indexed
+    >>> print(f"Valid jumps: {len(rj.jumps)}")
+
+    See Also
+    --------
+    SingleJump : Base class for single jump analysis.
+    DropJump : Drop jump for plyometric assessment.
+    JumpTest : Complete jump testing protocol.
+    WholeBody : Full-body biomechanical model.
+    """
 
     @property
     def bodymass_kg(self):
@@ -102,7 +245,12 @@ class RepeatedJumps(WholeBody):
         s2: Point3D | None = None,
         l2: Point3D | None = None,
         c7: Point3D | None = None,
+        t5: Point3D | None = None,
         sc: Point3D | None = None,
+        head_anterior: Point3D | None = None,
+        head_posterior: Point3D | None = None,
+        head_left: Point3D | None = None,
+        head_right: Point3D | None = None,
         exclude_jumps: list[int] = [0, -1],
         straight_legs: bool = False,
         free_hands: bool = False,
@@ -222,7 +370,12 @@ class RepeatedJumps(WholeBody):
         s2: str | None = None,
         l2: str | None = None,
         c7: str | None = None,
+        t5: str | None = None,
         sc: str | None = None,
+        head_anterior: str | None = None,
+        head_posterior: str | None = None,
+        head_left: str | None = None,
+        head_right: str | None = None,
         exclude_jumps: list[int] = [],
         straight_legs: bool = False,
         free_hands: bool = False,

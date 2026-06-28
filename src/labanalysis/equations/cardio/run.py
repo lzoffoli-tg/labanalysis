@@ -167,3 +167,19 @@ class Run:
                 eq = self.transition.subs(self.VO2, v).subs(self.SPEED, s)
             grade.append(sympy.solve(eq, self.GRADE)[0])
         return np.asarray(grade, float)
+
+    def copy(self):
+        """
+        Create a copy of the Run instance.
+
+        Returns
+        -------
+        Run
+            A new Run instance (stateless utility class).
+
+        Notes
+        -----
+        Since Run is a stateless utility class with no instance variables,
+        copy() simply returns a new instance of the same class.
+        """
+        return self.__class__()

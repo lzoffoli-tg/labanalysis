@@ -17,6 +17,58 @@ if TYPE_CHECKING:
 
 
 class ShuttleTestResults(TestResults):
+    """
+    Analysis results for shuttle test protocols.
+
+    This class processes shuttle test data to generate summary statistics, detailed
+    analytics, and visualization figures for change of direction performance assessment.
+
+    Parameters
+    ----------
+    test : ShuttleTest
+        Processed shuttle test object containing change of direction exercises.
+
+    Attributes
+    ----------
+    summary : pandas.DataFrame
+        Summary statistics including contact time, loading time, propulsion time,
+        and maximum velocity for each trial.
+    analytics : pandas.DataFrame
+        Detailed time-series data for all recorded exercises.
+    figures : dict of plotly.graph_objects.Figure
+        Dictionary of visualization figures including time-based and velocity-based plots.
+
+    Methods
+    -------
+    _get_summary(test)
+        Extract summary statistics from shuttle test.
+    _get_analytics(test)
+        Extract detailed time-series analytics.
+    _get_figures(test)
+        Generate visualization figures.
+
+    Examples
+    --------
+    >>> from labanalysis import Participant, ShuttleTest
+    >>> participant = Participant(name="John", surname="Doe", weight=75, height=180)
+    >>> shuttle = ShuttleTest.from_files(["trial1.tdf", "trial2.tdf"], participant=participant)
+    >>> results = shuttle.get_results()
+    >>> print(results.summary)
+    >>> results.figures["times"].show()
+
+    See Also
+    --------
+    ShuttleTest : Shuttle test protocol implementation.
+    ChangeOfDirectionExercise : Single change of direction exercise data.
+
+    Notes
+    -----
+    The results automatically compute the following metrics for each trial:
+    - Contact time (total ground contact duration)
+    - Loading time (deceleration phase)
+    - Propulsion time (acceleration phase)
+    - Maximum velocity during the exercise
+    """
 
     def __init__(self, test: "ShuttleTest"):
         if not isinstance(test, ShuttleTest):

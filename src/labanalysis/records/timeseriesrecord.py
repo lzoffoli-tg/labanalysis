@@ -374,7 +374,20 @@ class TimeseriesRecord(Record):
                     raise ValueError("anteroposterior axes are not aligned.")
 
     def copy(self):
-        return TimeseriesRecord(**{i: v.copy() for i, v in self._data.items()})  # type: ignore
+        """
+        Create a deep copy of the TimeseriesRecord object.
+
+        Returns
+        -------
+        TimeseriesRecord
+            A new instance of the same class with copies of all signals.
+
+        Notes
+        -----
+        Uses self.__class__ to preserve subclass type. All internal
+        Timeseries objects are deep copied.
+        """
+        return self.__class__(**{i: v.copy() for i, v in self._data.items()})  # type: ignore
 
 
 __all__ = ["TimeseriesRecord"]

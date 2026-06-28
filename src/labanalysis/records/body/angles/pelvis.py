@@ -43,7 +43,7 @@ class PelvisAnglesMixin:
             Negative = posterior tilt (PSIS forward/lower)
         See Also
         --------
-        pelvis_lateraltilt_global : Pelvis frontal plane tilt
+        pelvis_lateral_tilt_global : Pelvis frontal plane tilt
         pelvis_rotation_global : Pelvis transverse plane rotation
         lumbar_lordosis : Lumbar spine curvature
         """
@@ -76,7 +76,100 @@ class PelvisAnglesMixin:
             return self._create_nan_signal1d(ref)
 
     @property
-    def pelvis_lateraltilt_global(self):
+    def pelvis_anteroposterior_tilt_local(self):
+        """
+        Calculate pelvis anteroposterior tilt in trunk reference frame's sagittal plane.
+
+        The angle represents the forward or backward tilting of the pelvis
+        relative to the trunk orientation, measured in the trunk's sagittal plane.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Anterior tilt (relative to trunk orientation)
+          ASIS markers are forward/lower than PSIS markers, accounting for trunk flexion.
+        - **Negative (-)**: Posterior tilt (relative to trunk orientation)
+          PSIS markers are forward/lower than ASIS markers, accounting for trunk flexion.
+        - **0°**: Neutral position (ASIS-PSIS aligned in trunk sagittal plane)
+
+        Calculation Method
+        ------------------
+        Uses a trunk-aligned reference frame defined by:
+        - **Vertical axis**: trunk axis from pelvis_center to neck_base
+        - **Sagittal plane**: defined by the trunk vertical axis and its 90° projection
+          onto the pelvis sagittal plane (pointing FORWARD)
+
+        The ASIS-PSIS tilt vector is transformed into this trunk reference frame
+        and projected onto the trunk's sagittal plane.
+
+        The angle is calculated as arctan2(anteroposterior_component, vertical_component)
+        in the trunk reference frame, giving the tilt angle relative to the trunk's
+        vertical.
+
+        This measurement differs from pelvis_anteroposterior_tilt_global by accounting for
+        trunk flexion/extension - it measures pelvic tilt relative to the trunk
+        orientation rather than absolute vertical.
+
+        Returns
+        -------
+        Signal1D
+            Pelvis anteroposterior tilt angle in degrees relative to trunk orientation.
+            Positive = anterior tilt (ASIS forward/lower)
+            Negative = posterior tilt (PSIS forward/lower)
+
+        See Also
+        --------
+        pelvis_anteroposterior_tilt_global : Pelvis anteroposterior tilt in global frame
+        pelvis_lateral_tilt_local : Pelvis lateral tilt in local frame
+        pelvis_referenceframe : Pelvis reference frame
+        lumbar_lordosis : Lumbar spine curvature
+        """
+        try:
+            # Get pelvis markers
+            l_asis = self._get_point("left_asis")
+            r_asis = self._get_point("right_asis")
+            l_psis = self._get_point("left_psis")
+            r_psis = self._get_point("right_psis")
+
+            # Calculate tilt vector (PSIS midpoint to ASIS midpoint)
+            psis_mid = (l_psis + r_psis) / 2
+            asis_mid = (l_asis + r_asis) / 2
+            tilt_vec = (asis_mid - psis_mid).to_numpy()
+
+            # Get trunk vertical axis (pelvis_center → neck_base)
+            pelvis_center = self.pelvis_center
+            neck_base = self.neck_base
+            trunk_vertical = (neck_base - pelvis_center).to_numpy()
+            trunk_vertical = trunk_vertical / np.linalg.norm(trunk_vertical, axis=1, keepdims=True)
+
+            # Get pelvis reference frame anteroposterior axis (FORWARD direction in pelvis frame)
+            pelvis_rf = self.pelvis_referenceframe
+            pelvis_ap = pelvis_rf.rotation_matrix[:, :, 2]  # Column 2 = anteroposterior_axis (FORWARD)
+
+            # Project pelvis anteroposterior axis onto plane perpendicular to trunk vertical
+            # This gives the FORWARD direction in the trunk's sagittal plane
+            # projection = ap - (ap · vertical) * vertical
+            dot_product = np.sum(pelvis_ap * trunk_vertical, axis=1, keepdims=True)
+            trunk_ap = pelvis_ap - dot_product * trunk_vertical
+            trunk_ap = trunk_ap / np.linalg.norm(trunk_ap, axis=1, keepdims=True)
+
+            # Project tilt vector onto trunk sagittal plane (trunk_ap, trunk_vertical)
+            ap_comp = np.sum(tilt_vec * trunk_ap, axis=1)
+            vertical_comp = np.sum(tilt_vec * trunk_vertical, axis=1)
+
+            # arctan2(-vertical, ap): positive when ASIS is lower (anterior tilt)
+            angle = np.degrees(np.arctan2(-vertical_comp, ap_comp))
+
+            return Signal1D(data=angle, index=l_asis.index, unit="°")
+        except (AttributeError, TypeError, ValueError):
+            warnings.warn(
+                "Cannot calculate pelvis_anteroposterior_tilt_local: missing required markers. Returning NaN.",
+                UserWarning
+            )
+            ref = self._find_any_valid_marker()
+            return self._create_nan_signal1d(ref)
+
+    @property
+    def pelvis_lateral_tilt_global(self):
         """
         Calculate pelvis lateral tilt (roll) in frontal plane.
         The angle represents the left or right side tilting of the pelvis
@@ -94,13 +187,14 @@ class PelvisAnglesMixin:
         ------------------
         Uses hip joint centers (computed using De Leva 1996 regression) to define
         the hip-to-hip vector.
-        The vector from right hip to left hip is projected onto the global frontal
-        plane (defined by lateral_axis and vertical_axis in the global coordinate system).
-        The angle is calculated using the global coordinate components:
-        - self.lateral_axis = global lateral direction
-        - self.vertical_axis = global vertical direction
+        The vector from right hip to left hip is projected onto the pelvis reference
+        frame's frontal plane (defined by lateral_axis and vertical_axis).
+        The lateral_axis points LEFT (from right midpoint to left midpoint), and
+        the vertical_axis points UP (from hip_center to pelvis_center).
         The result is arctan2(vertical_component, lateral_component), giving the
-        tilt angle relative to horizontal.
+        tilt angle relative to horizontal. For a neutral pelvis (hips level),
+        the hip-to-hip vector projects positively onto the lateral_axis (same direction),
+        giving arctan2(0, positive) = 0°.
         Returns
         -------
         Signal1D
@@ -119,18 +213,122 @@ class PelvisAnglesMixin:
             right_hip = self.right_hip
             # Calculate hip-to-hip vector (right to left)
             hip_vector = (left_hip - right_hip).to_numpy()
-            # Project onto global frontal plane (lateral_axis, vertical_axis)
+
+            # Get pelvis reference frame lateral axis (anatomical LEFT direction)
+            pelvis_rf = self.pelvis_referenceframe
+            pelvis_lateral = pelvis_rf.rotation_matrix[:, :, 0]  # Column 0 = lateral_axis (LEFT)
+
+            # For global measurement, use GLOBAL vertical axis (absolute up/down)
+            # Find which column in the data corresponds to the global vertical axis
             cols = left_hip.columns
-            lateral_idx = np.where(cols == self.lateral_axis)[0][0]
             vertical_idx = np.where(cols == self.vertical_axis)[0][0]
-            lateral_comp = hip_vector[:, lateral_idx]
-            vertical_comp = hip_vector[:, vertical_idx]
+
+            # Build global vertical unit vector (e.g., [0, 1, 0] for Y-up coordinate system)
+            global_vertical = np.zeros_like(hip_vector)
+            global_vertical[:, vertical_idx] = 1.0
+
+            # Project hip vector onto frontal plane:
+            # - lateral_comp: projection onto anatomical LEFT (pelvis lateral_axis)
+            # - vertical_comp: projection onto global UP (absolute vertical)
+            # For neutral pelvis (hips level), lateral_comp is positive (right→left aligns with LEFT)
+            lateral_comp = np.sum(hip_vector * pelvis_lateral, axis=1)
+            vertical_comp = hip_vector[:, vertical_idx]  # Direct component along global vertical
+
             # arctan2(vertical, lateral): positive when left hip is higher
             angle = np.degrees(np.arctan2(vertical_comp, lateral_comp))
             return Signal1D(data=angle, index=left_hip.index, unit="°")
         except (AttributeError, TypeError, ValueError):
             warnings.warn(
-                "Cannot calculate pelvis_lateraltilt_global: missing required markers. Returning NaN.",
+                "Cannot calculate pelvis_lateral_tilt_global: missing required markers. Returning NaN.",
+                UserWarning
+            )
+            ref = self._find_any_valid_marker()
+            return self._create_nan_signal1d(ref)
+
+    @property
+    def pelvis_lateral_tilt_local(self):
+        """
+        Calculate pelvis lateral tilt in trunk reference frame's frontal plane.
+
+        The angle represents the left or right side tilting of the pelvis
+        relative to the trunk orientation, measured in the trunk's frontal plane.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Left hip higher than right hip (relative to trunk orientation)
+          The left hip is elevated relative to the right, accounting for trunk flexion.
+        - **Negative (-)**: Right hip higher than left hip (relative to trunk orientation)
+          The right hip is elevated relative to the left, accounting for trunk flexion.
+        - **0°**: Neutral position (hips level in trunk frontal plane)
+
+        Calculation Method
+        ------------------
+        Uses a trunk-aligned reference frame defined by:
+        - **Vertical axis**: trunk axis from pelvis_center to neck_base
+        - **Frontal plane**: defined by the trunk vertical axis and its 90° projection
+          onto the pelvis frontal plane (pointing LEFT)
+
+        The hip-to-hip vector is transformed into this trunk reference frame
+        and projected onto the trunk's frontal plane.
+
+        The angle is calculated as arctan2(vertical_component, lateral_component)
+        in the trunk reference frame, giving the tilt angle relative to the trunk's
+        horizontal.
+
+        This measurement differs from pelvis_lateral_tilt_global by accounting for
+        trunk flexion/extension - it measures pelvic tilt relative to the trunk
+        orientation rather than absolute vertical.
+
+        Returns
+        -------
+        Signal1D
+            Pelvis lateral tilt angle in degrees relative to trunk orientation.
+            Positive = left hip higher than right hip
+            Negative = right hip higher than left hip
+
+        See Also
+        --------
+        pelvis_lateral_tilt_global : Pelvis lateral tilt in global frame
+        shoulder_lateral_tilt_local : Shoulder lateral tilt in local frame
+        pelvis_referenceframe : Pelvis reference frame
+        trunk_lateralflexion : Trunk lateral flexion
+        """
+        try:
+            # Get hip joint centers
+            left_hip = self.left_hip
+            right_hip = self.right_hip
+
+            # Get trunk vertical axis (pelvis_center → neck_base)
+            pelvis_center = self.pelvis_center
+            neck_base = self.neck_base
+            trunk_vertical = (neck_base - pelvis_center).to_numpy()
+            trunk_vertical = trunk_vertical / np.linalg.norm(trunk_vertical, axis=1, keepdims=True)
+
+            # Get pelvis reference frame lateral axis (LEFT direction in pelvis frame)
+            pelvis_rf = self.pelvis_referenceframe
+            pelvis_lateral = pelvis_rf.rotation_matrix[:, :, 0]  # Column 0 = lateral_axis (LEFT)
+
+            # Project pelvis lateral axis onto plane perpendicular to trunk vertical
+            # This gives the LEFT direction in the trunk's frontal plane
+            # projection = lateral - (lateral · vertical) * vertical
+            dot_product = np.sum(pelvis_lateral * trunk_vertical, axis=1, keepdims=True)
+            trunk_lateral = pelvis_lateral - dot_product * trunk_vertical
+            trunk_lateral = trunk_lateral / np.linalg.norm(trunk_lateral, axis=1, keepdims=True)
+
+            # Calculate hip-to-hip vector (right to left)
+            hip_vector = (left_hip - right_hip).to_numpy()
+
+            # Project hip vector onto trunk frontal plane (trunk_lateral, trunk_vertical)
+            lateral_comp = np.sum(hip_vector * trunk_lateral, axis=1)
+            vertical_comp = np.sum(hip_vector * trunk_vertical, axis=1)
+
+            # arctan2(vertical, lateral): positive when left hip is higher
+            angle = np.degrees(np.arctan2(vertical_comp, lateral_comp))
+
+            return Signal1D(data=angle, index=left_hip.index, unit="°")
+        except (AttributeError, TypeError, ValueError):
+            warnings.warn(
+                "Cannot calculate pelvis_lateral_tilt_local: missing required markers. Returning NaN.",
                 UserWarning
             )
             ref = self._find_any_valid_marker()
@@ -144,7 +342,7 @@ class PelvisAnglesMixin:
         --------------
         The reference frame has three semantic axes constructed from anatomical landmarks:
         - **lateral_axis**: Mediolateral direction (LEFT, from right to left ASIS-PSIS midpoints)
-        - **vertical_axis**: Superior-inferior direction (UP, from hip_center to pelvis_center)
+        - **vertical_axis**: Superior-inferior direction (UP, from midpoint of hip joints to pelvis_center)
         - **anteroposterior_axis**: Anterior-posterior direction (FORWARD, Gram-Schmidt cross product)
         Note: The rotation matrix columns [0], [1], [2] correspond to lateral_axis, vertical_axis,
         and anteroposterior_axis respectively. These semantic meanings are fixed by construction,
@@ -155,7 +353,7 @@ class PelvisAnglesMixin:
         Construction
         ------------
         1. lateral_axis: LEFT (from right midpoint to left midpoint)
-        2. vertical_axis: UP (hip_center → pelvis_center)
+        2. vertical_axis: UP (mean of left_hip and right_hip → pelvis_center)
         3. anteroposterior_axis: FORWARD (Gram-Schmidt cross product)
         4. Apply Gram-Schmidt orthonormalization
         Returns
@@ -165,7 +363,8 @@ class PelvisAnglesMixin:
         See Also
         --------
         pelvis_center : Pelvis center (origin of this frame)
-        hip_center : Hip center (used for vertical axis)
+        left_hip : Left hip joint center (used for vertical axis)
+        right_hip : Right hip joint center (used for vertical axis)
         trunk_lateralflexion : Trunk lateral flexion using this frame
         pelvis_anteroposterior_tilt_global : Pelvis anteroposterior tilt using this frame
         trunk_rotation : Trunk rotation using this frame
@@ -179,8 +378,10 @@ class PelvisAnglesMixin:
         left_mid = (l_asis + l_psis) / 2
         right_mid = (r_asis + r_psis) / 2
         centroid = (l_asis + r_asis + l_psis + r_psis) / 4
-        # Get hip_center for vertical_axis construction
-        hip_center = self.hip_center
+        # Get hip_center for vertical_axis construction (mean of left and right hip joints)
+        left_hip = self.left_hip
+        right_hip = self.right_hip
+        hip_center = (left_hip + right_hip) / 2
         # Construct lateral_axis: LEFT (right midpoint to left midpoint)
         axis_x = (left_mid - right_mid).to_numpy()
         axis_x = axis_x / np.linalg.norm(axis_x, axis=1, keepdims=True)
@@ -232,7 +433,7 @@ class PelvisAnglesMixin:
         See Also
         --------
         pelvis_anteroposterior_tilt_global : Pelvis sagittal plane tilt
-        pelvis_lateraltilt_global : Pelvis frontal plane tilt
+        pelvis_lateral_tilt_global : Pelvis frontal plane tilt
         trunk_rotation : Trunk transverse plane rotation
         """
         try:
@@ -296,7 +497,7 @@ class PelvisAnglesMixin:
         See Also
         --------
         pelvis_rotation_global : Pelvis rotation in global transverse plane
-        pelvis_lateraltilt_local : Pelvis lateral tilt in local reference plane
+        pelvis_lateral_tilt_local : Pelvis lateral tilt in local reference plane
         neck_referenceframe : Neck local reference frame
         """
         try:

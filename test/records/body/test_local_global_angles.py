@@ -128,7 +128,7 @@ class TestPelvisLateralTilt:
     """Test pelvis lateral tilt measurements."""
 
     def test_sign_convention_left_higher(self, neutral_wholebody):
-        """Test that positive angle means left hip higher."""
+        """Test that positive angle means left hip higher (both global and local)."""
         body = neutral_wholebody
 
         # Raise left hip markers by 5 cm
@@ -136,15 +136,15 @@ class TestPelvisLateralTilt:
         body.left_psis._data[:, 1] += 5.0
         body.left_trochanter._data[:, 1] += 5.0
 
-        global_tilt = body.pelvis_lateraltilt_global.mean()
-        local_tilt = body.pelvis_lateraltilt_local.mean()
+        global_tilt = body.pelvis_lateral_tilt_global.mean()
+        local_tilt = body.pelvis_lateral_tilt_local.mean()
 
         # Both should be positive (left hip higher)
         assert global_tilt > 0, f"Global tilt = {global_tilt:.2f}°, expected > 0° (left hip higher)"
         assert local_tilt > 0, f"Local tilt = {local_tilt:.2f}°, expected > 0° (left hip higher)"
 
     def test_sign_convention_right_higher(self, neutral_wholebody):
-        """Test that negative angle means right hip higher."""
+        """Test that negative angle means right hip higher (both global and local)."""
         body = neutral_wholebody
 
         # Raise right hip markers by 5 cm
@@ -152,8 +152,8 @@ class TestPelvisLateralTilt:
         body.right_psis._data[:, 1] += 5.0
         body.right_trochanter._data[:, 1] += 5.0
 
-        global_tilt = body.pelvis_lateraltilt_global.mean()
-        local_tilt = body.pelvis_lateraltilt_local.mean()
+        global_tilt = body.pelvis_lateral_tilt_global.mean()
+        local_tilt = body.pelvis_lateral_tilt_local.mean()
 
         # Both should be negative (right hip higher)
         assert global_tilt < 0, f"Global tilt = {global_tilt:.2f}°, expected < 0° (right hip higher)"
@@ -168,8 +168,8 @@ class TestPelvisLateralTilt:
         body.left_psis._data[:, 1] += 5.0
         body.left_trochanter._data[:, 1] += 5.0
 
-        global_tilt = body.pelvis_lateraltilt_global.mean()
-        local_tilt = body.pelvis_lateraltilt_local.mean()
+        global_tilt = body.pelvis_lateral_tilt_global.mean()
+        local_tilt = body.pelvis_lateral_tilt_local.mean()
 
         # Should have the same sign (both positive in this case)
         assert global_tilt * local_tilt > 0, \
@@ -269,8 +269,8 @@ class TestPropertyExistence:
 
         pelvis_props = [
             'pelvis_anteroposterior_tilt_global',
-            'pelvis_lateraltilt_global',
-            'pelvis_lateraltilt_local',
+            'pelvis_lateral_tilt_global',
+            'pelvis_lateral_tilt_local',
             'pelvis_rotation_global',
             'pelvis_rotation_local',
         ]
@@ -284,11 +284,11 @@ class TestPropertyExistence:
     def test_shoulder_properties_exist(self):
         """Test that shoulder properties exist (may require additional markers to compute)."""
         # Just verify the properties are defined on the class
-        from.records.body import WholeBody
+        from labanalysis.records.body import WholeBody
 
         shoulder_props = [
-            'shoulder_lateraltilt_global',
-            'shoulder_lateraltilt_local',
+            'shoulder_lateral_tilt_global',
+            'shoulder_lateral_tilt_local',
         ]
 
         for prop_name in shoulder_props:

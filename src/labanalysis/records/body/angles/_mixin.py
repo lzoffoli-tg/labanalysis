@@ -8,7 +8,6 @@ from .pelvis import PelvisAnglesMixin
 from .trunk import TrunkAnglesMixin
 from .neck import NeckAnglesMixin
 from .shoulder import ShoulderAnglesMixin
-from .scapular import ScapularAnglesMixin
 from .elbow import ElbowAnglesMixin
 from .spine import SpineAnglesMixin
 
@@ -24,7 +23,6 @@ class AngularMeasuresMixin(
     TrunkAnglesMixin,
     NeckAnglesMixin,
     ShoulderAnglesMixin,
-    ScapularAnglesMixin,
     ElbowAnglesMixin,
     SpineAnglesMixin,
 ):
@@ -39,8 +37,7 @@ class AngularMeasuresMixin(
     - Pelvis angles (reference frame, tilt, rotation global/local)
     - Trunk angles (lateral flexion, rotation, flexion/extension)
     - Neck angles (flexion/extension, lateral flexion)
-    - Shoulder angles (flexion/extension, abduction/adduction, rotation, elevation)
-    - Scapular angles (protraction/retraction, elevation/depression)
+    - Shoulder angles (flexion/extension, abduction/adduction, rotation, elevation, protraction/retraction, lateral tilt)
     - Elbow angles (flexion/extension)
     - Spine angles (lumbar lordosis, dorsal kyphosis)
     """

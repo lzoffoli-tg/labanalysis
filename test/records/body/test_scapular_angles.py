@@ -252,8 +252,8 @@ def wholebody_shoulders_asymmetric():
 
 def test_neutral_position_slight_protraction(wholebody_shoulders_neutral):
     """Test that neutral anatomical position produces small positive angles (~5-15°)."""
-    left_angle = wholebody_shoulders_neutral.left_scapular_protractionretraction.to_numpy()[0, 0]
-    right_angle = wholebody_shoulders_neutral.right_scapular_protractionretraction.to_numpy()[0, 0]
+    left_angle = wholebody_shoulders_neutral.left_shoulder_protractionretraction.to_numpy()[0, 0]
+    right_angle = wholebody_shoulders_neutral.right_shoulder_protractionretraction.to_numpy()[0, 0]
 
     # Neutral position should have slight protraction (5-15°)
     assert 0 < left_angle < 20, f"Left shoulder neutral angle should be ~5-15°, got {left_angle:.2f}°"
@@ -266,8 +266,8 @@ def test_neutral_position_slight_protraction(wholebody_shoulders_neutral):
 
 def test_protraction_positive_sign(wholebody_shoulders_protracted):
     """Test that protraction (forward shoulders) produces positive angles."""
-    left_angle = wholebody_shoulders_protracted.left_scapular_protractionretraction.to_numpy()[0, 0]
-    right_angle = wholebody_shoulders_protracted.right_scapular_protractionretraction.to_numpy()[0, 0]
+    left_angle = wholebody_shoulders_protracted.left_shoulder_protractionretraction.to_numpy()[0, 0]
+    right_angle = wholebody_shoulders_protracted.right_shoulder_protractionretraction.to_numpy()[0, 0]
 
     # Protraction should be positive and substantial
     assert left_angle > 20, f"Left shoulder protraction should be > 20°, got {left_angle:.2f}°"
@@ -280,8 +280,8 @@ def test_protraction_positive_sign(wholebody_shoulders_protracted):
 
 def test_retraction_negative_sign(wholebody_shoulders_retracted):
     """Test that retraction (backward shoulders) produces negative angles."""
-    left_angle = wholebody_shoulders_retracted.left_scapular_protractionretraction.to_numpy()[0, 0]
-    right_angle = wholebody_shoulders_retracted.right_scapular_protractionretraction.to_numpy()[0, 0]
+    left_angle = wholebody_shoulders_retracted.left_shoulder_protractionretraction.to_numpy()[0, 0]
+    right_angle = wholebody_shoulders_retracted.right_shoulder_protractionretraction.to_numpy()[0, 0]
 
     # Retraction should be negative
     assert left_angle < 0, f"Left shoulder retraction should be negative, got {left_angle:.2f}°"
@@ -294,8 +294,8 @@ def test_retraction_negative_sign(wholebody_shoulders_retracted):
 
 def test_asymmetric_shoulder_positions(wholebody_shoulders_asymmetric):
     """Test that asymmetric postures produce expected sign patterns."""
-    left_angle = wholebody_shoulders_asymmetric.left_scapular_protractionretraction.to_numpy()[0, 0]
-    right_angle = wholebody_shoulders_asymmetric.right_scapular_protractionretraction.to_numpy()[0, 0]
+    left_angle = wholebody_shoulders_asymmetric.left_shoulder_protractionretraction.to_numpy()[0, 0]
+    right_angle = wholebody_shoulders_asymmetric.right_shoulder_protractionretraction.to_numpy()[0, 0]
 
     # Left should be protracted (positive)
     assert left_angle > 0, f"Left shoulder protracted should be positive, got {left_angle:.2f}°"
@@ -309,8 +309,8 @@ def test_asymmetric_shoulder_positions(wholebody_shoulders_asymmetric):
 
 def test_angles_not_near_180(wholebody_shoulders_neutral):
     """Test that angles are not near ±180° (the original bug)."""
-    left_angle = wholebody_shoulders_neutral.left_scapular_protractionretraction.to_numpy()[0, 0]
-    right_angle = wholebody_shoulders_neutral.right_scapular_protractionretraction.to_numpy()[0, 0]
+    left_angle = wholebody_shoulders_neutral.left_shoulder_protractionretraction.to_numpy()[0, 0]
+    right_angle = wholebody_shoulders_neutral.right_shoulder_protractionretraction.to_numpy()[0, 0]
 
     # Angles should not be near ±180° (the bug we're fixing)
     assert abs(left_angle) < 90, f"Left angle should not be near ±180°, got {left_angle:.2f}°"

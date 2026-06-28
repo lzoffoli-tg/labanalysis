@@ -615,7 +615,7 @@ def test_all_angular_measures_accessible():
     # Verify that ALL angular measures are accessible (100%)
     # This validates that:
     # 1. No deprecated pandas methods are used (e.g., .ix instead of .iloc)
-    # 2. All property references are correct (e.g., shoulder_lateraltilt_global not shoulder_lateral_tilt_global)
+    # 2. All property references are correct (e.g., shoulder_lateral_tilt_global not shoulder_lateral_tilt_global)
     # 3. All required markers are included in the test setup
     assert accessible_count == len(WholeBody._angular_measures), \
         f"Only {accessible_count} out of {len(WholeBody._angular_measures)} angular measures accessible"

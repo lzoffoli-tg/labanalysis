@@ -124,7 +124,7 @@ class Participant:
         weight: int | float | None = None,
         age: int | float | None = None,
         birthdate: date | None = None,
-        recordingdate: date = datetime.now().date,  # type: ignore
+        recordingdate: date | None = None,
     ):
         """
         Initializes a Participant object.
@@ -136,7 +136,7 @@ class Participant:
         self.set_weight(weight)
         self.set_age(age)
         self.set_birthdate(birthdate)
-        self.set_recordingdate(recordingdate)
+        self.set_recordingdate(recordingdate if recordingdate is not None else datetime.now().date())
 
     def set_recordingdate(
         self,

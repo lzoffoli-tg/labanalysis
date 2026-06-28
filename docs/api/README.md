@@ -22,34 +22,55 @@ Data structures for time-series and biomechanical data:
   - `MetabolicRecord` - Metabolic measurements
 
 - **[WholeBody](records/bodies.md)** - Full body biomechanical model
-  - 42 anatomical markers
-  - 36 joint angles
-  - 8 computed properties
+  - 40+ anatomical markers
+  - Joint angles, anthropometry, joint centers
+  - Aggregation properties: segment_lengths, joint_angles
 
-- **[ReferenceFrame](records/referenceframes.md)** - Anatomical reference frames
-  - `ReferenceFrame` - Coordinate system transformations
-  - Semantic axis naming (lateral, vertical, anteroposterior)
-  - Point3D/Signal3D input support
+- **[ReferenceFrame](referenceframes.md)** - 3D coordinate transformations
+  - `ReferenceFrame` - Anatomical coordinate systems
+  - Point and vector transformations between frames
+  - ISB-compliant reference frame definitions
 
-- **[Jumping](records/jumping.md)** - Jump analysis classes
+- **[Jumping](records/jumping.md)** - Jump analysis classes (legacy)
   - `SingleJump` - Single jump movement
   - `DropJump` - Drop jump specialization
   - `RepeatedJumps` - Repeated jumps
+  - **Note:** See [Exercises Module](#exercises-module) for current implementation
 
 - **[Locomotion](records/locomotion.md)** - Gait analysis classes
   - `RunningExercise` - Running analysis
   - `WalkingExercise` - Walking analysis
   - `GaitCycle`, `GaitObject` - Base classes
 
-- **[Posture](records/posture.md)** - Posture analysis
+- **[Posture](records/posture.md)** - Posture analysis (legacy)
   - `UprightPosture` - Standing posture
   - `PronePosture` - Prone posture
+  - **Note:** See [Exercises Module](#exercises-module) for current implementation
 
-- **[Agility](records/agility.md)** - Agility movements
+- **[Agility](records/agility.md)** - Agility movements (legacy)
   - `ChangeOfDirectionExercise` - COD analysis
+  - **Note:** See [Exercises Module](#exercises-module) for current implementation
 
-- **[Pipelines](records/pipelines.md)** - Processing workflows
-  - `ProcessingPipeline` - Signal processing pipelines
+### Exercises Module
+
+Biomechanical exercise analysis classes:
+
+- **[Exercises](exercises.md)** - Exercise biomechanics
+  - `SingleJump` - Single vertical jump analysis (SJ, CMJ)
+  - `DropJump` - Plyometric drop jumps with box height
+  - `RepeatedJumps` - Continuous jump sequences
+  - `UprightPosture` - Standing balance and posture
+  - `PronePosture` - Plank and prone stability
+  - `ChangeOfDirectionExercise` - Shuttle and agility movements
+
+### Pipelines Module
+
+Signal processing automation:
+
+- **[Pipelines](pipelines.md)** - Processing workflows
+  - `ProcessingPipeline` - Configurable signal processing pipelines
+  - Default pipelines for each signal type (EMG, markers, force, metabolic)
+  - Recursive processing for nested Record structures
 
 ### Protocols Module
 

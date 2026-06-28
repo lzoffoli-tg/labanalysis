@@ -255,52 +255,88 @@ df = all_lengths.to_dataframe().join(all_angles.to_dataframe())
 
 ```
 labanalysis/
-├── constants.py          # Physical and physiological constants
-├── messages.py           # Standardized messages and warnings
-├── signalprocessing.py   # Signal processing utilities
-├── utils.py              # General utility functions
-├── docs/                 # 📚 Documentation and guides
-│   ├── README.md         # Documentation index
-│   └── CPU_OPTIMIZATION_GUIDE.md  # TorchTrainer CPU optimizations
-├── equations/            # Predictive equations
-│   ├── strength.py       # Strength prediction models
-│   └── cardio.py         # Cardiovascular prediction models
-├── io/                   # Data import/export
-│   ├── read/             # File readers
-│   │   ├── btsbioengineering.py
-│   │   ├── opensim.py
-│   │   ├── biostrength.py
-│   │   └── ircam.py
-│   └── write/            # File writers
-│       └── opensim.py
-├── records/              # Data structure classes
-│   ├── records.py        # Base record classes
-│   ├── timeseries.py     # Time series data structures
-│   ├── bodies.py         # Full body biomechanical model with 42+ anatomical markers
-│   ├── jumping.py        # Jump-specific records
-│   ├── locomotion.py     # Locomotion-specific records
-│   ├── strength/         # Strength assessment records
-│   ├── posture.py        # Posture and balance records
-│   ├── agility.py        # Agility test records
-│   └── pipelines.py      # Data processing pipelines
-├── modelling/            # Regression and ML models
-│   ├── ols/              # Ordinary Least Squares
-│   │   ├── regression.py # OLS and polynomial regression
-│   │   └── geometry.py   # Geometric modeling
-│   └── pytorch/          # PyTorch utilities
-│       ├── modules.py    # Neural network modules
-│       └── utils.py      # Training and evaluation utilities
-├── plotting/             # Visualization tools
-│   └── plotly.py         # Plotly-based plots
-└── protocols/            # Standardized test protocols
-    ├── balancetests.py
-    ├── jumptests.py
-    ├── locomotiontests.py
-    ├── strengthtests.py
-    ├── agilitytests.py
-    ├── vo2max.py
-    ├── normativedata.py
-    └── protocols.py
+├── constants.py              # Physical and physiological constants
+├── messages.py               # Standardized messages and warnings
+├── signalprocessing.py       # Signal processing utilities
+├── utils.py                  # General utility functions
+├── docs/                     # 📚 Documentation and guides
+│   ├── README.md             # Documentation index
+│   ├── guides/               # User guides and tutorials
+│   ├── api/                  # API reference documentation
+│   └── references/           # Scientific references
+├── equations/                # Predictive equations
+│   ├── cardio/               # ACSM metabolic equations (Run, Bike)
+│   └── strength/             # Brzycki 1RM prediction
+├── exercises/                # Exercise biomechanics analysis
+│   ├── single_jump.py        # Single jump analysis
+│   ├── drop_jump.py          # Drop jump (plyometric) analysis
+│   ├── repeated_jumps.py     # Repeated jump sequences
+│   ├── upright_posture.py    # Upright balance exercises
+│   ├── prone_posture.py      # Plank/prone stability exercises
+│   └── change_of_direction.py # Agility exercise analysis
+├── io/                       # Data import/export
+│   ├── read/                 # File readers
+│   │   ├── btsbioengineering.py # BTS .tdf/.emt files
+│   │   ├── opensim.py        # OpenSim .mot/.trc/.sto files
+│   │   ├── biostrength.py    # Isokinetic dynamometer data
+│   │   └── ircam.py          # IRCAM motion capture files
+│   └── write/                # File writers
+│       └── opensim.py        # Export to OpenSim formats
+├── modelling/                # Regression and ML models
+│   ├── ols/                  # Ordinary Least Squares
+│   │   ├── regression.py     # OLS and polynomial regression
+│   │   └── geometry.py       # Geometric modeling (Line, Circle, Ellipse)
+│   └── pytorch/              # PyTorch deep learning
+│       ├── modules/          # Custom neural network layers
+│       │   ├── boxcox.py     # Box-Cox transformation
+│       │   ├── features_generator.py # Polynomial feature generation
+│       │   ├── lasso.py      # L1 regularized linear layer
+│       │   ├── pca.py        # Trainable PCA layer
+│       │   └── sigmoid.py    # Sigmoid transformation
+│       └── utils/            # Training utilities
+│           ├── datasets.py   # PyTorch Dataset classes
+│           ├── logger.py     # Training logger
+│           ├── losses.py     # Custom loss functions
+│           ├── metrics.py    # Evaluation metrics
+│           └── trainer.py    # TorchTrainer class
+├── pipelines/                # Signal processing pipelines
+│   ├── _base.py              # ProcessingPipeline class
+│   └── _defaults.py          # Default pipelines for each signal type
+├── plotting/                 # Visualization tools
+│   └── plotly.py             # Plotly-based interactive plots
+├── protocols/                # Standardized test protocols
+│   ├── agilitytests/         # Shuttle test, change of direction tests
+│   ├── balancetests/         # Upright and plank balance tests
+│   ├── jumptests/            # Jump test protocols (SJ, CMJ, DJ)
+│   ├── locomotiontests/      # Running and walking tests
+│   ├── strengthtests/        # Isokinetic and isometric tests
+│   ├── vo2max/               # Submaximal VO2max estimation
+│   ├── participant.py        # Participant information class
+│   ├── test_protocol.py      # Base protocol class
+│   ├── test_results.py       # Base results class
+│   └── normativedata.py      # Reference normative data
+├── records/                  # Data structure classes
+│   ├── _base.py              # Base Record and TimeseriesRecord
+│   ├── forceplatform.py      # Ground reaction force data
+│   ├── metabolicrecord.py    # Metabolic data (VO2, VCO2, etc.)
+│   ├── body/                 # Full-body biomechanical model
+│   │   ├── wholebody.py      # WholeBody class (40+ markers)
+│   │   ├── angles/           # Joint angle calculations
+│   │   ├── anthropometry/    # Segment lengths and masses
+│   │   └── joint_centers/    # Joint center estimations
+│   ├── locomotion/           # Walking and running gait cycles
+│   └── strength/             # Strength exercise records
+│       ├── biostrength/      # Isokinetic dynamometer exercises
+│       └── freeweight/       # Free weight exercise tracking
+├── referenceframes/          # 3D coordinate transformations
+│   └── _base.py              # ReferenceFrame class
+├── timeseries/               # Time-indexed signal containers
+│   ├── _base.py              # Base Timeseries class
+│   ├── signal1d.py           # 1D signals (force, torque, etc.)
+│   ├── signal3d.py           # 3D signals (velocity, acceleration)
+│   ├── point3d.py            # 3D marker trajectories
+│   └── emgsignal.py          # Electromyography signals
+└── utils.py                  # Utility functions
 ```
 
 ---

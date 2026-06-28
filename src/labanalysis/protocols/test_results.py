@@ -153,5 +153,29 @@ class TestResults(Protocol):
         self, test: Any
     ) -> dict[str, go.Figure | dict[str, go.Figure]]: ...
 
+    def copy(self):
+        """
+        Create a deep copy of the TestResults instance.
+
+        Returns
+        -------
+        TestResults
+            A new instance of the same class with copied DataFrames and figures.
+
+        Notes
+        -----
+        Creates deep copies of summary and analytics DataFrames.
+        Figures dictionary is copied (figure objects themselves are immutable).
+        """
+        import copy as copy_module
+
+        new_instance = object.__new__(self.__class__)
+        new_instance._summary = self._summary.copy() if hasattr(self, '_summary') else pd.DataFrame()
+        new_instance._analytics = self._analytics.copy() if hasattr(self, '_analytics') else pd.DataFrame()
+        new_instance._figures = copy_module.deepcopy(self._figures) if hasattr(self, '_figures') else {}
+        new_instance._include_emg = self._include_emg if hasattr(self, '_include_emg') else False
+
+        return new_instance
+
 
 __all__ = ["TestResults"]

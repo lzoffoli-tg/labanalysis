@@ -394,10 +394,9 @@ class TestSpinalCurvatureAngles:
 class TestPelvisAngles:
     """Test pelvis angle calculations."""
 
-    @pytest.mark.xfail(reason="Known bug: pelvis lateral tilt calculation returns 180° for neutral pelvis - needs vector direction fix")
-    def test_pelvis_lateraltilt_neutral(self, neutral_pelvis_wholebody):
+    def test_pelvis_lateral_tilt_neutral(self, neutral_pelvis_wholebody):
         """Test that level pelvis returns 0° lateral tilt."""
-        lateral_tilt = neutral_pelvis_wholebody.pelvis_lateraltilt_global
+        lateral_tilt = neutral_pelvis_wholebody.pelvis_lateral_tilt_global
         tilt_data = np.asarray(lateral_tilt.data)
         mean_tilt = tilt_data.mean()
 
@@ -406,14 +405,14 @@ class TestPelvisAngles:
             f"Level pelvis lateral tilt is {mean_tilt:.1f}°, expected ~0°"
         )
 
-    def test_pelvis_lateraltilt_vector_direction(self, neutral_pelvis_wholebody):
+    def test_pelvis_lateral_tilt_vector_direction(self, neutral_pelvis_wholebody):
         """
         Test that pelvis lateral tilt uses correct vector direction.
 
         Before correction, the vector went left→right giving ±180° instead of 0°.
         Now corrected to right→left.
         """
-        lateral_tilt = neutral_pelvis_wholebody.pelvis_lateraltilt_global
+        lateral_tilt = neutral_pelvis_wholebody.pelvis_lateral_tilt_global
         tilt_data = np.asarray(lateral_tilt.data)
         mean_tilt = tilt_data.mean()
 
@@ -563,6 +562,15 @@ class TestHipAnglesSignConvention:
             index=time_index,
             columns=["X", "Y", "Z"],
         )
+        right_troch = Point3D(
+            data=np.column_stack([
+                np.full(n_frames, 10.0),
+                np.full(n_frames, 95.0),
+                np.zeros(n_frames),
+            ]),
+            index=time_index,
+            columns=["X", "Y", "Z"],
+        )
 
         # Knee moved forward (positive Z) = FLEXION
         left_knee_med = Point3D(
@@ -592,6 +600,7 @@ class TestHipAnglesSignConvention:
             left_psis=left_psis,
             right_psis=right_psis,
             left_trochanter=left_troch,
+            right_trochanter=right_troch,
             left_knee_medial=left_knee_med,
             left_knee_lateral=left_knee_lat,
         )
@@ -670,6 +679,15 @@ class TestHipAnglesSignConvention:
             index=time_index,
             columns=["X", "Y", "Z"],
         )
+        right_troch = Point3D(
+            data=np.column_stack([
+                np.full(n_frames, 10.0),
+                np.full(n_frames, 95.0),
+                np.zeros(n_frames),
+            ]),
+            index=time_index,
+            columns=["X", "Y", "Z"],
+        )
 
         # Knee moved lateral (more negative X) = ABDUCTION
         left_knee_med = Point3D(
@@ -699,6 +717,7 @@ class TestHipAnglesSignConvention:
             left_psis=left_psis,
             right_psis=right_psis,
             left_trochanter=left_troch,
+            right_trochanter=right_troch,
             left_knee_medial=left_knee_med,
             left_knee_lateral=left_knee_lat,
         )

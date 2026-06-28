@@ -91,6 +91,25 @@ class TestRunClass:
         vo2_check = run.predict_vo2(speed=10.0, grade=grade[0])
         np.testing.assert_almost_equal(vo2_check[0], 40.0, decimal=1)
 
+    def test_copy_creates_new_instance(self):
+        """copy() creates a new Run instance."""
+        run = Run()
+        run_copy = run.copy()
+
+        assert isinstance(run_copy, Run)
+        assert run_copy is not run
+
+    def test_copy_preserves_functionality(self):
+        """copy() preserves functionality (stateless class)."""
+        run = Run()
+        run_copy = run.copy()
+
+        # Both instances should produce same results
+        vo2_original = run.predict_vo2(speed=10.0, grade=5.0)
+        vo2_copy = run_copy.predict_vo2(speed=10.0, grade=5.0)
+
+        np.testing.assert_array_equal(vo2_original, vo2_copy)
+
 
 class TestBikeClass:
     """Tests for Bike ACSM equations."""
@@ -137,3 +156,22 @@ class TestBikeClass:
         # Verify by predicting VO2 back
         vo2_check = bike.predict_vo2(power=power[0], weight=75, gender="Male")
         np.testing.assert_almost_equal(vo2_check[0], 20.0, decimal=1)
+
+    def test_copy_creates_new_instance(self):
+        """copy() creates a new Bike instance."""
+        bike = Bike()
+        bike_copy = bike.copy()
+
+        assert isinstance(bike_copy, Bike)
+        assert bike_copy is not bike
+
+    def test_copy_preserves_functionality(self):
+        """copy() preserves functionality (stateless class)."""
+        bike = Bike()
+        bike_copy = bike.copy()
+
+        # Both instances should produce same results
+        vo2_original = bike.predict_vo2(power=100, weight=75, gender="Male")
+        vo2_copy = bike_copy.predict_vo2(power=100, weight=75, gender="Male")
+
+        np.testing.assert_array_equal(vo2_original, vo2_copy)

@@ -8,7 +8,7 @@ Full-body biomechanical models with automated joint angle calculation.
 
 Complete full-body biomechanical model with 104+ properties including 37 angular measures, anatomical markers, joint centers, and reference frames.
 
-**Source**: `src/labanalysis/records/bodies.py`
+**Source**: `src/labanalysis/records/body/wholebody.py`
 
 ```python
 class WholeBody:

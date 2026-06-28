@@ -13,6 +13,117 @@ from ..test_protocol import TestProtocol
 
 
 class IsometricTest(TestProtocol):
+    """
+    Test protocol for isometric strength assessment.
+
+    IsometricTest manages and analyzes maximal voluntary isometric contraction
+    (MVIC) tests for unilateral and bilateral exercises. The class handles force
+    signal acquisition, processes biomechanical data, normalizes EMG signals,
+    and generates performance reports with normative comparisons.
+
+    The protocol supports:
+    - Unilateral testing (left/right limb separately)
+    - Bilateral testing (both limbs simultaneously)
+    - EMG normalization and muscle activation analysis
+    - Automated signal processing pipelines
+    - Force-time curve analysis and peak force extraction
+
+    Parameters
+    ----------
+    left : IsometricExercise or None
+        Left limb isometric exercise data. None if not tested.
+    right : IsometricExercise or None
+        Right limb isometric exercise data. None if not tested.
+    bilateral : IsometricExercise or None
+        Bilateral isometric exercise data. None if not tested.
+    participant : Participant
+        Participant information including demographics and anthropometrics.
+    normative_data : pd.DataFrame, optional
+        Reference data for performance ranking and comparison.
+        Default is empty DataFrame.
+    emg_normalization_references : TimeseriesRecord, optional
+        Reference signals for EMG amplitude normalization.
+        Default is empty TimeseriesRecord.
+    emg_normalization_function : callable, optional
+        Function to compute normalization value from reference (e.g., np.mean,
+        np.max). Default is np.mean.
+    emg_activation_references : TimeseriesRecord, optional
+        Reference signals for determining muscle activation thresholds.
+        Default is empty TimeseriesRecord.
+    emg_activation_threshold : float, optional
+        Threshold multiplier for detecting muscle activation onset.
+        Default is 3 (3x reference level).
+    relevant_muscle_map : list of str or None, optional
+        List of muscle names to include in analysis. If None, includes all
+        detected muscles. Default is None.
+
+    Attributes
+    ----------
+    left : IsometricExercise or None
+        Left limb exercise data.
+    right : IsometricExercise or None
+        Right limb exercise data.
+    bilateral : IsometricExercise or None
+        Bilateral exercise data.
+    processed_data : IsometricTest
+        Copy of test with all signals processed through the pipeline.
+    processing_pipeline : ProcessingPipeline
+        Signal processing pipeline with isometric-specific configurations.
+
+    Methods
+    -------
+    copy()
+        Return a copy of the test protocol.
+    get_results(include_emg=True)
+        Process data and return IsometricTestResults.
+    set_left_test(test)
+        Set left limb exercise data.
+    set_right_test(test)
+        Set right limb exercise data.
+    set_bilateral_test(test)
+        Set bilateral exercise data.
+
+    Notes
+    -----
+    Processing Pipeline:
+    - Force signals: 1 Hz lowpass filter for smoothing
+    - EMG signals: 20-450 Hz bandpass, RMS envelope
+    - Gap filling with cubic spline interpolation
+    - Phase-corrected filtering to preserve peak timing
+
+    Isometric testing measures maximum force production without joint movement,
+    providing pure strength assessment independent of velocity and power factors.
+
+    Examples
+    --------
+    >>> from labanalysis.protocols import IsometricTest, Participant
+    >>> from labanalysis.records.strength import IsometricExercise
+    >>>
+    >>> # Create participant
+    >>> participant = Participant(surname='Athlete', weight=75)
+    >>>
+    >>> # Load exercise data
+    >>> left_ex = IsometricExercise.from_biostrength("left_leg_press.txt")
+    >>> right_ex = IsometricExercise.from_biostrength("right_leg_press.txt")
+    >>>
+    >>> # Create test protocol
+    >>> test = IsometricTest(
+    ...     left=left_ex,
+    ...     right=right_ex,
+    ...     bilateral=None,
+    ...     participant=participant
+    ... )
+    >>>
+    >>> # Get results
+    >>> results = test.get_results(include_emg=False)
+    >>> print(results.summary)
+
+    See Also
+    --------
+    IsometricTestResults : Results container for isometric tests.
+    IsometricExercise : Exercise data container for isometric contractions.
+    TestProtocol : Parent class for test protocols.
+    """
 
     def __init__(
         self,

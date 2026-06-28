@@ -34,7 +34,7 @@ def test_angular_measures_auto_discovery():
         "right_hip_internalexternalrotation",
         # Pelvis (4)
         "pelvis_anteroposterior_tilt_global",
-        "pelvis_lateraltilt_global",
+        "pelvis_lateral_tilt_global",
         "pelvis_rotation_global",
         "pelvis_rotation_local",
         # Trunk (1)
@@ -48,9 +48,9 @@ def test_angular_measures_auto_discovery():
         "right_shoulder_internalexternalrotation",
         "left_shoulder_elevationdepression",
         "right_shoulder_elevationdepression",
-        # Scapular (2)
-        "left_scapular_protractionretraction",
-        "right_scapular_protractionretraction",
+        # Shoulder protraction/retraction (moved from scapular) (2)
+        "left_shoulder_protractionretraction",
+        "right_shoulder_protractionretraction",
         # Elbow (2)
         "left_elbow_flexionextension",
         "right_elbow_flexionextension",
@@ -101,7 +101,7 @@ def test_no_deprecated_properties():
 
     # Properties that should NOT be in the list (deprecated or removed)
     deprecated = {
-        "shoulder_lateraltilt",  # replaced by _global and _local variants
+        "shoulder_lateral_tilt",  # replaced by _global and _local variants
         "pelvis_anteroposterior_tilt",  # replaced by _global variant
     }
 

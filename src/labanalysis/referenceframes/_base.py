@@ -704,3 +704,23 @@ class ReferenceFrame:
 
         if not inplace:
             return out
+
+    def copy(self):
+        """
+        Create a deep copy of the ReferenceFrame.
+
+        Returns
+        -------
+        ReferenceFrame
+            A new ReferenceFrame instance with copies of all arrays.
+
+        Notes
+        -----
+        All internal numpy arrays (origin, axes, rotation_matrix) are deep copied.
+        """
+        return ReferenceFrame(
+            origin=self._origin.copy(),
+            lateral_axis=self._lateral_axis.copy(),
+            vertical_axis=self._vertical_axis.copy(),
+            anteroposterior_axis=self._anteroposterior_axis.copy() if self._anteroposterior_axis is not None else None,
+        )

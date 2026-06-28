@@ -2,7 +2,7 @@
 
 Base protocol classes for test organization and participant management.
 
-**Source**: `src/labanalysis/protocols/protocols.py`
+**Source**: `src/labanalysis/protocols/` (participant.py, test_protocol.py, test_results.py)
 
 ## Overview
 

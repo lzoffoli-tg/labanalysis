@@ -122,3 +122,19 @@ class Brzycki1RM:
         self._validate_reps(reps)
         self._validate_1rm(rm1)
         return rm1 * (37 - reps) / 36
+
+    def copy(self):
+        """
+        Create a copy of the Brzycki1RM instance.
+
+        Returns
+        -------
+        Brzycki1RM
+            A new Brzycki1RM instance (stateless utility class).
+
+        Notes
+        -----
+        Since Brzycki1RM is a stateless utility class with no instance variables,
+        copy() simply returns a new instance of the same class.
+        """
+        return self.__class__()

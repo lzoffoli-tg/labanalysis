@@ -2,7 +2,7 @@
 
 Cardio/metabolic prediction equations (VO2, energy expenditure).
 
-**Source**: `src/labanalysis/equations/cardio.py`
+**Source**: `src/labanalysis/equations/cardio/`
 
 ## Overview
 

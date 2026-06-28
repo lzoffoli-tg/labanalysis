@@ -16,6 +16,97 @@ if TYPE_CHECKING:
 
 
 class SubmaximalVO2MaxTestResults(TestResults):
+    """
+    Results container for submaximal VO2max test analysis.
+
+    SubmaximalVO2MaxTestResults processes SubmaximalVO2MaxTest data to predict
+    maximal aerobic capacity, identify ventilatory thresholds, and generate
+    comprehensive cardiorespiratory fitness reports with exercise intensity
+    prescriptions and normative comparisons.
+
+    Parameters
+    ----------
+    test : SubmaximalVO2MaxTest
+        Processed submaximal VO2max test data to analyze.
+
+    Attributes
+    ----------
+    summary : pd.DataFrame
+        Comprehensive table of cardiorespiratory metrics including:
+        - Predicted VO2max (ml/min and ml/kg/min)
+        - VT2 parameters (VO2, HR, %VO2max, %HRmax)
+        - FatMax (g/min and g/kg/min)
+        - Running speed at VT2 (km/h)
+        - Cycling power at VT2 (W)
+        - Fitness level classification (if normative data provided)
+    analytics : pd.DataFrame
+        Time-series metabolic data in long format for detailed analysis.
+    figures : dict of str -> go.Figure
+        Dictionary of interactive Plotly figures:
+        - 'vo2_vco2': VO2/VCO2 relationship with VT2 identification
+        - 'vo2_hr': VO2/HR relationship with VO2max extrapolation
+        - 'fat_carb_oxidation': Fat and carbohydrate oxidation curves
+
+    Notes
+    -----
+    VO2max Prediction:
+    Uses dual-method approach for conservative estimate:
+    1. RER-based method using Beck et al. (2018) equation
+    2. HR-based linear extrapolation to predicted HRmax
+    Final VO2max = min(both methods) for safety
+
+    VT2 (Ventilatory Threshold 2 / Respiratory Compensation Point):
+    Detected as VCO2/VO2 curve crossing point using third-order polynomial fit.
+    Represents upper boundary of heavy-intensity exercise domain. Exercise
+    above VT2 rapidly leads to fatigue due to metabolic acidosis.
+
+    FatMax (Maximal Fat Oxidation):
+    Maximum rate of fat oxidation during incremental exercise. Typically occurs
+    at moderate intensity (55-65% VO2max). Important for endurance performance
+    and metabolic efficiency assessment.
+
+    Training Zone Prescriptions:
+    Results include running speed and cycling power at VT2, enabling precise
+    training intensity prescription based on physiological thresholds rather
+    than age-predicted heart rate zones.
+
+    Fitness Classification:
+    If normative data provided, VO2max is classified into fitness categories
+    (e.g., Superior, Excellent, Good, Fair, Poor) based on age and gender.
+
+    Examples
+    --------
+    >>> from labanalysis.protocols import SubmaximalVO2MaxTest, Participant
+    >>>
+    >>> # Create and process test
+    >>> participant = Participant(surname='Athlete', age=25, weight=70, gender='Male')
+    >>> test = SubmaximalVO2MaxTest.from_files(
+    ...     filename='test.xlsx',
+    ...     participant=participant
+    ... )
+    >>> results = test.get_results()
+    >>>
+    >>> # View key metrics
+    >>> print(results.summary[['vo2max_ml_kg_min', 'vt2_vo2_ml_kg_min', 'fatmax_g_min']])
+    >>>
+    >>> # Display VO2/VCO2 curve with VT2
+    >>> results.figures['vo2_vco2'].show()
+    >>>
+    >>> # Get training zone prescription
+    >>> vt2_speed = results.summary['vt2_running_speed_kmh'].iloc[0]
+    >>> print(f"Threshold running speed: {vt2_speed:.1f} km/h")
+
+    See Also
+    --------
+    SubmaximalVO2MaxTest : Test protocol for submaximal VO2max assessment.
+    TestResults : Parent class for test results.
+
+    References
+    ----------
+    .. [1] Beck ON, Kipp SK, Byrnes WC, Kram R. Use aerobic energy expenditure
+       instead of oxygen uptake to quantify exercise intensity. J Appl Physiol
+       125: 672-674, 2018.
+    """
 
     def __init__(self, test: "SubmaximalVO2MaxTest"):
         self._summary = pd.DataFrame()

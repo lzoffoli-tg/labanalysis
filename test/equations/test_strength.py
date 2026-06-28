@@ -123,3 +123,22 @@ class TestBrzycki1RM:
         # Formula: 50 × 36 / (37 - 36) = 50 × 36 = 1800 kg
         expected = 50.0 * 36 / (37 - 36)
         assert rm1 == pytest.approx(expected, rel=0.01)
+
+    def test_copy_creates_new_instance(self):
+        """copy() creates a new Brzycki1RM instance."""
+        brzycki = Brzycki1RM()
+        brzycki_copy = brzycki.copy()
+
+        assert isinstance(brzycki_copy, Brzycki1RM)
+        assert brzycki_copy is not brzycki
+
+    def test_copy_preserves_functionality(self):
+        """copy() preserves functionality (stateless class)."""
+        brzycki = Brzycki1RM()
+        brzycki_copy = brzycki.copy()
+
+        # Both instances should produce same results
+        rm1_original = brzycki.predict_1rm(reps=10, load=75.0)
+        rm1_copy = brzycki_copy.predict_1rm(reps=10, load=75.0)
+
+        assert rm1_original == rm1_copy

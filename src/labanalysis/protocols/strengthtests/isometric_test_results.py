@@ -13,6 +13,75 @@ if TYPE_CHECKING:
 
 
 class IsometricTestResults(TestResults):
+    """
+    Results container for isometric strength test analysis.
+
+    IsometricTestResults processes IsometricTest data to generate comprehensive
+    performance summaries including peak force, rate of force development (RFD),
+    time to peak force, and muscle activation patterns. The class provides
+    automated reporting with EMG analysis and bilateral symmetry calculations.
+
+    Parameters
+    ----------
+    test : IsometricTest
+        Processed isometric test data to analyze.
+    include_emg : bool
+        Whether to include EMG analysis in results (mean amplitude per muscle).
+
+    Attributes
+    ----------
+    summary : pd.DataFrame
+        Comprehensive table of isometric metrics including:
+        - Peak force (N)
+        - Rate of force development (kN/s)
+        - Time to peak force (ms)
+        - EMG mean amplitude (% or µV) per muscle
+        - Left/right symmetry (%)
+    analytics : pd.DataFrame
+        Time-series data for all trials in long format.
+    figures : dict of str -> go.Figure
+        Dictionary of interactive Plotly figures:
+        - 'force_traces': Force-time curves for all trials
+
+    Notes
+    -----
+    Metric Calculations:
+    - Peak Force: Maximum force value during MVIC
+    - RFD: (Peak Force - Baseline) / (Time to Peak - Baseline Time), in kN/s
+    - Time to Peak: Time from contraction onset to peak force, in ms
+    - Symmetry: 100 * (Right - Left) / mean(Right, Left)
+
+    EMG Processing:
+    - Mean amplitude computed over entire contraction phase
+    - Values expressed as % of reference if normalization applied
+    - Values in µV if no normalization reference provided
+
+    The class automatically identifies valid repetitions and computes metrics
+    for left, right, and bilateral trials when available.
+
+    Examples
+    --------
+    >>> from labanalysis.protocols import IsometricTest, Participant
+    >>> from labanalysis.records.strength import IsometricExercise
+    >>>
+    >>> # Create and process test
+    >>> participant = Participant(surname='Athlete', weight=75)
+    >>> left_ex = IsometricExercise.from_biostrength("left.txt")
+    >>> test = IsometricTest(left=left_ex, right=None, bilateral=None,
+    ...                       participant=participant)
+    >>> results = test.get_results(include_emg=True)
+    >>>
+    >>> # View summary metrics
+    >>> print(results.summary)
+    >>>
+    >>> # Display force-time curve
+    >>> results.figures['force_traces'].show()
+
+    See Also
+    --------
+    IsometricTest : Test protocol for isometric strength assessment.
+    TestResults : Parent class for test results.
+    """
 
     def __init__(self, test: "IsometricTest", include_emg: bool):
         from .isometric_test import IsometricTest

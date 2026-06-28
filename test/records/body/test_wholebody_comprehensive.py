@@ -19,8 +19,10 @@ Test coverage targets 100% of WholeBody public API.
 import numpy as np
 import pytest
 
-from labanalysis.timeseries import Point3D
+from labanalysis.timeseries import Point3D, Signal1D, Timeseries
 from labanalysis.records import body as body_module
+from labanalysis.records import TimeseriesRecord
+from labanalysis.referenceframes import ReferenceFrame
 
 
 # ==============================================================================
@@ -122,7 +124,7 @@ class TestInitialization:
         body = body_module.WholeBody(left_asis=mock_point3d())
         assert isinstance(body, body_module.WholeBody)
         assert 'left_asis' in body._data
-        assert isinstance(body._data['left_asis'], records.Point3D)
+        assert isinstance(body._data['left_asis'], Point3D)
 
     def test_create_with_all_markers(self, complete_wholebody):
         """WholeBody can be created with all markers."""
@@ -133,12 +135,12 @@ class TestInitialization:
     def test_markers_are_point3d(self, complete_wholebody):
         """All markers in WholeBody are Point3D objects."""
         for key, value in complete_wholebody._data.items():
-            assert isinstance(value, records.Point3D), f"{key} should be Point3D"
+            assert isinstance(value, Point3D), f"{key} should be Point3D"
 
     def test_wholebody_inheritance(self):
         """WholeBody inherits from TimeseriesRecord."""
         body = body_module.WholeBody()
-        assert isinstance(body, records.TimeseriesRecord)
+        assert isinstance(body, TimeseriesRecord)
 
 
 # ==============================================================================
@@ -159,7 +161,7 @@ class TestJointCenters:
         )
 
         ankle = body.left_ankle
-        assert isinstance(ankle, records.Point3D)
+        assert isinstance(ankle, Point3D)
         # Should be average of lat and med
         expected = (lat + med) / 2
         np.testing.assert_array_almost_equal(
@@ -174,7 +176,7 @@ class TestJointCenters:
         body = body_module.WholeBody(left_ankle_lateral=lat)
 
         ankle = body.left_ankle
-        assert isinstance(ankle, records.Point3D)
+        assert isinstance(ankle, Point3D)
         # Should be same as lateral
         np.testing.assert_array_almost_equal(
             ankle.to_numpy(),
@@ -192,7 +194,7 @@ class TestJointCenters:
         )
 
         knee = body.left_knee
-        assert isinstance(knee, records.Point3D)
+        assert isinstance(knee, Point3D)
         expected = (lat + med) / 2
         np.testing.assert_array_almost_equal(
             knee.to_numpy(),
@@ -208,7 +210,7 @@ class TestJointCenters:
         )
 
         hip = body.left_hip
-        assert isinstance(hip, records.Point3D)
+        assert isinstance(hip, Point3D)
 
     def test_pelvis_center(self, mock_point3d):
         """Pelvis center is calculated from ASIS and PSIS markers."""
@@ -220,14 +222,14 @@ class TestJointCenters:
         )
 
         pelvis = body.pelvis_center
-        assert isinstance(pelvis, records.Point3D)
+        assert isinstance(pelvis, Point3D)
 
     def test_shoulder_center_with_acromion(self, mock_point3d):
         """Shoulder center uses De Leva regression with acromion."""
         body = body_module.WholeBody(left_acromion=mock_point3d(offset=0))
 
         shoulder = body.left_shoulder
-        assert isinstance(shoulder, records.Point3D)
+        assert isinstance(shoulder, Point3D)
 
     def test_elbow_center(self, mock_point3d):
         """Elbow center is average of lateral and medial markers."""
@@ -240,23 +242,22 @@ class TestJointCenters:
         )
 
         elbow = body.left_elbow
-        assert isinstance(elbow, records.Point3D)
+        assert isinstance(elbow, Point3D)
         expected = (lat + med) / 2
         np.testing.assert_array_almost_equal(
             elbow.to_numpy(),
             expected.to_numpy()
         )
 
-    @pytest.mark.skip(reason="Wrist calculation requires additional markers - test with real data")
     def test_wrist_center(self, mock_point3d):
-        """Wrist center is calculated from radial and ulnar markers."""
+        """Wrist center is calculated from lateral and medial markers."""
         body = body_module.WholeBody(
-            left_wrist_radial=mock_point3d(offset=0),
-            left_wrist_ulnar=mock_point3d(offset=1)
+            left_wrist_lateral=mock_point3d(offset=0),
+            left_wrist_medial=mock_point3d(offset=1)
         )
 
         wrist = body.left_wrist
-        assert isinstance(wrist, records.Point3D)
+        assert isinstance(wrist, Point3D)
 
     def test_head_center(self, mock_point3d):
         """Head center is calculated from cranial markers."""
@@ -268,7 +269,7 @@ class TestJointCenters:
         )
 
         head = body.head_center
-        assert isinstance(head, records.Point3D)
+        assert isinstance(head, Point3D)
 
     def test_neck_base(self, mock_point3d):
         """Neck base is calculated from C7 and SC markers."""
@@ -278,7 +279,7 @@ class TestJointCenters:
         )
 
         neck_base = body.neck_base
-        assert isinstance(neck_base, records.Point3D)
+        assert isinstance(neck_base, Point3D)
 
 
 # ==============================================================================
@@ -297,7 +298,7 @@ class TestReferenceFrames:
         )
 
         rf = body.left_ankle_referenceframe
-        assert isinstance(rf, records.ReferenceFrame)
+        assert isinstance(rf, ReferenceFrame)
 
     def test_knee_referenceframe(self, mock_point3d):
         """Knee reference frame is a ReferenceFrame object."""
@@ -309,7 +310,7 @@ class TestReferenceFrames:
         )
 
         rf = body.left_knee_referenceframe
-        assert isinstance(rf, records.ReferenceFrame)
+        assert isinstance(rf, ReferenceFrame)
 
     def test_hip_referenceframe(self, mock_point3d):
         """Hip reference frame is a ReferenceFrame object."""
@@ -324,20 +325,25 @@ class TestReferenceFrames:
         )
 
         rf = body.left_hip_referenceframe
-        assert isinstance(rf, records.ReferenceFrame)
+        assert isinstance(rf, ReferenceFrame)
 
     def test_shoulder_referenceframe(self, mock_point3d):
         """Shoulder reference frame is a ReferenceFrame object."""
         body = body_module.WholeBody(
             left_acromion=mock_point3d(offset=0),
             c7=mock_point3d(offset=1),
-            right_acromion=mock_point3d(offset=2),
-            left_elbow_lateral=mock_point3d(offset=3),
-            left_elbow_medial=mock_point3d(offset=4)
+            sc=mock_point3d(offset=2),
+            right_acromion=mock_point3d(offset=3),
+            left_elbow_lateral=mock_point3d(offset=4),
+            left_elbow_medial=mock_point3d(offset=5),
+            left_asis=mock_point3d(offset=10),
+            right_asis=mock_point3d(offset=11),
+            left_psis=mock_point3d(offset=12),
+            right_psis=mock_point3d(offset=13)
         )
 
         rf = body.left_shoulder_referenceframe
-        assert isinstance(rf, records.ReferenceFrame)
+        assert isinstance(rf, ReferenceFrame)
 
     def test_elbow_referenceframe(self, mock_point3d):
         """Elbow reference frame is a ReferenceFrame object."""
@@ -349,7 +355,7 @@ class TestReferenceFrames:
         )
 
         rf = body.left_elbow_referenceframe
-        assert isinstance(rf, records.ReferenceFrame)
+        assert isinstance(rf, ReferenceFrame)
 
     def test_wrist_referenceframe(self, mock_point3d):
         """Wrist reference frame is a ReferenceFrame object."""
@@ -361,7 +367,7 @@ class TestReferenceFrames:
         )
 
         rf = body.left_wrist_referenceframe
-        assert isinstance(rf, records.ReferenceFrame)
+        assert isinstance(rf, ReferenceFrame)
 
     def test_pelvis_referenceframe(self, mock_point3d):
         """Pelvis reference frame is a ReferenceFrame object."""
@@ -373,7 +379,7 @@ class TestReferenceFrames:
         )
 
         rf = body.pelvis_referenceframe
-        assert isinstance(rf, records.ReferenceFrame)
+        assert isinstance(rf, ReferenceFrame)
 
     def test_neck_referenceframe(self, mock_point3d):
         """Neck reference frame is a ReferenceFrame object."""
@@ -385,7 +391,7 @@ class TestReferenceFrames:
         )
 
         rf = body.neck_referenceframe
-        assert isinstance(rf, records.ReferenceFrame)
+        assert isinstance(rf, ReferenceFrame)
 
 
 # ==============================================================================
@@ -405,7 +411,7 @@ class TestAnthropometry:
         )
 
         height = body.left_foot_height
-        assert isinstance(height, records.Signal1D)
+        assert isinstance(height, Signal1D)
 
     def test_foot_length(self, mock_point3d):
         """Foot length is calculated from heel to toe."""
@@ -415,7 +421,7 @@ class TestAnthropometry:
         )
 
         length = body.left_foot_length
-        assert isinstance(length, records.Signal1D)
+        assert isinstance(length, Signal1D)
 
     def test_ankle_width(self, mock_point3d):
         """Ankle width is distance between lateral and medial markers."""
@@ -425,7 +431,7 @@ class TestAnthropometry:
         )
 
         width = body.left_ankle_width
-        assert isinstance(width, records.Signal1D)
+        assert isinstance(width, Signal1D)
 
     def test_leg_length(self, mock_point3d):
         """Leg length is ankle to knee distance."""
@@ -435,7 +441,7 @@ class TestAnthropometry:
         )
 
         length = body.left_leg_length
-        assert isinstance(length, records.Signal1D)
+        assert isinstance(length, Signal1D)
 
     def test_thigh_length(self, mock_point3d):
         """Thigh length is knee to hip distance."""
@@ -448,7 +454,7 @@ class TestAnthropometry:
         )
 
         length = body.left_thigh_length
-        assert isinstance(length, records.Signal1D)
+        assert isinstance(length, Signal1D)
 
     def test_knee_width(self, mock_point3d):
         """Knee width is distance between lateral and medial markers."""
@@ -458,7 +464,7 @@ class TestAnthropometry:
         )
 
         width = body.left_knee_width
-        assert isinstance(width, records.Signal1D)
+        assert isinstance(width, Signal1D)
 
     def test_pelvis_width(self, mock_point3d):
         """Pelvis width is distance between ASIS markers."""
@@ -468,7 +474,7 @@ class TestAnthropometry:
         )
 
         width = body.pelvis_width
-        assert isinstance(width, records.Signal1D)
+        assert isinstance(width, Signal1D)
 
     def test_shoulder_width(self, mock_point3d):
         """Shoulder width is distance between acromion markers."""
@@ -478,7 +484,7 @@ class TestAnthropometry:
         )
 
         width = body.shoulder_width
-        assert isinstance(width, records.Signal1D)
+        assert isinstance(width, Signal1D)
 
 
 # ==============================================================================
@@ -510,7 +516,7 @@ class TestAngularMeasures:
                 angle = getattr(complete_wholebody, measure_name)
                 # Should be Signal1D (or NaN if markers missing)
                 if angle is not None:
-                    assert isinstance(angle, records.Signal1D), \
+                    assert isinstance(angle, Signal1D), \
                         f"{measure_name} should return Signal1D, got {type(angle)}"
                     accessible_count += 1
             except (AttributeError, TypeError) as e:
@@ -533,7 +539,7 @@ class TestAngularMeasures:
         )
 
         angle = body.left_ankle_flexionextension
-        assert isinstance(angle, records.Signal1D)
+        assert isinstance(angle, Signal1D)
         assert angle.unit == 'deg'
 
     def test_knee_flexionextension(self, mock_point3d):
@@ -548,29 +554,34 @@ class TestAngularMeasures:
         )
 
         angle = body.left_knee_flexionextension
-        assert isinstance(angle, records.Signal1D)
+        assert isinstance(angle, Signal1D)
         assert angle.unit == 'deg'
 
     def test_hip_angles(self, mock_point3d):
         """Hip angles (flexion, abduction, rotation) are calculated."""
         body = body_module.WholeBody(
+            sc=mock_point3d(offset=10),
+            c7=mock_point3d(offset=11),
             left_asis=mock_point3d(offset=0),
             right_asis=mock_point3d(offset=1),
             left_psis=mock_point3d(offset=2),
             right_psis=mock_point3d(offset=3),
             left_trochanter=mock_point3d(offset=4),
+            right_trochanter=mock_point3d(offset=5),
             left_knee_lateral=mock_point3d(offset=100),
-            left_knee_medial=mock_point3d(offset=101)
+            left_knee_medial=mock_point3d(offset=101),
+            left_ankle_lateral=mock_point3d(offset=200),
+            left_ankle_medial=mock_point3d(offset=201)
         )
 
         flexion = body.left_hip_flexionextension
-        assert isinstance(flexion, records.Signal1D)
+        assert isinstance(flexion, Signal1D)
 
         abduction = body.left_hip_abductionadduction
-        assert isinstance(abduction, records.Signal1D)
+        assert isinstance(abduction, Signal1D)
 
         rotation = body.left_hip_internalexternalrotation
-        assert isinstance(rotation, records.Signal1D)
+        assert isinstance(rotation, Signal1D)
 
 
 # ==============================================================================
@@ -587,7 +598,7 @@ class TestAggregation:
     def test_segment_lengths_returns_timeseries(self, complete_wholebody):
         """segment_lengths returns a Timeseries."""
         lengths = complete_wholebody.segment_lengths
-        assert isinstance(lengths, records.Timeseries)
+        assert isinstance(lengths, Timeseries)
 
     def test_segment_lengths_has_multiple_columns(self, complete_wholebody):
         """segment_lengths contains multiple length measurements."""
@@ -601,7 +612,7 @@ class TestAggregation:
     def test_joint_angles_returns_timeseries(self, complete_wholebody):
         """joint_angles returns a Timeseries."""
         angles = complete_wholebody.joint_angles
-        assert isinstance(angles, records.Timeseries)
+        assert isinstance(angles, Timeseries)
 
     def test_joint_angles_has_multiple_columns(self, complete_wholebody):
         """joint_angles contains multiple angle measurements."""
@@ -627,7 +638,6 @@ class TestCopy:
         assert hasattr(body, 'copy')
         assert callable(body.copy)
 
-    @pytest.mark.skip(reason="copy() implementation needs review - returns dict instead of WholeBody")
     def test_copy_creates_new_object(self, minimal_wholebody):
         """copy() creates a new WholeBody object."""
         body_copy = minimal_wholebody.copy()
@@ -635,7 +645,6 @@ class TestCopy:
         assert isinstance(body_copy, body_module.WholeBody)
         assert body_copy is not minimal_wholebody
 
-    @pytest.mark.skip(reason="copy() implementation needs review")
     def test_copy_deep_copies_markers(self, minimal_wholebody):
         """copy() deep copies all markers."""
         body_copy = minimal_wholebody.copy()
@@ -646,7 +655,6 @@ class TestCopy:
             # Should be different objects
             assert body_copy._data[key] is not minimal_wholebody._data[key]
 
-    @pytest.mark.skip(reason="copy() implementation needs review")
     def test_copy_preserves_data(self, minimal_wholebody):
         """copy() preserves all marker data."""
         body_copy = minimal_wholebody.copy()
@@ -674,7 +682,7 @@ class TestEdgeCases:
         angle = minimal_wholebody.left_ankle_flexionextension
 
         # Should return Signal1D with NaN
-        assert isinstance(angle, records.Signal1D)
+        assert isinstance(angle, Signal1D)
         assert np.all(np.isnan(angle.to_numpy()))
 
     def test_partial_markers_graceful_degradation(self, mock_point3d):
@@ -684,7 +692,7 @@ class TestEdgeCases:
 
         # Should still work, using lateral as center
         ankle = body.left_ankle
-        assert isinstance(ankle, records.Point3D)
+        assert isinstance(ankle, Point3D)
 
     def test_warnings_emitted_for_missing_markers(self, minimal_wholebody):
         """Warnings are emitted when markers are missing."""
@@ -695,7 +703,7 @@ class TestEdgeCases:
         """segment_lengths works with minimal markers."""
         # Should work even with just pelvis markers
         lengths = minimal_wholebody.segment_lengths
-        assert isinstance(lengths, records.Timeseries)
+        assert isinstance(lengths, Timeseries)
         # Should have at least pelvis width
         assert lengths.data.shape[1] >= 1
 
@@ -703,7 +711,7 @@ class TestEdgeCases:
         """joint_angles works with minimal markers."""
         # Should work even with just pelvis markers
         angles = minimal_wholebody.joint_angles
-        assert isinstance(angles, records.Timeseries)
+        assert isinstance(angles, Timeseries)
         # Should have at least some pelvis angles
         assert angles.data.shape[1] >= 1
 
@@ -739,7 +747,7 @@ class TestMixinComposition:
         assert mro[0] == body_module.WholeBody
 
         # Should contain TimeseriesRecord
-        assert records.TimeseriesRecord in mro
+        assert TimeseriesRecord in mro
 
 
 # ==============================================================================

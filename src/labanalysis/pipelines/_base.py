@@ -149,6 +149,23 @@ class ProcessingPipeline:
     ):
         return self.apply(obj, inplace)
 
+    def copy(self):
+        """
+        Create a deep copy of the ProcessingPipeline.
+
+        Returns
+        -------
+        ProcessingPipeline
+            A new ProcessingPipeline instance with copies of all callables.
+
+        Notes
+        -----
+        Creates a new pipeline with the same processing functions.
+        The callables themselves are not deep-copied (they are typically
+        functions which are immutable).
+        """
+        return ProcessingPipeline(**{k: v for k, v in self._items.items()})
+
     def _apply_recursively(self, obj: Timeseries | Record):
         obj_type = type(obj)
         funcs = self.get(obj_type.__name__)

@@ -14,39 +14,147 @@ __all__ = ["ChangeOfDirectionExercise"]
 
 class ChangeOfDirectionExercise(WholeBody):
     """
-    Represents a single step on forceplatform during a change of direction.
+    Change of direction movement for agility and deceleration-acceleration analysis.
 
-    This class extends WholeBody to analyze change-of-direction movements, tracking
-    contact phase, loading phase, and propulsion phase during directional changes.
+    ChangeOfDirectionExercise analyzes single-leg ground contacts during directional
+    changes in agility tests (e.g., shuttle runs, 505 test, Illinois test). The class
+    identifies loading (deceleration) and propulsion (acceleration) phases, tracks
+    center of mass velocity changes, and computes agility-specific performance metrics.
+
+    The exercise captures the neuromuscular and biomechanical demands of decelerating,
+    redirecting momentum, and explosively accelerating in a new direction - critical
+    capabilities for field and court sports.
 
     Parameters
     ----------
+    bodymass_kg : float
+        Participant's body mass in kilograms.
     left_foot_ground_reaction_force : ForcePlatform, optional
-        ForcePlatform object for the left foot.
+        Force platform data for left foot. Default is None.
     right_foot_ground_reaction_force : ForcePlatform, optional
-        ForcePlatform object for the right foot.
+        Force platform data for right foot. Default is None.
     left_hand_ground_reaction_force : ForcePlatform, optional
-        ForcePlatform object for the left hand.
+        Force platform for left hand (rarely used). Default is None.
     right_hand_ground_reaction_force : ForcePlatform, optional
-        ForcePlatform object for the right hand.
-    s2: Point3D, optional
-        S2 sacral marker for tracking pelvis/trunk movement.
+        Force platform for right hand (rarely used). Default is None.
+    s2 : Point3D, optional
+        S2 sacral marker for pelvis/COM tracking. Critical for detecting
+        velocity reversal (inversion time). Default is None.
     left_acromion : Point3D, optional
-        Left acromion marker (shoulder tip).
+        Left acromion (shoulder) marker. Default is None.
     right_acromion : Point3D, optional
-        Right acromion marker (shoulder tip).
-    **signals : Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform
-        Additional signals (anatomical markers, EMG, etc.).
+        Right acromion (shoulder) marker. Default is None.
+    **signals : Signal1D, Signal3D, EMGSignal, Point3D, ForcePlatform
+        Additional biomechanical signals (markers, EMG, etc.).
+
+    Attributes
+    ----------
+    bodymass_kg : float
+        Participant body mass.
+    side : str
+        Which foot contacted platform ("left", "right", or "bilateral").
+    contact_phase : TimeseriesRecord
+        Data segment during full ground contact.
+    loading_phase : TimeseriesRecord
+        Data segment during deceleration (entry to direction change).
+    propulsion_phase : TimeseriesRecord
+        Data segment during acceleration (exit from direction change).
+    inversion_time : float
+        Time instant when COM velocity reverses direction (s).
+    contact_time : float
+        Total ground contact duration (s).
+    loading_time : float
+        Deceleration phase duration (s).
+    propulsion_time : float
+        Acceleration phase duration (s).
+    maximum_velocity : float
+        Peak COM velocity during movement (m/s).
+
+    Properties
+    ----------
+    side : str
+        Execution side based on force platform contact.
+    contact_phase : TimeseriesRecord
+        Full ground contact segment.
+    loading_phase : TimeseriesRecord
+        Deceleration phase segment.
+    propulsion_phase : TimeseriesRecord
+        Acceleration phase segment.
+    inversion_time : float
+        Velocity reversal time point.
+    contact_time : float
+        Ground contact duration.
+    loading_time : float
+        Loading phase duration.
+    propulsion_time : float
+        Propulsion phase duration.
+    maximum_velocity : float
+        Peak velocity magnitude.
+
+    Methods
+    -------
+    copy()
+        Return independent copy of the exercise.
+    from_tdf(file, bodymass_kg, ...)
+        Load change of direction from BTS TDF file.
 
     Notes
     -----
-    This class inherits all 42 anatomical markers and force platforms from WholeBody.
-    At least one foot force platform (left or right) must be provided for analysis.
-    The s2 marker is critical for detecting the inversion time during change of direction.
+    Phase Detection:
+    - Contact phase: Continuous ground contact (force > 30N)
+    - Loading phase: Contact start to inversion time (deceleration)
+    - Propulsion phase: Inversion time to contact end (acceleration)
+    - Inversion time: Detected from S2 marker velocity reversal
+
+    Performance Metrics:
+    - Contact time: Shorter indicates better agility (typically 0.3-0.8s)
+    - Loading/propulsion ratio: Balanced ratio (~1:1) indicates efficient technique
+    - Peak force: Higher forces during propulsion indicate explosive capability
+    - Velocity loss: Difference between entry and exit velocities
+
+    Applications:
+    - 505 agility test (180° turn)
+    - Illinois agility test (multiple direction changes)
+    - Pro-agility shuttle (180° shuttle)
+    - Custom agility protocols
+    - Return-to-sport testing after lower limb injury
+
+    Requirements:
+    - At least one foot force platform (left OR right)
+    - S2 sacral marker for velocity reversal detection
+    - Markers for full WholeBody analysis (optional but recommended)
+
+    Examples
+    --------
+    >>> import labanalysis as laban
+    >>>
+    >>> # Load 180° shuttle turn
+    >>> cod = laban.ChangeOfDirectionExercise.from_tdf(
+    ...     file="shuttle_left.tdf",
+    ...     bodymass_kg=75.0,
+    ...     left_foot_ground_reaction_force="left_fp",
+    ...     right_foot_ground_reaction_force="right_fp"
+    ... )
+    >>>
+    >>> # Key agility metrics
+    >>> print(f"Side: {cod.side}")
+    >>> print(f"Contact time: {cod.contact_time:.3f} s")
+    >>> print(f"Loading time: {cod.loading_time*1000:.0f} ms ({cod.loading_time/cod.contact_time*100:.0f}%)")
+    >>> print(f"Propulsion time: {cod.propulsion_time*1000:.0f} ms ({cod.propulsion_time/cod.contact_time*100:.0f}%)")
+    >>> print(f"Max velocity: {cod.maximum_velocity:.2f} m/s")
+    >>>
+    >>> # Technique analysis
+    >>> load_prop_ratio = cod.loading_time / cod.propulsion_time
+    >>> print(f"Loading/Propulsion ratio: {load_prop_ratio:.2f}")
+    >>> if load_prop_ratio > 1.2:
+    ...     print("Consider working on explosive propulsion")
+    ... elif load_prop_ratio < 0.8:
+    ...     print("Consider working on deceleration control")
 
     See Also
     --------
-    WholeBody : Parent class with all anatomical markers and biomechanical calculations.
+    WholeBody : Parent class with full biomechanical model.
+    ShuttleTest : Complete shuttle test protocol with multiple direction changes.
     """
     _inversion_time:float | None = None
 

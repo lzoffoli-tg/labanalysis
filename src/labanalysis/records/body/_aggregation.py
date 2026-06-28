@@ -259,6 +259,5 @@ class AggregationMixin:
         objects are deep copied, so modifications to the copy do not affect
         the original instance.
         """
-        # Import here to avoid circular dependency
-        from .wholebody import WholeBody
-        return WholeBody(**{i: v.copy() for i, v in self.items()})
+        # Use self.__class__ to preserve subclass type
+        return self.__class__(**{i: v.copy() for i, v in self.items()})

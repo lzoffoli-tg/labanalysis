@@ -12,74 +12,119 @@ from .single_jump import SingleJump
 
 class DropJump(SingleJump):
     """
-    Represents a single jump trial, providing methods and properties to analyze
-    phases, forces, and performance metrics of the jump.
+    Drop jump exercise for plyometric assessment and reactive strength analysis.
+
+    DropJump extends SingleJump to model drop jumps from elevated surfaces,
+    adding landing phase detection and specific metrics for reactive strength
+    index (RSI) and fast stretch-shortening cycle performance. The class
+    automatically identifies the box drop landing, subsequent ground contact,
+    and explosive propulsion phases.
+
+    Drop jumps assess the neuromuscular system's ability to rapidly switch
+    from eccentric (landing) to concentric (propulsion) muscle actions,
+    measuring reactive strength and elastic energy utilization.
 
     Parameters
     ----------
     bodymass_kg : float
-        The subject's body mass in kilograms.
+        Participant's body mass in kilograms.
+    box_height_cm : float
+        Height of the drop box in centimeters. Used for protocol documentation
+        and performance interpretation.
     left_foot_ground_reaction_force : ForcePlatform, optional
-        ForcePlatform object for the left foot.
+        Force platform data for left foot. Default is None.
     right_foot_ground_reaction_force : ForcePlatform, optional
-        ForcePlatform object for the right foot.
+        Force platform data for right foot. Default is None.
     vertical_axis : str, optional
-        Name of the vertical axis in the force data (default "Y").
+        Name of vertical axis in force data. Default is "Y".
     anteroposterior_axis : str, optional
-        Name of the anteroposterior axis in the force data (default "X").
-    **signals : Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform
-        Additional signals to include in the record.
+        Name of anteroposterior axis in force data. Default is "X".
+    **signals : Signal1D, Signal3D, EMGSignal, Point3D, ForcePlatform
+        Additional biomechanical signals (markers, EMG, etc.).
 
     Attributes
     ----------
-    _bodymass_kg : float
-        The subject's body mass in kilograms.
-    _vertical_axis : str
-        Name of the vertical axis.
-    _antpos_axis : str
-        Name of the anteroposterior axis.
-
-    Properties
-    ----------
-    vertical_axis : str
-        The vertical axis label.
-    anteroposterior_axis : str
-        The anteroposterior axis label.
-    lateral_axis : str
-        The lateral axis label.
-    vertical_force : np.ndarray
-        The mean vertical ground reaction force across both feet.
-    side : str
-        "bilateral", "left", or "right" depending on available force data.
-    bodymass_kg : float
-        The subject's body mass in kilograms.
-    eccentric_phase : TimeseriesRecord
-        Data for the eccentric phase of the jump.
-    concentric_phase : TimeseriesRecord
-        Data for the concentric phase of the jump.
+    box_height_cm : float
+        Drop box height in centimeters.
+    landing_phase : TimeseriesRecord
+        Data segment from box drop landing to end of initial ground contact.
+    contact_phase : TimeseriesRecord
+        Data segment from landing to takeoff (full ground contact).
     flight_phase : TimeseriesRecord
-        Data for the flight phase of the jump.
-    contact_time_s : float
-        Duration of the contact phase (s).
-    flight_time_s : float
-        Duration of the flight phase (s).
-    takeoff_velocity_ms : float
-        Takeoff velocity at the end of the concentric phase (m/s).
-    elevation_cm : float
-        Jump elevation (cm) calculated from flight time.
-    muscle_coordination_and_balance : pd.DataFrame
-        Coordination and balance metrics from EMG signals (if available).
-    force_coordination_and_balance : pd.DataFrame
-        Coordination and balance metrics from force signals.
-    output_metrics : pd.DataFrame
-        Summary metrics for the jump.
+        Data segment during aerial phase after propulsion.
+    reactive_strength_index : float
+        RSI = jump_height / contact_time (unitless performance metric).
+
+    Properties (Inherited from SingleJump)
+    --------------------------------------
+    bodymass_kg : float
+        Participant's body mass.
+    side : str
+        Jump execution side ("bilateral", "left", or "right").
+    contact_time : float
+        Ground contact duration in seconds.
+    flight_time : float
+        Aerial phase duration in seconds.
+    jump_height : float
+        Vertical jump height in centimeters.
+    takeoff_velocity : float
+        Vertical takeoff velocity in m/s.
 
     Methods
     -------
-    __init__(...)
-        Initialize a Jump object.
-    from_tdf(...)
-        Create a Jump object from a TDF file.
+    copy()
+        Return independent copy of the drop jump.
+    from_tdf(file, bodymass_kg, box_height_cm, ...)
+        Load drop jump from BTS TDF file.
+
+    Notes
+    -----
+    Phase Detection:
+    - Landing phase: Identified as force > 30N occurring before main contact phase
+    - Contact phase: Continuous ground contact from landing to takeoff
+    - Flight phase: Period with force < 30N after takeoff
+
+    Performance Metrics:
+    - RSI (Reactive Strength Index): Primary metric for drop jump performance,
+      calculated as jump_height_cm / contact_time_s. Higher RSI indicates
+      better reactive strength and elastic energy utilization.
+    - Optimal box height: Typically 20-40cm for most athletes; height where
+      RSI is maximized represents optimal drop height for individual.
+
+    Applications:
+    - Plyometric training assessment
+    - Return-to-sport testing after lower limb injury
+    - Explosive strength monitoring in power athletes
+    - Stretch-shortening cycle function evaluation
+
+    Examples
+    --------
+    >>> import labanalysis as laban
+    >>>
+    >>> # Load drop jump from 40cm box
+    >>> dj = laban.DropJump.from_tdf(
+    ...     file="dj_40cm.tdf",
+    ...     bodymass_kg=75.0,
+    ...     box_height_cm=40.0,
+    ...     left_foot_ground_reaction_force="left_fp",
+    ...     right_foot_ground_reaction_force="right_fp"
+    ... )
+    >>>
+    >>> # Key performance metrics
+    >>> print(f"Box height: {dj.box_height_cm} cm")
+    >>> print(f"Contact time: {dj.contact_time*1000:.0f} ms")
+    >>> print(f"Jump height: {dj.jump_height:.1f} cm")
+    >>> print(f"RSI: {dj.reactive_strength_index:.2f}")
+    >>>
+    >>> # Analyze landing phase
+    >>> landing_duration_ms = dj.landing_phase.duration * 1000
+    >>> print(f"Landing phase: {landing_duration_ms:.0f} ms")
+
+    See Also
+    --------
+    SingleJump : Base class for single jump analysis.
+    RepeatedJumps : Continuous jumping for fatigue analysis.
+    JumpTest : Complete jump testing protocol.
     """
 
     @property

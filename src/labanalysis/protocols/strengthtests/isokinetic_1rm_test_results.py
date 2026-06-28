@@ -14,6 +14,102 @@ if TYPE_CHECKING:
 
 
 class Isokinetic1RMTestResults(TestResults):
+    """
+    Results container for isokinetic 1RM prediction test analysis.
+
+    Isokinetic1RMTestResults processes Isokinetic1RMTest data to predict
+    maximal strength (1RM) from constant-velocity contractions. The class
+    generates comprehensive performance summaries including peak force,
+    predicted 1RM, force balance analysis, and muscle activation patterns.
+
+    Parameters
+    ----------
+    test : Isokinetic1RMTest
+        Processed isokinetic 1RM test data to analyze.
+    include_emg : bool, optional
+        Whether to include EMG analysis in results (mean amplitude per muscle).
+        Default is True.
+    estimate_1rm : bool, optional
+        Whether to compute predicted 1RM from load-velocity relationship.
+        Default is False.
+    include_force_balance : bool, optional
+        Whether to include force balance metrics (push/pull phase analysis).
+        Default is True.
+
+    Attributes
+    ----------
+    summary : pd.DataFrame
+        Comprehensive table of isokinetic metrics including:
+        - Peak force (N)
+        - Predicted 1RM (kg) if estimate_1rm is True
+        - Force balance metrics if include_force_balance is True
+        - EMG mean amplitude (% or µV) per muscle if include_emg is True
+        - Left/right symmetry (%)
+    analytics : pd.DataFrame
+        Time-series data for all trials in long format.
+    figures : dict of str -> go.Figure
+        Dictionary of interactive Plotly figures:
+        - 'force_traces': Force-time curves for all trials
+    estimate_1rm : bool
+        Whether 1RM prediction is enabled.
+    include_emg : bool
+        Whether EMG analysis is enabled.
+    include_force_balance : bool
+        Whether force balance analysis is enabled.
+
+    Methods
+    -------
+    set_estimate_1rm(estimate)
+        Enable or disable 1RM prediction.
+    set_include_emg(estimate)
+        Enable or disable EMG analysis.
+    set_include_force_balance(estimate)
+        Enable or disable force balance analysis.
+
+    Notes
+    -----
+    1RM Prediction:
+    Uses linear regression from load-velocity relationship:
+        predicted_1RM = (peak_force / g) * beta1 + beta0
+    where beta0 and beta1 are exercise-specific coefficients from test.rm1_coefs.
+
+    Force Balance:
+    Analyzes symmetry between push and pull phases in bilateral exercises,
+    or between concentric and eccentric phases in unilateral exercises.
+
+    EMG Processing:
+    - Mean amplitude computed over entire contraction phase
+    - Values expressed as % of reference if normalization applied
+    - Values in µV if no normalization reference provided
+
+    Examples
+    --------
+    >>> from labanalysis.protocols import Isokinetic1RMTest, Participant
+    >>>
+    >>> # Create test from BioStrength files
+    >>> participant = Participant(surname='Athlete', weight=75)
+    >>> test = Isokinetic1RMTest.from_files(
+    ...     participant=participant,
+    ...     product='LEG PRESS',
+    ...     bilateral_biostrength_filename='leg_press.txt'
+    ... )
+    >>>
+    >>> # Get results with 1RM prediction
+    >>> results = test.get_results(include_emg=True)
+    >>> results.set_estimate_1rm(True)
+    >>>
+    >>> # View summary with predicted 1RM
+    >>> print(results.summary)
+    >>> print(f"Predicted 1RM: {results.summary['predicted_1rm_kg'].iloc[0]:.1f} kg")
+    >>>
+    >>> # Display force curves
+    >>> results.figures['force_traces'].show()
+
+    See Also
+    --------
+    Isokinetic1RMTest : Test protocol for isokinetic 1RM prediction.
+    TestResults : Parent class for test results.
+    """
 
     @property
     def estimate_1rm(self):

@@ -12,6 +12,126 @@ from ..test_protocol import TestProtocol
 
 
 class Isokinetic1RMTest(TestProtocol):
+    """
+    Test protocol for predicting 1-repetition maximum from isokinetic testing.
+
+    Isokinetic1RMTest manages and analyzes constant-velocity strength testing
+    to predict maximal strength (1RM). The class uses load-velocity relationships
+    from isokinetic dynamometry to extrapolate 1RM values, processes EMG signals,
+    and generates performance reports with normative comparisons.
+
+    The protocol supports:
+    - Unilateral testing (left/right limb separately)
+    - Bilateral testing (both limbs simultaneously)
+    - 1RM prediction from velocity-force curves
+    - EMG normalization and muscle activation analysis
+    - Multiple exercise types (leg press, leg extension, chest press, etc.)
+
+    Parameters
+    ----------
+    rm1_coefs : dict of str to float
+        Regression coefficients for 1RM prediction. Must contain 'beta0'
+        (intercept) and 'beta1' (slope) keys mapping to float values.
+    left : IsokineticExercise or None
+        Left limb isokinetic exercise data. None if not tested.
+    right : IsokineticExercise or None
+        Right limb isokinetic exercise data. None if not tested.
+    bilateral : IsokineticExercise or None
+        Bilateral isokinetic exercise data. None if not tested.
+    participant : Participant
+        Participant information including demographics and anthropometrics.
+    normative_data : pd.DataFrame, optional
+        Reference data for performance ranking and comparison.
+        Default is empty DataFrame.
+    emg_normalization_references : TimeseriesRecord or str or 'self', optional
+        Reference signals for EMG amplitude normalization. If 'self', uses
+        test data for normalization. Default is empty TimeseriesRecord.
+    emg_normalization_function : callable, optional
+        Function to compute normalization value from reference (e.g., np.mean,
+        np.max). Default is np.mean.
+    emg_activation_references : TimeseriesRecord or str or 'self', optional
+        Reference signals for determining muscle activation thresholds.
+        Default is empty TimeseriesRecord.
+    emg_activation_threshold : float, optional
+        Threshold multiplier for detecting muscle activation onset.
+        Default is 3 (3x reference level).
+    relevant_muscle_map : list of str or None, optional
+        List of muscle names to include in analysis. If None, includes all
+        detected muscles. Default is None.
+
+    Attributes
+    ----------
+    left : IsokineticExercise or None
+        Left limb exercise data.
+    right : IsokineticExercise or None
+        Right limb exercise data.
+    bilateral : IsokineticExercise or None
+        Bilateral exercise data.
+    rm1_coefs : dict of str to float
+        1RM prediction coefficients (beta0 = intercept, beta1 = slope).
+    processed_data : Isokinetic1RMTest
+        Copy of test with all signals processed through the pipeline.
+    processing_pipeline : ProcessingPipeline
+        Signal processing pipeline with isokinetic-specific configurations.
+
+    Methods
+    -------
+    copy()
+        Return a copy of the test protocol.
+    get_results(include_emg=True)
+        Process data and return Isokinetic1RMTestResults.
+    set_left_test(test)
+        Set left limb exercise data.
+    set_right_test(test)
+        Set right limb exercise data.
+    set_bilateral_test(test)
+        Set bilateral exercise data.
+    set_1rm_coefs(rm1_coefs)
+        Set 1RM prediction coefficients.
+    from_files(participant, product, ...)
+        Load test from BioStrength files for specific exercise equipment.
+
+    Notes
+    -----
+    1RM Prediction:
+    The 1RM is predicted from the load-velocity relationship using linear
+    regression: 1RM = beta0 + beta1 * velocity_threshold, where velocity_threshold
+    is typically the velocity corresponding to maximal voluntary contraction.
+
+    Supported Exercise Products:
+    - LEG PRESS, LEG PRESS REV
+    - LEG EXTENSION, LEG EXTENSION REV
+    - LEG CURL
+    - LOW ROW
+    - ADJUSTABLE PULLEY REV
+    - CHEST PRESS
+    - SHOULDER PRESS
+
+    Each product has pre-calibrated regression coefficients based on equipment
+    characteristics and biomechanical validation studies.
+
+    Examples
+    --------
+    >>> from labanalysis.protocols import Isokinetic1RMTest, Participant
+    >>>
+    >>> # Create test from BioStrength files
+    >>> participant = Participant(surname='Athlete', weight=75)
+    >>> test = Isokinetic1RMTest.from_files(
+    ...     participant=participant,
+    ...     product='LEG PRESS',
+    ...     bilateral_biostrength_filename='leg_press_data.txt'
+    ... )
+    >>>
+    >>> # Get results with 1RM prediction
+    >>> results = test.get_results(include_emg=False)
+    >>> print(f"Predicted 1RM: {results.summary['predicted_1rm_kg'].values[0]:.1f} kg")
+
+    See Also
+    --------
+    Isokinetic1RMTestResults : Results container for isokinetic 1RM tests.
+    IsokineticExercise : Exercise data container for isokinetic contractions.
+    TestProtocol : Parent class for test protocols.
+    """
 
     def __init__(
         self,

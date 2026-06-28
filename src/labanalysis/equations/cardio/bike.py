@@ -127,3 +127,19 @@ class Bike:
 
         power = [sympy.solve(eq.subs(self.VO2, v), self.POWER)[0] for v in vo2]
         return np.asarray(power, float)
+
+    def copy(self):
+        """
+        Create a copy of the Bike instance.
+
+        Returns
+        -------
+        Bike
+            A new Bike instance (stateless utility class).
+
+        Notes
+        -----
+        Since Bike is a stateless utility class with no instance variables,
+        copy() simply returns a new instance of the same class.
+        """
+        return self.__class__()

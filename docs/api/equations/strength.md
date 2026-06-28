@@ -2,7 +2,7 @@
 
 Strength prediction equations (1RM, load-velocity).
 
-**Source**: `src/labanalysis/equations/strength.py`
+**Source**: `src/labanalysis/equations/strength/`
 
 ## Overview
 

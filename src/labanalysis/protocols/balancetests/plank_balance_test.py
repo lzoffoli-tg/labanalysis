@@ -15,12 +15,121 @@ from ..test_protocol import TestProtocol
 
 
 class PlankBalanceTest(TestProtocol):
+    """
+    Plank balance test protocol for assessing core stability and postural control.
+
+    This class implements a plank (prone) balance test where participants maintain
+    a plank position while ground reaction forces and body sway are measured.
+    The test can be performed with eyes open or closed to assess visual contribution
+    to balance control.
+
+    Parameters
+    ----------
+    participant : Participant
+        Participant information object.
+    exercise : PronePosture
+        PronePosture exercise object containing force platform and marker data.
+    eyes : {'open', 'closed'}
+        Visual condition during the test.
+    normative_data : pandas.DataFrame, optional
+        Normative reference data for comparison (default uses built-in plank balance norms).
+    emg_normalization_references : TimeseriesRecord or str or 'self', optional
+        Reference data for EMG normalization (default is empty TimeseriesRecord).
+    emg_normalization_function : callable, optional
+        Function to compute normalization value from reference data (default is np.mean).
+    emg_activation_references : TimeseriesRecord or str or 'self', optional
+        Reference data for EMG activation threshold (default is empty TimeseriesRecord).
+    emg_activation_threshold : float or int, optional
+        Threshold multiplier for EMG activation detection (default is 3).
+    relevant_muscle_map : list of str or None, optional
+        List of relevant muscle names to include in analysis (default is None, includes all).
+
+    Attributes
+    ----------
+    participant : Participant
+        The participant who performed the test.
+    exercise : PronePosture
+        The recorded prone posture exercise.
+    eyes : str
+        Visual condition ('open' or 'closed').
+    normative_data : pandas.DataFrame
+        Reference data for normative comparisons.
+
+    Methods
+    -------
+    from_files(filename, participant, eyes, normative_data, emg_normalization_references, emg_normalization_function, emg_activation_references, emg_activation_threshold, relevant_muscle_map, left_hand_ground_reaction_force, right_hand_ground_reaction_force, left_foot_ground_reaction_force, right_foot_ground_reaction_force)
+        Create PlankBalanceTest instance from TDF file.
+    get_results()
+        Generate PlankBalanceTestResults from processed data.
+    copy()
+        Create a deep copy of the test object.
+    set_exercise(exercise)
+        Set the prone posture exercise.
+    set_eyes(eyes)
+        Set the visual condition.
+
+    Properties
+    ----------
+    exercise : PronePosture
+        Access to the recorded exercise.
+    eyes : str
+        Access to the visual condition.
+    processed_data : PlankBalanceTest
+        Returns a processed copy of the test data.
+    processing_pipeline : ProcessingPipeline
+        Default signal processing pipeline for plank balance test data.
+
+    Examples
+    --------
+    >>> from labanalysis import Participant, PlankBalanceTest
+    >>> participant = Participant(name="John", surname="Doe", weight=75, height=180)
+    >>> plank = PlankBalanceTest.from_files(
+    ...     filename="plank_trial.tdf",
+    ...     participant=participant,
+    ...     eyes="open"
+    ... )
+    >>> results = plank.get_results()
+    >>> print(results.summary)
+
+    See Also
+    --------
+    PronePosture : Prone posture exercise data.
+    PlankBalanceTestResults : Analysis results for plank balance tests.
+    UprightBalanceTest : Upright balance test protocol.
+
+    Notes
+    -----
+    The plank balance test measures postural stability in the prone position with
+    hands and feet supported on force platforms. Core stability is assessed through
+    center of pressure movement and force distribution analysis.
+    """
 
     @property
     def eyes(self):
+        """
+        Get the visual condition during the test.
+
+        Returns
+        -------
+        str
+            Visual condition ('open' or 'closed').
+        """
         return self._eyes
 
     def set_eyes(self, eyes: Literal["open", "closed"]):
+        """
+        Set the visual condition for the test.
+
+        Parameters
+        ----------
+        eyes : {'open', 'closed'}
+            Visual condition during testing.
+
+        Raises
+        ------
+        ValueError
+            If eyes is not 'open' or 'closed'.
+        """
         if eyes not in ["open", "closed"]:
             raise ValueError("eyes must be 'open' or 'closed'.")
         self._eyes = eyes
@@ -54,6 +163,14 @@ class PlankBalanceTest(TestProtocol):
         self.set_exercise(exercise)
 
     def copy(self):
+        """
+        Create a deep copy of the PlankBalanceTest object.
+
+        Returns
+        -------
+        PlankBalanceTest
+            A new PlankBalanceTest instance with copied data.
+        """
         return PlankBalanceTest(
             participant=self.participant,
             exercise=self.exercise,
@@ -67,12 +184,33 @@ class PlankBalanceTest(TestProtocol):
         )
 
     def set_exercise(self, exercise: PronePosture):
+        """
+        Set the prone posture exercise for this test.
+
+        Parameters
+        ----------
+        exercise : PronePosture
+            PronePosture exercise object to assign to this test.
+
+        Raises
+        ------
+        ValueError
+            If exercise is not a PronePosture instance.
+        """
         if not isinstance(exercise, PronePosture):
             raise ValueError("exercise must be a PronePosture instance.")
         self._exercise = exercise
 
     @property
     def exercise(self):
+        """
+        Get the prone posture exercise.
+
+        Returns
+        -------
+        PronePosture
+            The recorded prone posture exercise for this test.
+        """
         return self._exercise
 
     @classmethod
@@ -153,7 +291,7 @@ class PlankBalanceTest(TestProtocol):
             cop = cop.copy()
             return cop.to_numpy().astype(float).mean(axis=0)
 
-        # on bilateral test, we rotate the system of forces to a
+        # calculate reference frame from force platform positions
         rf = extract_cop(exe.right_foot_ground_reaction_force)
         lf = extract_cop(exe.left_foot_ground_reaction_force)
         rh = extract_cop(exe.right_hand_ground_reaction_force)
