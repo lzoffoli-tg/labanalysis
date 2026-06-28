@@ -14,18 +14,20 @@ src_path = Path(__file__).parent.parent.parent / "src"
 sys.path.insert(0, str(src_path))
 
 import numpy as np
-import labanalysis as laban
+
+from labanalysis.timeseries import Signal1D, Signal3D, Timeseries
+from labanalysis.records import Record
 
 
 def test_timeseries_loc_get():
     """Test Timeseries.loc getter."""
     data = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=float)
     index = np.array([0.0, 0.1, 0.2])
-    ts = laban.Timeseries(data, index, columns=['X', 'Y', 'Z'], unit='m')
+    ts = Timeseries(data, index, columns=['X', 'Y', 'Z'], unit='m')
 
     # Test single column access
     col_x = ts.loc[:, 'X']
-    assert isinstance(col_x, laban.Timeseries)
+    assert isinstance(col_x, Timeseries)
     assert col_x.shape == (3, 1)
 
     # Test row range
@@ -39,7 +41,7 @@ def test_timeseries_loc_set():
     """Test Timeseries.loc setter."""
     data = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=float)
     index = np.array([0.0, 0.1, 0.2])
-    ts = laban.Timeseries(data, index, columns=['X', 'Y', 'Z'], unit='m')
+    ts = Timeseries(data, index, columns=['X', 'Y', 'Z'], unit='m')
 
     # Test setting single value
     ts.loc[0.0, 'X'] = 99
@@ -56,7 +58,7 @@ def test_timeseries_iloc_get():
     """Test Timeseries.iloc getter."""
     data = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=float)
     index = np.array([0.0, 0.1, 0.2])
-    ts = laban.Timeseries(data, index, columns=['X', 'Y', 'Z'], unit='m')
+    ts = Timeseries(data, index, columns=['X', 'Y', 'Z'], unit='m')
 
     # Test position-based access
     first_row = ts.iloc[0, :]
@@ -74,7 +76,7 @@ def test_timeseries_iloc_set():
     """Test Timeseries.iloc setter."""
     data = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=float)
     index = np.array([0.0, 0.1, 0.2])
-    ts = laban.Timeseries(data, index, columns=['X', 'Y', 'Z'], unit='m')
+    ts = Timeseries(data, index, columns=['X', 'Y', 'Z'], unit='m')
 
     # Test setting by position
     ts.iloc[0, 0] = 99
@@ -91,11 +93,11 @@ def test_timeseries_backward_compat():
     """Test backward compatibility with __getitem__/__setitem__."""
     data = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=float)
     index = np.array([0.0, 0.1, 0.2])
-    ts = laban.Timeseries(data, index, columns=['X', 'Y', 'Z'], unit='m')
+    ts = Timeseries(data, index, columns=['X', 'Y', 'Z'], unit='m')
 
     # Test old-style access still works
     col_x = ts['X']
-    assert isinstance(col_x, laban.Timeseries)
+    assert isinstance(col_x, Timeseries)
 
     # Test old-style assignment still works
     ts['Y'] = 0
@@ -116,11 +118,11 @@ def test_signal3d_type_preservation():
     """Test that Signal3D preserves type when appropriate."""
     data = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=float)
     index = np.array([0.0, 0.1, 0.2])
-    sig = laban.Signal3D(data, index, unit='m')
+    sig = Signal3D(data, index, unit='m')
 
     # All columns -> preserve Signal3D type
     subset = sig.loc[0:0.1, :]
-    assert isinstance(subset, laban.Signal3D)
+    assert isinstance(subset, Signal3D)
 
     # Single column -> should return Signal1D or Timeseries
     col_x = sig.loc[:, 'X']
@@ -131,9 +133,9 @@ def test_signal3d_type_preservation():
 
 def test_record_loc_basic():
     """Test Record.loc basic functionality."""
-    sig1 = laban.Signal1D(np.array([1, 2, 3]), np.array([0.0, 0.1, 0.2]), unit='V')
-    sig2 = laban.Signal1D(np.array([4, 5, 6]), np.array([0.0, 0.1, 0.2]), unit='V')
-    rec = laban.Record(signal1=sig1, signal2=sig2)
+    sig1 = Signal1D(np.array([1, 2, 3]), np.array([0.0, 0.1, 0.2]), unit='V')
+    sig2 = Signal1D(np.array([4, 5, 6]), np.array([0.0, 0.1, 0.2]), unit='V')
+    rec = Record(signal1=sig1, signal2=sig2)
 
     # Test getting single item
     subset = rec.loc[:, 'signal1']
@@ -149,9 +151,9 @@ def test_record_loc_basic():
 
 def test_record_iloc_basic():
     """Test Record.iloc basic functionality."""
-    sig1 = laban.Signal1D(np.array([1, 2, 3]), np.array([0.0, 0.1, 0.2]), unit='V')
-    sig2 = laban.Signal1D(np.array([4, 5, 6]), np.array([0.0, 0.1, 0.2]), unit='V')
-    rec = laban.Record(signal1=sig1, signal2=sig2)
+    sig1 = Signal1D(np.array([1, 2, 3]), np.array([0.0, 0.1, 0.2]), unit='V')
+    sig2 = Signal1D(np.array([4, 5, 6]), np.array([0.0, 0.1, 0.2]), unit='V')
+    rec = Record(signal1=sig1, signal2=sig2)
 
     # Test position-based access
     subset = rec.iloc[:, 0]  # First item

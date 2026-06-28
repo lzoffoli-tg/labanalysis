@@ -1,13 +1,24 @@
-"""timeseriesrecords library"""
+"""Records module for biomechanical data containers."""
 
-from .agility import *
-from .bodies import *
-from .jumping import *
+# Core records classes
+from ._base import *
+from ._loc_indexer import *
+from ._iloc_indexer import *
+from .forceplatform import *
+from .metabolicrecord import *
+from .timeseriesrecord import *
+
+# Submodules
+from .body import *
 from .locomotion import *
-from .pipelines import *
-from .posture import *
-from .records import *
-from .referenceframes import *
 from .strength import *
-from .timeseries import *
-from .indexers import *  # Import last to avoid circular import
+
+__all__ = [
+    # Core records
+    "Record",
+    "RecordLocIndexer",
+    "RecordILocIndexer",
+    "ForcePlatform",
+    "MetabolicRecord",
+    "TimeseriesRecord",
+]

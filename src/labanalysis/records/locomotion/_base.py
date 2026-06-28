@@ -2,17 +2,11 @@
 
 from typing import Literal
 
-import numpy as np
-import pandas as pd
-import plotly.express.colors as plotly_colors
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-
 from ...constants import *
 from ...signalprocessing import *
-from ..timeseries import *
-from ..bodies import WholeBody
-from ..records import ForcePlatform, TimeseriesRecord
+from ...timeseries import *
+from ..body import WholeBody
+from ..forceplatform import ForcePlatform
 
 
 class GaitObject(WholeBody):

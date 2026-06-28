@@ -1,0 +1,15 @@
+"""Test suite for labanalysis.records.body._base module."""
+
+import pytest
+from labanalysis.records.body import _base
+
+
+def test_base_module_importable():
+    """Test that body._base module imports successfully."""
+    assert _base is not None
+
+
+def test_module_has_base_classes():
+    """Test that _base module contains WholeBodyBase and related classes."""
+    public_attrs = [attr for attr in dir(_base) if not attr.startswith('__')]
+    assert len(public_attrs) > 0

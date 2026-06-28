@@ -3,7 +3,9 @@
 import numpy as np
 import pytest
 
-import labanalysis as laban
+from labanalysis.timeseries import Point3D, Signal1D, Timeseries
+from labanalysis.records.body import WholeBody
+
 
 
 def test_wholebody_item_access_to_property():
@@ -20,19 +22,19 @@ def test_wholebody_item_access_to_property():
     data = np.random.rand(10, 3)
     index = np.arange(10, dtype=float)
 
-    left_ankle_medial = laban.Point3D(
+    left_ankle_medial = Point3D(
         data=data,
         index=index,
         columns=['X', 'Y', 'Z']
     )
 
-    left_ankle_lateral = laban.Point3D(
+    left_ankle_lateral = Point3D(
         data=data + 0.1,
         index=index,
         columns=['X', 'Y', 'Z']
     )
 
-    ts = laban.WholeBody(
+    ts = WholeBody(
         left_ankle_medial=left_ankle_medial,
         left_ankle_lateral=left_ankle_lateral
     )
@@ -44,8 +46,8 @@ def test_wholebody_item_access_to_property():
     result_item = ts['left_ankle']
 
     # They must be equal
-    assert isinstance(result_property, laban.Point3D)
-    assert isinstance(result_item, laban.Point3D)
+    assert isinstance(result_property, Point3D)
+    assert isinstance(result_item, Point3D)
     assert np.allclose(result_property.to_numpy(), result_item.to_numpy())
     print("✓ ts.left_ankle == ts['left_ankle']")
 
@@ -61,13 +63,13 @@ def test_wholebody_attribute_access_to_item():
     data = np.random.rand(10, 3)
     index = np.arange(10, dtype=float)
 
-    left_ankle_lateral = laban.Point3D(
+    left_ankle_lateral = Point3D(
         data=data,
         index=index,
         columns=['X', 'Y', 'Z']
     )
 
-    ts = laban.WholeBody(left_ankle_lateral=left_ankle_lateral)
+    ts = WholeBody(left_ankle_lateral=left_ankle_lateral)
 
     # Test: ts['left_ankle_lateral'] is an item
     result_item = ts['left_ankle_lateral']
@@ -76,8 +78,8 @@ def test_wholebody_attribute_access_to_item():
     result_attr = ts.left_ankle_lateral
 
     # They must be equal
-    assert isinstance(result_item, laban.Point3D)
-    assert isinstance(result_attr, laban.Point3D)
+    assert isinstance(result_item, Point3D)
+    assert isinstance(result_attr, Point3D)
     assert np.allclose(result_item.to_numpy(), result_attr.to_numpy())
     print("✓ ts['left_ankle_lateral'] == ts.left_ankle_lateral")
 
@@ -92,7 +94,7 @@ def test_point3d_item_access_to_property():
     data = np.random.rand(10, 3)
     index = np.arange(10, dtype=float)
 
-    point = laban.Point3D(
+    point = Point3D(
         data=data,
         index=index,
         columns=['X', 'Y', 'Z']
@@ -105,8 +107,8 @@ def test_point3d_item_access_to_property():
     result_item = point['module']
 
     # They must be equal
-    assert isinstance(result_property, laban.Signal1D)
-    assert isinstance(result_item, laban.Signal1D)
+    assert isinstance(result_property, Signal1D)
+    assert isinstance(result_item, Signal1D)
     assert np.allclose(result_property.to_numpy(), result_item.to_numpy())
     print("✓ point.module == point['module']")
 
@@ -122,7 +124,7 @@ def test_point3d_attribute_access_to_column():
     data = np.random.rand(10, 3)
     index = np.arange(10, dtype=float)
 
-    point = laban.Point3D(
+    point = Point3D(
         data=data,
         index=index,
         columns=['X', 'Y', 'Z']
@@ -135,8 +137,8 @@ def test_point3d_attribute_access_to_column():
     result_attr = point.X
 
     # They must be equal
-    assert isinstance(result_item, laban.Timeseries)
-    assert isinstance(result_attr, laban.Timeseries)
+    assert isinstance(result_item, Timeseries)
+    assert isinstance(result_attr, Timeseries)
     assert np.allclose(result_item.to_numpy(), result_attr.to_numpy())
     print("✓ point['X'] == point.X")
 
@@ -148,19 +150,19 @@ def test_priority_items_over_properties():
     data = np.random.rand(10, 3)
     index = np.arange(10, dtype=float)
 
-    left_ankle_medial = laban.Point3D(
+    left_ankle_medial = Point3D(
         data=data,
         index=index,
         columns=['X', 'Y', 'Z']
     )
 
-    left_ankle_lateral = laban.Point3D(
+    left_ankle_lateral = Point3D(
         data=data + 0.1,
         index=index,
         columns=['X', 'Y', 'Z']
     )
 
-    ts = laban.WholeBody(
+    ts = WholeBody(
         left_ankle_medial=left_ankle_medial,
         left_ankle_lateral=left_ankle_lateral
     )
@@ -169,14 +171,14 @@ def test_priority_items_over_properties():
     # ts['left_ankle_lateral'] should return the item from _data, not try to call a property
     result = ts['left_ankle_lateral']
 
-    assert isinstance(result, laban.Point3D)
+    assert isinstance(result, Point3D)
     assert np.allclose(result.to_numpy(), left_ankle_lateral.to_numpy())
     print("✓ Items in _data have priority over properties")
 
 
 def test_nonexistent_key_raises_error():
     """Test that accessing non-existent keys raises appropriate errors."""
-    ts = laban.WholeBody()
+    ts = WholeBody()
 
     with pytest.raises(KeyError):
         _ = ts['nonexistent_item']
@@ -184,7 +186,7 @@ def test_nonexistent_key_raises_error():
 
     data = np.random.rand(10, 3)
     index = np.arange(10, dtype=float)
-    point = laban.Point3D(data=data, index=index, columns=['X', 'Y', 'Z'])
+    point = Point3D(data=data, index=index, columns=['X', 'Y', 'Z'])
 
     with pytest.raises(KeyError):
         _ = point['nonexistent_column']

@@ -8,11 +8,8 @@ and all joint angles into single Timeseries objects.
 import numpy as np
 import pytest
 
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-
-import labanalysis as laban
+from labanalysis.timeseries import Point3D, Timeseries
+from labanalysis.records.body import WholeBody
 
 
 @pytest.fixture
@@ -24,204 +21,204 @@ def wholebody_complete():
     # Global coordinate system used for synthetic markers: X=lateral, Y=vertical, Z=anteroposterior
 
     # Pelvis markers
-    left_asis = laban.Point3D(
+    left_asis = Point3D(
         data=np.array([[-0.10, 0.90, 0.00]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
-    right_asis = laban.Point3D(
+    right_asis = Point3D(
         data=np.array([[0.10, 0.90, 0.00]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
-    left_psis = laban.Point3D(
+    left_psis = Point3D(
         data=np.array([[-0.08, 0.85, -0.15]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
-    right_psis = laban.Point3D(
+    right_psis = Point3D(
         data=np.array([[0.08, 0.85, -0.15]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
 
     # Hip markers
-    left_trochanter = laban.Point3D(
+    left_trochanter = Point3D(
         data=np.array([[-0.15, 0.85, 0.00]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
-    right_trochanter = laban.Point3D(
+    right_trochanter = Point3D(
         data=np.array([[0.15, 0.85, 0.00]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
 
     # Knee markers
-    left_knee_lat = laban.Point3D(
+    left_knee_lat = Point3D(
         data=np.array([[-0.18, 0.50, 0.05]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
-    left_knee_med = laban.Point3D(
+    left_knee_med = Point3D(
         data=np.array([[-0.12, 0.50, 0.05]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
-    right_knee_lat = laban.Point3D(
+    right_knee_lat = Point3D(
         data=np.array([[0.18, 0.50, 0.05]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
-    right_knee_med = laban.Point3D(
+    right_knee_med = Point3D(
         data=np.array([[0.12, 0.50, 0.05]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
 
     # Ankle markers
-    left_ankle_lat = laban.Point3D(
+    left_ankle_lat = Point3D(
         data=np.array([[-0.15, 0.08, 0.05]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
-    left_ankle_med = laban.Point3D(
+    left_ankle_med = Point3D(
         data=np.array([[-0.10, 0.08, 0.05]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
-    right_ankle_lat = laban.Point3D(
+    right_ankle_lat = Point3D(
         data=np.array([[0.15, 0.08, 0.05]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
-    right_ankle_med = laban.Point3D(
+    right_ankle_med = Point3D(
         data=np.array([[0.10, 0.08, 0.05]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
 
     # Foot markers
-    left_heel = laban.Point3D(
+    left_heel = Point3D(
         data=np.array([[-0.12, 0.02, -0.05]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
-    right_heel = laban.Point3D(
+    right_heel = Point3D(
         data=np.array([[0.12, 0.02, -0.05]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
-    left_toe = laban.Point3D(
+    left_toe = Point3D(
         data=np.array([[-0.12, 0.02, 0.15]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
-    right_toe = laban.Point3D(
+    right_toe = Point3D(
         data=np.array([[0.12, 0.02, 0.15]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
-    left_first_met = laban.Point3D(
+    left_first_met = Point3D(
         data=np.array([[-0.09, 0.02, 0.12]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
-    left_fifth_met = laban.Point3D(
+    left_fifth_met = Point3D(
         data=np.array([[-0.15, 0.02, 0.12]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
-    right_first_met = laban.Point3D(
+    right_first_met = Point3D(
         data=np.array([[0.09, 0.02, 0.12]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
-    right_fifth_met = laban.Point3D(
+    right_fifth_met = Point3D(
         data=np.array([[0.15, 0.02, 0.12]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
 
     # Shoulder markers
-    left_acromion = laban.Point3D(
+    left_acromion = Point3D(
         data=np.array([[-0.20, 1.35, -0.03]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
-    right_acromion = laban.Point3D(
+    right_acromion = Point3D(
         data=np.array([[0.20, 1.35, -0.03]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
 
     # Elbow markers
-    left_elbow_lat = laban.Point3D(
+    left_elbow_lat = Point3D(
         data=np.array([[-0.25, 1.10, 0.05]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
-    left_elbow_med = laban.Point3D(
+    left_elbow_med = Point3D(
         data=np.array([[-0.18, 1.10, 0.05]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
-    right_elbow_lat = laban.Point3D(
+    right_elbow_lat = Point3D(
         data=np.array([[0.25, 1.10, 0.05]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
-    right_elbow_med = laban.Point3D(
+    right_elbow_med = Point3D(
         data=np.array([[0.18, 1.10, 0.05]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
 
     # Wrist markers
-    left_wrist_lat = laban.Point3D(
+    left_wrist_lat = Point3D(
         data=np.array([[-0.28, 0.90, 0.10]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
-    left_wrist_med = laban.Point3D(
+    left_wrist_med = Point3D(
         data=np.array([[-0.22, 0.90, 0.10]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
-    right_wrist_lat = laban.Point3D(
+    right_wrist_lat = Point3D(
         data=np.array([[0.28, 0.90, 0.10]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
-    right_wrist_med = laban.Point3D(
+    right_wrist_med = Point3D(
         data=np.array([[0.22, 0.90, 0.10]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
 
     # Neck/trunk markers
-    c7 = laban.Point3D(
+    c7 = Point3D(
         data=np.array([[0.00, 1.40, 0.05]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
-    sc = laban.Point3D(
+    sc = Point3D(
         data=np.array([[0.00, 1.42, -0.05]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
-    t5 = laban.Point3D(
+    t5 = Point3D(
         data=np.array([[0.00, 1.10, -0.08]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
-    l2 = laban.Point3D(
+    l2 = Point3D(
         data=np.array([[0.00, 0.95, -0.05]] * n_frames),
         index=time_index,
         columns=["X", "Y", "Z"],
     )
 
-    return laban.WholeBody(
+    return WholeBody(
         left_asis=left_asis, right_asis=right_asis,
         left_psis=left_psis, right_psis=right_psis,
         left_trochanter=left_trochanter, right_trochanter=right_trochanter,
@@ -245,7 +242,7 @@ def wholebody_complete():
 def test_segment_lengths_returns_timeseries(wholebody_complete):
     """Verify segment_lengths returns a Timeseries object."""
     lengths = wholebody_complete.segment_lengths
-    assert isinstance(lengths, laban.Timeseries), \
+    assert isinstance(lengths, Timeseries), \
         "segment_lengths should return a Timeseries object"
 
 
@@ -312,7 +309,7 @@ def test_segment_lengths_values_match_individual_properties(wholebody_complete):
 def test_joint_angles_returns_timeseries(wholebody_complete):
     """Verify joint_angles returns a Timeseries object."""
     angles = wholebody_complete.joint_angles
-    assert isinstance(angles, laban.Timeseries), \
+    assert isinstance(angles, Timeseries), \
         "joint_angles should return a Timeseries object"
 
 
@@ -332,7 +329,7 @@ def test_joint_angles_contains_expected_columns(wholebody_complete):
         'left_hip_abductionadduction', 'right_hip_abductionadduction',
         'left_hip_internalexternalrotation', 'right_hip_internalexternalrotation',
         # Pelvis angles
-        'pelvis_anteroposterior_tilt',
+        'pelvis_anteroposterior_tilt_global',
         # Trunk angles
         'trunk_rotation',
         # Elbow angles
@@ -357,9 +354,9 @@ def test_joint_angles_values_match_individual_properties(wholebody_complete):
     )
 
     np.testing.assert_array_almost_equal(
-        angles['pelvis_anteroposterior_tilt'].to_numpy().flatten(),
-        wholebody_complete.pelvis_anteroposterior_tilt.to_numpy().flatten(),
-        err_msg="pelvis_anteroposterior_tilt values don't match"
+        angles['pelvis_anteroposterior_tilt_global'].to_numpy().flatten(),
+        wholebody_complete.pelvis_anteroposterior_tilt_global.to_numpy().flatten(),
+        err_msg="pelvis_anteroposterior_tilt_global values don't match"
     )
 
     np.testing.assert_array_almost_equal(
@@ -372,28 +369,28 @@ def test_joint_angles_values_match_individual_properties(wholebody_complete):
 def test_segment_lengths_with_partial_markers():
     """Verify segment_lengths works with partial marker sets."""
     # Create body with only lower limb markers
-    left_asis = laban.Point3D(
+    left_asis = Point3D(
         data=np.array([[-0.10, 0.90, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    right_asis = laban.Point3D(
+    right_asis = Point3D(
         data=np.array([[0.10, 0.90, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    left_knee_lat = laban.Point3D(
+    left_knee_lat = Point3D(
         data=np.array([[-0.18, 0.50, 0.05]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    left_knee_med = laban.Point3D(
+    left_knee_med = Point3D(
         data=np.array([[-0.12, 0.50, 0.05]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
 
-    body = laban.WholeBody(
+    body = WholeBody(
         left_asis=left_asis, right_asis=right_asis,
         left_knee_lateral=left_knee_lat, left_knee_medial=left_knee_med,
     )
@@ -410,43 +407,43 @@ def test_segment_lengths_with_partial_markers():
 def test_joint_angles_with_partial_markers():
     """Verify joint_angles works with partial marker sets."""
     # Create body with pelvis, spine and neck markers for trunk/spine angles
-    left_asis = laban.Point3D(
+    left_asis = Point3D(
         data=np.array([[-0.10, 0.90, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    right_asis = laban.Point3D(
+    right_asis = Point3D(
         data=np.array([[0.10, 0.90, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    left_psis = laban.Point3D(
+    left_psis = Point3D(
         data=np.array([[-0.08, 0.85, -0.15]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    right_psis = laban.Point3D(
+    right_psis = Point3D(
         data=np.array([[0.08, 0.85, -0.15]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    c7 = laban.Point3D(
+    c7 = Point3D(
         data=np.array([[0.00, 1.40, 0.05]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    t5 = laban.Point3D(
+    t5 = Point3D(
         data=np.array([[0.00, 1.10, -0.08]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    l2 = laban.Point3D(
+    l2 = Point3D(
         data=np.array([[0.00, 0.95, -0.05]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
 
-    body = laban.WholeBody(
+    body = WholeBody(
         left_asis=left_asis, right_asis=right_asis,
         left_psis=left_psis, right_psis=right_psis,
         c7=c7, t5=t5, l2=l2,

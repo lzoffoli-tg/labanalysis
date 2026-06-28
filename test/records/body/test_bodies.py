@@ -11,25 +11,19 @@ Note: Tests import from src/ directory to validate actual codebase
 rather than installed package version.
 """
 
-import sys
-from pathlib import Path
-
-# Add src directory to path to import from source code, not installed package
-# This ensures tests validate the current codebase, not the installed version
-src_path = Path(__file__).parent.parent.parent / "src"
-sys.path.insert(0, str(src_path))
-
 import numpy as np
 import pytest
 
-import labanalysis as laban
+from labanalysis.timeseries import Point3D, Signal1D, Timeseries
+from labanalysis.records.body import WholeBody
+
 
 
 def create_mock_point3d(n_samples=100, offset=0.0):
     """Create a mock Point3D with random data."""
     data = np.random.randn(n_samples, 3) + offset
     index = np.arange(n_samples) / 100.0  # 100 Hz
-    return laban.Point3D(
+    return Point3D(
         data=data,
         index=index,
         columns=["X", "Y", "Z"],
@@ -39,7 +33,7 @@ def create_mock_point3d(n_samples=100, offset=0.0):
 
 def create_wholebody_with_cranial_markers(n_samples=100):
     """Create WholeBody with all cranial and neck markers for testing."""
-    return laban.WholeBody(
+    return WholeBody(
         head_anterior=create_mock_point3d(n_samples, offset=0.0),
         head_posterior=create_mock_point3d(n_samples, offset=1.0),
         head_left=create_mock_point3d(n_samples, offset=2.0),
@@ -57,7 +51,7 @@ def create_wholebody_with_cranial_markers(n_samples=100):
 
 def create_wholebody_with_foot_markers(n_samples=100):
     """Create WholeBody with all foot plane markers for testing."""
-    return laban.WholeBody(
+    return WholeBody(
         left_toe=create_mock_point3d(n_samples, offset=0.0),
         left_heel=create_mock_point3d(n_samples, offset=1.0),
         left_first_metatarsal_head=create_mock_point3d(n_samples, offset=2.0),
@@ -98,7 +92,7 @@ def test_ankle_joint_center_with_missing_medial_markers():
     right_psis = create_mock_point3d(n_samples, offset=9.0)
 
     # Create WholeBody without medial ankle markers
-    body = laban.WholeBody(
+    body = WholeBody(
         left_ankle_lateral=left_ankle_lat,
         right_ankle_lateral=right_ankle_lat,
         # No medial ankle markers
@@ -148,7 +142,7 @@ def test_ankle_referenceframe_with_missing_medial_markers():
     right_psis = create_mock_point3d(n_samples, offset=9.0)
 
     # Create WholeBody without medial ankle markers
-    body = laban.WholeBody(
+    body = WholeBody(
         left_ankle_lateral=left_ankle_lat,
         right_ankle_lateral=right_ankle_lat,
         # No medial ankle markers
@@ -230,7 +224,7 @@ def test_knee_elbow_wrist_with_missing_medial_markers():
     right_psis = create_mock_point3d(n_samples, offset=17.0)
 
     # Create WholeBody without medial markers
-    body = laban.WholeBody(
+    body = WholeBody(
         left_knee_lateral=left_knee_lat,
         right_knee_lateral=right_knee_lat,
         left_elbow_lateral=left_elbow_lat,
@@ -296,7 +290,7 @@ def test_ankle_with_both_markers():
     right_psis = create_mock_point3d(n_samples, offset=9.0)
 
     # Create WholeBody with both ankle markers
-    body = laban.WholeBody(
+    body = WholeBody(
         left_ankle_lateral=left_ankle_lat,
         left_ankle_medial=left_ankle_med,
         left_knee_lateral=left_knee_lat,
@@ -329,7 +323,7 @@ def test_head_center_with_all_cranial_markers():
     head_right = create_mock_point3d(n_samples, offset=3.0)
 
     # Create minimal WholeBody
-    body = laban.WholeBody(
+    body = WholeBody(
         head_anterior=head_ant,
         head_posterior=head_post,
         head_left=head_left,
@@ -357,16 +351,18 @@ def test_head_center_with_missing_markers():
     n_samples = 100
 
     # Create WholeBody without cranial markers
-    body = laban.WholeBody(
+    body = WholeBody(
         left_asis=create_mock_point3d(n_samples, offset=0.0),
         right_asis=create_mock_point3d(n_samples, offset=1.0),
         left_psis=create_mock_point3d(n_samples, offset=2.0),
         right_psis=create_mock_point3d(n_samples, offset=3.0),
     )
 
-    # head_center should raise ValueError without markers
-    with pytest.raises(ValueError, match="head_anterior not found"):
-        _ = body.head_center
+    # head_center should emit warnings and return NaN without markers
+    with pytest.warns(UserWarning, match="Cannot calculate head_center"):
+        result = body.head_center
+        # Verify result is NaN
+        assert np.all(np.isnan(result.to_numpy()))
 
 
 def test_neck_base_calculation():
@@ -378,7 +374,7 @@ def test_neck_base_calculation():
     c7 = create_mock_point3d(n_samples, offset=1.0)
 
     # Create WholeBody
-    body = laban.WholeBody(
+    body = WholeBody(
         sc=sc,
         c7=c7,
         left_asis=create_mock_point3d(n_samples, offset=2.0),
@@ -426,7 +422,7 @@ def test_metatarsal_markers_independence():
     n_samples = 100
 
     # Create WholeBody with only left_first_metatarsal_head
-    body = laban.WholeBody(
+    body = WholeBody(
         left_first_metatarsal_head=create_mock_point3d(n_samples, offset=0.0),
         left_asis=create_mock_point3d(n_samples, offset=1.0),
         right_asis=create_mock_point3d(n_samples, offset=2.0),
@@ -462,8 +458,8 @@ def test_foot_height_with_new_metatarsals():
 
     assert left_height is not None
     assert right_height is not None
-    assert isinstance(left_height, laban.Signal1D)
-    assert isinstance(right_height, laban.Signal1D)
+    assert isinstance(left_height, Signal1D)
+    assert isinstance(right_height, Signal1D)
     # Signal1D may have shape (n_samples,) or (n_samples, 1)
     assert left_height.shape[0] == n_samples
     assert right_height.shape[0] == n_samples
@@ -474,7 +470,7 @@ def test_ankle_angles_with_new_foot_plane():
     n_samples = 100
 
     # Create WholeBody with foot markers and knee for reference frame
-    body = laban.WholeBody(
+    body = WholeBody(
         left_toe=create_mock_point3d(n_samples, offset=0.0),
         left_heel=create_mock_point3d(n_samples, offset=1.0),
         left_first_metatarsal_head=create_mock_point3d(n_samples, offset=2.0),
@@ -493,8 +489,8 @@ def test_ankle_angles_with_new_foot_plane():
 
     assert flexion is not None
     assert inversion is not None
-    assert isinstance(flexion, laban.Signal1D)
-    assert isinstance(inversion, laban.Signal1D)
+    assert isinstance(flexion, Signal1D)
+    assert isinstance(inversion, Signal1D)
 
 
 def test_neck_angles_with_head_center():
@@ -511,8 +507,8 @@ def test_neck_angles_with_head_center():
     assert lateral_flexion is not None
     assert flexion is not None
 
-    assert isinstance(lateral_flexion, laban.Signal1D)
-    assert isinstance(flexion, laban.Signal1D)
+    assert isinstance(lateral_flexion, Signal1D)
+    assert isinstance(flexion, Signal1D)
 
     # Signal1D may have shape (n_samples,) or (n_samples, 1)
     assert lateral_flexion.shape[0] == n_samples
@@ -546,7 +542,7 @@ def test_all_angular_measures_accessible():
     n_samples = 100
 
     # Create WholeBody with comprehensive markers (including medial markers for internal/external rotation)
-    body = laban.WholeBody(
+    body = WholeBody(
         # Foot markers
         left_heel=create_mock_point3d(n_samples, offset=0.0),
         right_heel=create_mock_point3d(n_samples, offset=1.0),
@@ -605,11 +601,11 @@ def test_all_angular_measures_accessible():
     # Verify all angular measures are accessible
     # With complete marker set, all 38 measures should be calculable
     accessible_count = 0
-    for measure_name in laban.WholeBody._angular_measures:
+    for measure_name in WholeBody._angular_measures:
         try:
             angle = getattr(body, measure_name, None)
             if angle is not None:
-                assert isinstance(angle, laban.Signal1D), f"Angular measure '{measure_name}' is not Signal1D"
+                assert isinstance(angle, Signal1D), f"Angular measure '{measure_name}' is not Signal1D"
                 accessible_count += 1
         except (ValueError, AttributeError) as e:
             # If this happens, there's a bug in the angular measure calculation
@@ -621,8 +617,8 @@ def test_all_angular_measures_accessible():
     # 1. No deprecated pandas methods are used (e.g., .ix instead of .iloc)
     # 2. All property references are correct (e.g., shoulder_lateraltilt_global not shoulder_lateral_tilt_global)
     # 3. All required markers are included in the test setup
-    assert accessible_count == len(laban.WholeBody._angular_measures), \
-        f"Only {accessible_count} out of {len(laban.WholeBody._angular_measures)} angular measures accessible"
+    assert accessible_count == len(WholeBody._angular_measures), \
+        f"Only {accessible_count} out of {len(WholeBody._angular_measures)} angular measures accessible"
 
 
 def test_t5_marker_presence():
@@ -631,7 +627,7 @@ def test_t5_marker_presence():
 
     # Create WholeBody with t5 marker
     t5_marker = create_mock_point3d(n_samples, offset=0.0)
-    body = laban.WholeBody(
+    body = WholeBody(
         t5=t5_marker,
         left_asis=create_mock_point3d(n_samples, offset=1.0),
         right_asis=create_mock_point3d(n_samples, offset=2.0),
@@ -656,7 +652,7 @@ def test_cranial_markers_bilateral():
     h_right = create_mock_point3d(n_samples, offset=3.0)
 
     # Create WholeBody with all cranial markers
-    body = laban.WholeBody(
+    body = WholeBody(
         head_anterior=h_ant,
         head_posterior=h_post,
         head_left=h_left,

@@ -8,8 +8,8 @@ and demonstrates the differences between them in various postural scenarios.
 import numpy as np
 import pandas as pd
 import pytest
-from labanalysis.records.bodies import WholeBody
-from labanalysis.records.timeseries import Point3D
+from labanalysis.records.body import WholeBody
+from labanalysis.timeseries import Point3D
 
 
 class TestPelvisAngles:

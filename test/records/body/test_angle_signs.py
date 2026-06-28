@@ -11,164 +11,161 @@ and verifies that:
 import numpy as np
 import pytest
 
-import sys
-import os
-# Adjust path: now we're in test/records/, need to go up two levels to reach src/
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+from labanalysis.timeseries import Point3D, Signal1D, Timeseries
+from labanalysis.records.body import WholeBody
 
-import labanalysis as laban
 
 
 @pytest.fixture
 def wholebody_neutral():
     """Create WholeBody in neutral anatomical position."""
     # Pelvis markers (rectangle in frontal plane)
-    left_asis = laban.Point3D(
+    left_asis = Point3D(
         data=np.array([[-0.10, 0.90, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    right_asis = laban.Point3D(
+    right_asis = Point3D(
         data=np.array([[0.10, 0.90, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    left_psis = laban.Point3D(
+    left_psis = Point3D(
         data=np.array([[-0.08, 0.85, -0.15]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    right_psis = laban.Point3D(
+    right_psis = Point3D(
         data=np.array([[0.08, 0.85, -0.15]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
 
     # Hip markers
-    left_trochanter = laban.Point3D(
+    left_trochanter = Point3D(
         data=np.array([[-0.15, 0.85, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    right_trochanter = laban.Point3D(
+    right_trochanter = Point3D(
         data=np.array([[0.15, 0.85, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
 
     # Knee markers - neutral (straight leg)
-    left_knee_lat = laban.Point3D(
+    left_knee_lat = Point3D(
         data=np.array([[-0.18, 0.50, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    left_knee_med = laban.Point3D(
+    left_knee_med = Point3D(
         data=np.array([[-0.12, 0.50, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    right_knee_lat = laban.Point3D(
+    right_knee_lat = Point3D(
         data=np.array([[0.18, 0.50, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    right_knee_med = laban.Point3D(
+    right_knee_med = Point3D(
         data=np.array([[0.12, 0.50, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
 
     # Ankle markers - neutral
-    left_ankle_lat = laban.Point3D(
+    left_ankle_lat = Point3D(
         data=np.array([[-0.15, 0.08, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    left_ankle_med = laban.Point3D(
+    left_ankle_med = Point3D(
         data=np.array([[-0.10, 0.08, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    right_ankle_lat = laban.Point3D(
+    right_ankle_lat = Point3D(
         data=np.array([[0.15, 0.08, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    right_ankle_med = laban.Point3D(
+    right_ankle_med = Point3D(
         data=np.array([[0.10, 0.08, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
 
     # Shoulder markers
-    left_acromion = laban.Point3D(
+    left_acromion = Point3D(
         data=np.array([[-0.20, 1.35, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    right_acromion = laban.Point3D(
+    right_acromion = Point3D(
         data=np.array([[0.20, 1.35, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
 
     # Elbow markers - neutral (straight arm)
-    left_elbow_lat = laban.Point3D(
+    left_elbow_lat = Point3D(
         data=np.array([[-0.25, 1.10, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    left_elbow_med = laban.Point3D(
+    left_elbow_med = Point3D(
         data=np.array([[-0.18, 1.10, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    right_elbow_lat = laban.Point3D(
+    right_elbow_lat = Point3D(
         data=np.array([[0.25, 1.10, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    right_elbow_med = laban.Point3D(
+    right_elbow_med = Point3D(
         data=np.array([[0.18, 1.10, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
 
     # Wrist markers - neutral
-    left_wrist_lat = laban.Point3D(
+    left_wrist_lat = Point3D(
         data=np.array([[-0.28, 0.85, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    left_wrist_med = laban.Point3D(
+    left_wrist_med = Point3D(
         data=np.array([[-0.22, 0.85, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    right_wrist_lat = laban.Point3D(
+    right_wrist_lat = Point3D(
         data=np.array([[0.28, 0.85, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    right_wrist_med = laban.Point3D(
+    right_wrist_med = Point3D(
         data=np.array([[0.22, 0.85, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
 
     # Neck markers
-    c7 = laban.Point3D(
+    c7 = Point3D(
         data=np.array([[0.00, 1.40, -0.05]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    sc = laban.Point3D(
+    sc = Point3D(
         data=np.array([[0.00, 1.42, 0.05]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
 
-    body = laban.WholeBody(
+    body = WholeBody(
         left_asis=left_asis,
         right_asis=right_asis,
         left_psis=left_psis,
@@ -203,39 +200,39 @@ def wholebody_neutral():
 def wholebody_knee_flexed():
     """Create WholeBody with knees flexed (positive angle expected)."""
     # Same as neutral but move ankle forward (Z positive)
-    left_asis = laban.Point3D(data=np.array([[-0.10, 0.90, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    right_asis = laban.Point3D(data=np.array([[0.10, 0.90, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    left_psis = laban.Point3D(data=np.array([[-0.08, 0.85, -0.15]]), index=[0], columns=["X", "Y", "Z"])
-    right_psis = laban.Point3D(data=np.array([[0.08, 0.85, -0.15]]), index=[0], columns=["X", "Y", "Z"])
-    left_trochanter = laban.Point3D(data=np.array([[-0.15, 0.85, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    right_trochanter = laban.Point3D(data=np.array([[0.15, 0.85, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    left_asis = Point3D(data=np.array([[-0.10, 0.90, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    right_asis = Point3D(data=np.array([[0.10, 0.90, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    left_psis = Point3D(data=np.array([[-0.08, 0.85, -0.15]]), index=[0], columns=["X", "Y", "Z"])
+    right_psis = Point3D(data=np.array([[0.08, 0.85, -0.15]]), index=[0], columns=["X", "Y", "Z"])
+    left_trochanter = Point3D(data=np.array([[-0.15, 0.85, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    right_trochanter = Point3D(data=np.array([[0.15, 0.85, 0.00]]), index=[0], columns=["X", "Y", "Z"])
 
     # Knees stay in place
-    left_knee_lat = laban.Point3D(data=np.array([[-0.18, 0.50, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    left_knee_med = laban.Point3D(data=np.array([[-0.12, 0.50, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    right_knee_lat = laban.Point3D(data=np.array([[0.18, 0.50, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    right_knee_med = laban.Point3D(data=np.array([[0.12, 0.50, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    left_knee_lat = Point3D(data=np.array([[-0.18, 0.50, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    left_knee_med = Point3D(data=np.array([[-0.12, 0.50, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    right_knee_lat = Point3D(data=np.array([[0.18, 0.50, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    right_knee_med = Point3D(data=np.array([[0.12, 0.50, 0.00]]), index=[0], columns=["X", "Y", "Z"])
 
     # Ankles move forward (positive Z) to create knee flexion
-    left_ankle_lat = laban.Point3D(data=np.array([[-0.15, 0.08, 0.20]]), index=[0], columns=["X", "Y", "Z"])
-    left_ankle_med = laban.Point3D(data=np.array([[-0.10, 0.08, 0.20]]), index=[0], columns=["X", "Y", "Z"])
-    right_ankle_lat = laban.Point3D(data=np.array([[0.15, 0.08, 0.20]]), index=[0], columns=["X", "Y", "Z"])
-    right_ankle_med = laban.Point3D(data=np.array([[0.10, 0.08, 0.20]]), index=[0], columns=["X", "Y", "Z"])
+    left_ankle_lat = Point3D(data=np.array([[-0.15, 0.08, 0.20]]), index=[0], columns=["X", "Y", "Z"])
+    left_ankle_med = Point3D(data=np.array([[-0.10, 0.08, 0.20]]), index=[0], columns=["X", "Y", "Z"])
+    right_ankle_lat = Point3D(data=np.array([[0.15, 0.08, 0.20]]), index=[0], columns=["X", "Y", "Z"])
+    right_ankle_med = Point3D(data=np.array([[0.10, 0.08, 0.20]]), index=[0], columns=["X", "Y", "Z"])
 
-    left_acromion = laban.Point3D(data=np.array([[-0.20, 1.35, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    right_acromion = laban.Point3D(data=np.array([[0.20, 1.35, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    left_elbow_lat = laban.Point3D(data=np.array([[-0.25, 1.10, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    left_elbow_med = laban.Point3D(data=np.array([[-0.18, 1.10, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    right_elbow_lat = laban.Point3D(data=np.array([[0.25, 1.10, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    right_elbow_med = laban.Point3D(data=np.array([[0.18, 1.10, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    left_wrist_lat = laban.Point3D(data=np.array([[-0.28, 0.85, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    left_wrist_med = laban.Point3D(data=np.array([[-0.22, 0.85, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    right_wrist_lat = laban.Point3D(data=np.array([[0.28, 0.85, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    right_wrist_med = laban.Point3D(data=np.array([[0.22, 0.85, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    c7 = laban.Point3D(data=np.array([[0.00, 1.40, -0.05]]), index=[0], columns=["X", "Y", "Z"])
-    sc = laban.Point3D(data=np.array([[0.00, 1.42, 0.05]]), index=[0], columns=["X", "Y", "Z"])
+    left_acromion = Point3D(data=np.array([[-0.20, 1.35, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    right_acromion = Point3D(data=np.array([[0.20, 1.35, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    left_elbow_lat = Point3D(data=np.array([[-0.25, 1.10, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    left_elbow_med = Point3D(data=np.array([[-0.18, 1.10, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    right_elbow_lat = Point3D(data=np.array([[0.25, 1.10, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    right_elbow_med = Point3D(data=np.array([[0.18, 1.10, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    left_wrist_lat = Point3D(data=np.array([[-0.28, 0.85, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    left_wrist_med = Point3D(data=np.array([[-0.22, 0.85, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    right_wrist_lat = Point3D(data=np.array([[0.28, 0.85, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    right_wrist_med = Point3D(data=np.array([[0.22, 0.85, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    c7 = Point3D(data=np.array([[0.00, 1.40, -0.05]]), index=[0], columns=["X", "Y", "Z"])
+    sc = Point3D(data=np.array([[0.00, 1.42, 0.05]]), index=[0], columns=["X", "Y", "Z"])
 
-    body = laban.WholeBody(
+    body = WholeBody(
         left_asis=left_asis, right_asis=right_asis, left_psis=left_psis, right_psis=right_psis,
         left_trochanter=left_trochanter, right_trochanter=right_trochanter,
         left_knee_lateral=left_knee_lat, left_knee_medial=left_knee_med,
@@ -255,41 +252,41 @@ def wholebody_knee_flexed():
 @pytest.fixture
 def wholebody_elbow_flexed():
     """Create WholeBody with elbows flexed (positive angle expected)."""
-    left_asis = laban.Point3D(data=np.array([[-0.10, 0.90, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    right_asis = laban.Point3D(data=np.array([[0.10, 0.90, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    left_psis = laban.Point3D(data=np.array([[-0.08, 0.85, -0.15]]), index=[0], columns=["X", "Y", "Z"])
-    right_psis = laban.Point3D(data=np.array([[0.08, 0.85, -0.15]]), index=[0], columns=["X", "Y", "Z"])
-    left_trochanter = laban.Point3D(data=np.array([[-0.15, 0.85, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    right_trochanter = laban.Point3D(data=np.array([[0.15, 0.85, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    left_knee_lat = laban.Point3D(data=np.array([[-0.18, 0.50, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    left_knee_med = laban.Point3D(data=np.array([[-0.12, 0.50, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    right_knee_lat = laban.Point3D(data=np.array([[0.18, 0.50, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    right_knee_med = laban.Point3D(data=np.array([[0.12, 0.50, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    left_ankle_lat = laban.Point3D(data=np.array([[-0.15, 0.08, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    left_ankle_med = laban.Point3D(data=np.array([[-0.10, 0.08, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    right_ankle_lat = laban.Point3D(data=np.array([[0.15, 0.08, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    right_ankle_med = laban.Point3D(data=np.array([[0.10, 0.08, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    left_asis = Point3D(data=np.array([[-0.10, 0.90, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    right_asis = Point3D(data=np.array([[0.10, 0.90, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    left_psis = Point3D(data=np.array([[-0.08, 0.85, -0.15]]), index=[0], columns=["X", "Y", "Z"])
+    right_psis = Point3D(data=np.array([[0.08, 0.85, -0.15]]), index=[0], columns=["X", "Y", "Z"])
+    left_trochanter = Point3D(data=np.array([[-0.15, 0.85, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    right_trochanter = Point3D(data=np.array([[0.15, 0.85, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    left_knee_lat = Point3D(data=np.array([[-0.18, 0.50, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    left_knee_med = Point3D(data=np.array([[-0.12, 0.50, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    right_knee_lat = Point3D(data=np.array([[0.18, 0.50, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    right_knee_med = Point3D(data=np.array([[0.12, 0.50, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    left_ankle_lat = Point3D(data=np.array([[-0.15, 0.08, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    left_ankle_med = Point3D(data=np.array([[-0.10, 0.08, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    right_ankle_lat = Point3D(data=np.array([[0.15, 0.08, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    right_ankle_med = Point3D(data=np.array([[0.10, 0.08, 0.00]]), index=[0], columns=["X", "Y", "Z"])
 
     # Shoulders stay in place
-    left_acromion = laban.Point3D(data=np.array([[-0.20, 1.35, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    right_acromion = laban.Point3D(data=np.array([[0.20, 1.35, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    left_acromion = Point3D(data=np.array([[-0.20, 1.35, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    right_acromion = Point3D(data=np.array([[0.20, 1.35, 0.00]]), index=[0], columns=["X", "Y", "Z"])
 
     # Elbows stay in place
-    left_elbow_lat = laban.Point3D(data=np.array([[-0.25, 1.10, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    left_elbow_med = laban.Point3D(data=np.array([[-0.18, 1.10, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    right_elbow_lat = laban.Point3D(data=np.array([[0.25, 1.10, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    right_elbow_med = laban.Point3D(data=np.array([[0.18, 1.10, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    left_elbow_lat = Point3D(data=np.array([[-0.25, 1.10, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    left_elbow_med = Point3D(data=np.array([[-0.18, 1.10, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    right_elbow_lat = Point3D(data=np.array([[0.25, 1.10, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    right_elbow_med = Point3D(data=np.array([[0.18, 1.10, 0.00]]), index=[0], columns=["X", "Y", "Z"])
 
     # Wrists move forward (positive Z) to create elbow flexion
-    left_wrist_lat = laban.Point3D(data=np.array([[-0.28, 0.85, 0.15]]), index=[0], columns=["X", "Y", "Z"])
-    left_wrist_med = laban.Point3D(data=np.array([[-0.22, 0.85, 0.15]]), index=[0], columns=["X", "Y", "Z"])
-    right_wrist_lat = laban.Point3D(data=np.array([[0.28, 0.85, 0.15]]), index=[0], columns=["X", "Y", "Z"])
-    right_wrist_med = laban.Point3D(data=np.array([[0.22, 0.85, 0.15]]), index=[0], columns=["X", "Y", "Z"])
+    left_wrist_lat = Point3D(data=np.array([[-0.28, 0.85, 0.15]]), index=[0], columns=["X", "Y", "Z"])
+    left_wrist_med = Point3D(data=np.array([[-0.22, 0.85, 0.15]]), index=[0], columns=["X", "Y", "Z"])
+    right_wrist_lat = Point3D(data=np.array([[0.28, 0.85, 0.15]]), index=[0], columns=["X", "Y", "Z"])
+    right_wrist_med = Point3D(data=np.array([[0.22, 0.85, 0.15]]), index=[0], columns=["X", "Y", "Z"])
 
-    c7 = laban.Point3D(data=np.array([[0.00, 1.40, -0.05]]), index=[0], columns=["X", "Y", "Z"])
-    sc = laban.Point3D(data=np.array([[0.00, 1.42, 0.05]]), index=[0], columns=["X", "Y", "Z"])
+    c7 = Point3D(data=np.array([[0.00, 1.40, -0.05]]), index=[0], columns=["X", "Y", "Z"])
+    sc = Point3D(data=np.array([[0.00, 1.42, 0.05]]), index=[0], columns=["X", "Y", "Z"])
 
-    body = laban.WholeBody(
+    body = WholeBody(
         left_asis=left_asis, right_asis=right_asis, left_psis=left_psis, right_psis=right_psis,
         left_trochanter=left_trochanter, right_trochanter=right_trochanter,
         left_knee_lateral=left_knee_lat, left_knee_medial=left_knee_med,

@@ -3,16 +3,15 @@
 from typing import Literal
 
 import numpy as np
-import pandas as pd
 import plotly.express.colors as plotly_colors
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from ...constants import *
 from ...signalprocessing import *
-from ..timeseries import *
-from ..bodies import WholeBody
-from ..records import ForcePlatform, TimeseriesRecord
+from ...timeseries import *
+from ..forceplatform import ForcePlatform
+from ..timeseriesrecord import TimeseriesRecord
 
 from ._base import GaitObject
 

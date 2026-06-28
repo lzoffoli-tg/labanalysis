@@ -4,7 +4,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import labanalysis as laban
+from labanalysis.referenceframes import ReferenceFrame
+from labanalysis.timeseries import Point3D, Signal1D, Signal3D
+from labanalysis.records import ForcePlatform
+
 
 
 class TestReferenceFrameConstructor:
@@ -16,7 +19,7 @@ class TestReferenceFrameConstructor:
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
 
-        ref_frame = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        ref_frame = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         assert ref_frame._n_samples == 1
         assert ref_frame._is_single_frame is True
@@ -32,7 +35,7 @@ class TestReferenceFrameConstructor:
         lateral_axis = np.random.rand(n_samples, 3)
         vertical_axis = np.random.rand(n_samples, 3)
 
-        ref_frame = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        ref_frame = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         assert ref_frame._n_samples == n_samples
         assert ref_frame._is_single_frame is False
@@ -46,7 +49,7 @@ class TestReferenceFrameConstructor:
         vertical_axis = [0.0, 1.0, 0.0]
         anteroposterior_axis = [0.0, 0.0, 1.0]
 
-        ref_frame = laban.ReferenceFrame(origin, lateral_axis, vertical_axis, anteroposterior_axis)
+        ref_frame = ReferenceFrame(origin, lateral_axis, vertical_axis, anteroposterior_axis)
 
         assert ref_frame.anteroposterior_axis is not None
         assert ref_frame.anteroposterior_axis.shape == (1, 3)
@@ -57,7 +60,7 @@ class TestReferenceFrameConstructor:
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
 
-        ref_frame = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        ref_frame = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         # anteroposterior_axis should be None since it was computed
         assert ref_frame.anteroposterior_axis is None
@@ -69,7 +72,7 @@ class TestReferenceFrameConstructor:
         vertical_axis = [0.0, 1.0, 0.0]
 
         with pytest.raises(ValueError, match="must have 3 columns"):
-            laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+            ReferenceFrame(origin, lateral_axis, vertical_axis)
 
     def test_constructor_mismatched_rows(self):
         """Test that constructor raises error for mismatched row counts."""
@@ -78,7 +81,7 @@ class TestReferenceFrameConstructor:
         vertical_axis = np.random.rand(5, 3)
 
         with pytest.raises(ValueError, match="same number of rows"):
-            laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+            ReferenceFrame(origin, lateral_axis, vertical_axis)
 
     def test_orthonormalization(self):
         """Test that rotation matrix is orthonormal."""
@@ -86,7 +89,7 @@ class TestReferenceFrameConstructor:
         lateral_axis = [1.0, 0.1, 0.0]  # Not orthogonal
         vertical_axis = [0.0, 1.0, 0.1]
 
-        ref_frame = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        ref_frame = ReferenceFrame(origin, lateral_axis, vertical_axis)
         R = ref_frame.rotation_matrix[0]
 
         # Check orthonormality: R^T @ R = I
@@ -106,7 +109,7 @@ class TestReferenceFrameProperties:
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
 
-        ref_frame = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        ref_frame = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         # Test property access
         assert np.allclose(ref_frame.origin, [[1.0, 2.0, 3.0]])
@@ -123,7 +126,7 @@ class TestReferenceFrameApplyNumpy:
         origin = [1.0, 2.0, 3.0]
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        ref_frame = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        ref_frame = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         data = np.array([2.0, 3.0, 4.0])
         result = ref_frame.apply(data)
@@ -137,7 +140,7 @@ class TestReferenceFrameApplyNumpy:
         origin = [1.0, 2.0, 3.0]
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        ref_frame = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        ref_frame = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         data = np.random.rand(100, 3)
         result = ref_frame.apply(data)
@@ -150,7 +153,7 @@ class TestReferenceFrameApplyNumpy:
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
         anteroposterior_axis = [0.0, 0.0, 1.0]
-        ref_frame = laban.ReferenceFrame(origin, lateral_axis, vertical_axis, anteroposterior_axis)
+        ref_frame = ReferenceFrame(origin, lateral_axis, vertical_axis, anteroposterior_axis)
 
         data = np.random.rand(50, 3)
         result = ref_frame.apply(data)
@@ -163,7 +166,7 @@ class TestReferenceFrameApplyNumpy:
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
         anteroposterior_axis = [0.0, 0.0, 1.0]
-        ref_frame = laban.ReferenceFrame(origin, lateral_axis, vertical_axis, anteroposterior_axis)
+        ref_frame = ReferenceFrame(origin, lateral_axis, vertical_axis, anteroposterior_axis)
 
         data = np.array([[2.0, 3.0, 4.0]])
         result = ref_frame.apply(data)
@@ -177,7 +180,7 @@ class TestReferenceFrameApplyNumpy:
         origin = [0.0, 0.0, 0.0]
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        ref_frame = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        ref_frame = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         assert ref_frame._is_single_frame is True
 
@@ -193,7 +196,7 @@ class TestReferenceFrameApplyNumpy:
         origin = np.random.rand(n_samples, 3)
         lateral_axis = np.random.rand(n_samples, 3)
         vertical_axis = np.random.rand(n_samples, 3)
-        ref_frame = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        ref_frame = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         data = np.random.rand(n_samples, 3)
         result = ref_frame.apply(data)
@@ -205,7 +208,7 @@ class TestReferenceFrameApplyNumpy:
         origin = np.random.rand(50, 3)
         lateral_axis = np.random.rand(50, 3)
         vertical_axis = np.random.rand(50, 3)
-        ref_frame = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        ref_frame = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         data = np.random.rand(100, 3)  # Different sample count
 
@@ -217,7 +220,7 @@ class TestReferenceFrameApplyNumpy:
         origin = [0.0, 0.0, 0.0]
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        ref_frame = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        ref_frame = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         data = np.random.rand(100, 2)  # Only 2 columns
 
@@ -233,7 +236,7 @@ class TestReferenceFrameApplyDataFrame:
         origin = [1.0, 2.0, 3.0]
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        ref_frame = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        ref_frame = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         df = pd.DataFrame(
             {"X": [2.0, 3.0, 4.0], "Y": [3.0, 4.0, 5.0], "Z": [4.0, 5.0, 6.0]}
@@ -250,7 +253,7 @@ class TestReferenceFrameApplyDataFrame:
         origin = [1.0, 2.0, 3.0]
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        ref_frame = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        ref_frame = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         df = pd.DataFrame(
             {"X": [2.0, 3.0, 4.0], "Y": [3.0, 4.0, 5.0], "Z": [4.0, 5.0, 6.0]}
@@ -267,7 +270,7 @@ class TestReferenceFrameApplyDataFrame:
         origin = [0.0, 0.0, 0.0]
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        ref_frame = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        ref_frame = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         df = pd.DataFrame({"X": [1.0, 2.0], "Y": [3.0, 4.0]})  # Only 2 columns
 
@@ -283,15 +286,15 @@ class TestReferenceFrameApplyTimeseries:
         origin = [1.0, 2.0, 3.0]
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        ref_frame = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        ref_frame = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         data = np.random.rand(100, 3)
         index = np.arange(100) / 100.0
-        signal = laban.Signal3D(data, index, unit="m", columns=["X", "Y", "Z"])
+        signal = Signal3D(data, index, unit="m", columns=["X", "Y", "Z"])
 
         result = ref_frame.apply(signal)
 
-        assert isinstance(result, laban.Signal3D)
+        assert isinstance(result, Signal3D)
         assert result.shape == signal.shape
         assert result.unit == signal.unit
 
@@ -300,15 +303,15 @@ class TestReferenceFrameApplyTimeseries:
         origin = [0.5, 1.0, 0.2]
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        ref_frame = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        ref_frame = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         data = np.random.rand(100, 3)
         index = np.arange(100) / 100.0
-        point = laban.Point3D(data, index, columns=["X", "Y", "Z"], unit="m")
+        point = Point3D(data, index, columns=["X", "Y", "Z"], unit="m")
 
         result = ref_frame.apply(point)
 
-        assert isinstance(result, laban.Point3D)
+        assert isinstance(result, Point3D)
         assert result.shape == point.shape
         assert result.unit == point.unit
 
@@ -317,11 +320,11 @@ class TestReferenceFrameApplyTimeseries:
         origin = [1.0, 2.0, 3.0]  # Non-zero origin to actually change data
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        ref_frame = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        ref_frame = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         data = np.random.rand(50, 3)
         index = np.arange(50) / 100.0
-        signal = laban.Signal3D(data, index, unit="m", columns=["X", "Y", "Z"])
+        signal = Signal3D(data, index, unit="m", columns=["X", "Y", "Z"])
         original_id = id(signal)
         original_data = signal._data.copy()
 
@@ -336,11 +339,11 @@ class TestReferenceFrameApplyTimeseries:
         origin = [0.0, 0.0, 0.0]
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        ref_frame = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        ref_frame = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         data = np.random.rand(100, 1)
         index = np.arange(100) / 100.0
-        signal = laban.Signal1D(data, index, unit="V")
+        signal = Signal1D(data, index, unit="V")
 
         with pytest.raises(ValueError, match="must have 3 columns"):
             ref_frame.apply(signal)
@@ -354,7 +357,7 @@ class TestReferenceFrameApplyForcePlatform:
         origin = [0.0, 0.0, 0.0]
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        ref_frame = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        ref_frame = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         # Create ForcePlatform
         n_samples = 100
@@ -363,17 +366,17 @@ class TestReferenceFrameApplyForcePlatform:
         force_data = np.random.rand(n_samples, 3)
         torque_data = np.random.rand(n_samples, 3)
 
-        fp_origin = laban.Point3D(origin_data, index, columns=["X", "Y", "Z"], unit="m")
-        fp_force = laban.Signal3D(force_data, index, columns=["X", "Y", "Z"], unit="N")
-        fp_torque = laban.Signal3D(
+        fp_origin = Point3D(origin_data, index, columns=["X", "Y", "Z"], unit="m")
+        fp_force = Signal3D(force_data, index, columns=["X", "Y", "Z"], unit="N")
+        fp_torque = Signal3D(
             torque_data, index, columns=["X", "Y", "Z"], unit="Nm"
         )
 
-        fp = laban.ForcePlatform(origin=fp_origin, force=fp_force, torque=fp_torque)
+        fp = ForcePlatform(origin=fp_origin, force=fp_force, torque=fp_torque)
 
         result = ref_frame.apply(fp)
 
-        assert isinstance(result, laban.ForcePlatform)
+        assert isinstance(result, ForcePlatform)
         assert result.origin.shape == fp.origin.shape
         assert result.force.shape == fp.force.shape
         assert result.torque.shape == fp.torque.shape
@@ -383,7 +386,7 @@ class TestReferenceFrameApplyForcePlatform:
         origin = [1.0, 2.0, 3.0]
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        ref_frame = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        ref_frame = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         # Create ForcePlatform
         n_samples = 50
@@ -392,13 +395,13 @@ class TestReferenceFrameApplyForcePlatform:
         force_data = np.random.rand(n_samples, 3)
         torque_data = np.random.rand(n_samples, 3)
 
-        fp_origin = laban.Point3D(origin_data, index, columns=["X", "Y", "Z"], unit="m")
-        fp_force = laban.Signal3D(force_data, index, columns=["X", "Y", "Z"], unit="N")
-        fp_torque = laban.Signal3D(
+        fp_origin = Point3D(origin_data, index, columns=["X", "Y", "Z"], unit="m")
+        fp_force = Signal3D(force_data, index, columns=["X", "Y", "Z"], unit="N")
+        fp_torque = Signal3D(
             torque_data, index, columns=["X", "Y", "Z"], unit="Nm"
         )
 
-        fp = laban.ForcePlatform(origin=fp_origin, force=fp_force, torque=fp_torque)
+        fp = ForcePlatform(origin=fp_origin, force=fp_force, torque=fp_torque)
         original_id = id(fp)
 
         result = ref_frame.apply(fp, inplace=True)
@@ -415,7 +418,7 @@ class TestReferenceFrameCallable:
         origin = [0.0, 0.0, 0.0]
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        ref_frame = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        ref_frame = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         data = np.random.rand(50, 3)
 
@@ -436,16 +439,16 @@ class TestReferenceFrameWithTimeseriesApply:
         origin = [1.0, 2.0, 3.0]
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        rf = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        rf = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         data = np.random.rand(50, 3)
         index = np.arange(50) / 100.0
-        ts = laban.Signal3D(data, index, unit="m", columns=["X", "Y", "Z"])
+        ts = Signal3D(data, index, unit="m", columns=["X", "Y", "Z"])
 
         # Apply via ts.apply(rf) instead of rf.apply(ts)
         result = ts.apply(rf)
 
-        assert isinstance(result, laban.Signal3D)
+        assert isinstance(result, Signal3D)
         assert result.shape == ts.shape
         assert result.unit == ts.unit
         assert not np.array_equal(result._data, ts._data)
@@ -455,11 +458,11 @@ class TestReferenceFrameWithTimeseriesApply:
         origin = [1.0, 2.0, 3.0]
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        rf = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        rf = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         data = np.random.rand(50, 3)
         index = np.arange(50) / 100.0
-        ts = laban.Signal3D(data, index, unit="m", columns=["X", "Y", "Z"])
+        ts = Signal3D(data, index, unit="m", columns=["X", "Y", "Z"])
         original_data = ts._data.copy()
         original_id = id(ts)
 
@@ -475,16 +478,16 @@ class TestReferenceFrameWithTimeseriesApply:
         origin = [0.5, 1.0, 0.2]
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        rf = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        rf = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         data = np.random.rand(100, 3)
         index = np.arange(100) / 100.0
-        point = laban.Point3D(data, index, columns=["X", "Y", "Z"], unit="m")
+        point = Point3D(data, index, columns=["X", "Y", "Z"], unit="m")
 
         # Apply via point.apply(rf)
         result = point.apply(rf)
 
-        assert isinstance(result, laban.Point3D)
+        assert isinstance(result, Point3D)
         assert result.shape == point.shape
         assert result.unit == point.unit
 
@@ -494,14 +497,14 @@ class TestReferenceFrameWithTimeseriesApply:
         origin = [0.0, 0.0, 0.0]
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        rf = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        rf = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         assert rf._is_single_frame is True
 
         # Multi-sample timeseries
         data = np.random.rand(100, 3)
         index = np.arange(100) / 100.0
-        ts = laban.Signal3D(data, index, unit="m", columns=["X", "Y", "Z"])
+        ts = Signal3D(data, index, unit="m", columns=["X", "Y", "Z"])
 
         # Broadcasting should work
         result = ts.apply(rf)
@@ -517,7 +520,7 @@ class TestReferenceFrameApplyInverse:
         origin = [1.0, 2.0, 3.0]
         lateral_axis = [1.0, 0.1, 0.0]
         vertical_axis = [0.0, 1.0, 0.1]
-        rf = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        rf = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         data = np.random.rand(50, 3)
         transformed = rf.apply(data)
@@ -530,7 +533,7 @@ class TestReferenceFrameApplyInverse:
         origin = [0.5, 1.0, 0.2]
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        rf = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        rf = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         data = np.array([2.0, 3.0, 4.0])
         transformed = rf.apply(data)
@@ -543,11 +546,11 @@ class TestReferenceFrameApplyInverse:
         origin = [1.0, 2.0, 3.0]
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        rf = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        rf = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         data = np.random.rand(100, 3)
         index = np.arange(100) / 100.0
-        signal = laban.Signal3D(data, index, unit="m", columns=["X", "Y", "Z"])
+        signal = Signal3D(data, index, unit="m", columns=["X", "Y", "Z"])
 
         transformed = rf.apply(signal)
         recovered = rf.apply_inverse(transformed)
@@ -560,11 +563,11 @@ class TestReferenceFrameApplyInverse:
         origin = [0.5, 1.0, 0.2]
         lateral_axis = [1.0, 0.1, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        rf = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        rf = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         data = np.random.rand(100, 3)
         index = np.arange(100) / 100.0
-        point = laban.Point3D(data, index, columns=["X", "Y", "Z"], unit="m")
+        point = Point3D(data, index, columns=["X", "Y", "Z"], unit="m")
 
         transformed = rf.apply(point)
         recovered = rf.apply_inverse(transformed)
@@ -576,7 +579,7 @@ class TestReferenceFrameApplyInverse:
         origin = [1.0, 2.0, 3.0]
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        rf = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        rf = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         df = pd.DataFrame({
             "X": [1.0, 2.0, 3.0],
@@ -594,7 +597,7 @@ class TestReferenceFrameApplyInverse:
         origin = [0.0, 0.0, 0.0]
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        rf = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        rf = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         n_samples = 100
         index = np.arange(n_samples) / 100.0
@@ -602,11 +605,11 @@ class TestReferenceFrameApplyInverse:
         force_data = np.random.rand(n_samples, 3) * 100
         torque_data = np.random.rand(n_samples, 3) * 10
 
-        cop = laban.Point3D(cop_data, index, columns=["X", "Y", "Z"], unit="m")
-        force = laban.Signal3D(force_data, index, columns=["X", "Y", "Z"], unit="N")
-        torque = laban.Signal3D(torque_data, index, columns=["X", "Y", "Z"], unit="Nm")
+        cop = Point3D(cop_data, index, columns=["X", "Y", "Z"], unit="m")
+        force = Signal3D(force_data, index, columns=["X", "Y", "Z"], unit="N")
+        torque = Signal3D(torque_data, index, columns=["X", "Y", "Z"], unit="Nm")
 
-        fp = laban.ForcePlatform(origin=cop, force=force, torque=torque)
+        fp = ForcePlatform(origin=cop, force=force, torque=torque)
 
         transformed = rf.apply(fp)
         recovered = rf.apply_inverse(transformed)
@@ -620,7 +623,7 @@ class TestReferenceFrameApplyInverse:
         origin = [0.0, 0.0, 0.0]
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        rf = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        rf = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         assert rf._is_single_frame is True
 
@@ -635,11 +638,11 @@ class TestReferenceFrameApplyInverse:
         origin = [1.0, 2.0, 3.0]
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        rf = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        rf = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         data = np.random.rand(50, 3)
         index = np.arange(50) / 100.0
-        signal = laban.Signal3D(data.copy(), index, unit="m", columns=["X", "Y", "Z"])
+        signal = Signal3D(data.copy(), index, unit="m", columns=["X", "Y", "Z"])
         original_data = signal._data.copy()
 
         # Apply transformation
@@ -660,7 +663,7 @@ class TestReferenceFrameEdgeCases:
         origin = [0.0, 0.0, 0.0]
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        ref_frame = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        ref_frame = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         data = np.array([[1.0, 2.0, 3.0], [np.nan, 5.0, 6.0], [7.0, np.nan, 9.0]])
 
@@ -675,7 +678,7 @@ class TestReferenceFrameEdgeCases:
         origin = [0.0, 0.0, 0.0]
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        ref_frame = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        ref_frame = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         data = np.empty((0, 3))
         result = ref_frame.apply(data)
@@ -687,7 +690,7 @@ class TestReferenceFrameEdgeCases:
         origin = [0.0, 0.0, 0.0]
         lateral_axis = [1.0, 0.0, 0.0]
         vertical_axis = [0.0, 1.0, 0.0]
-        ref_frame = laban.ReferenceFrame(origin, lateral_axis, vertical_axis)
+        ref_frame = ReferenceFrame(origin, lateral_axis, vertical_axis)
 
         with pytest.raises(TypeError, match="Unsupported type"):
             ref_frame.apply("invalid_type")
@@ -700,14 +703,14 @@ class TestTimeseriesInputs:
         """Test Point3D can be used as origin."""
         # Create Point3D origin
         origin_data = np.array([[1.0, 2.0, 3.0]])
-        origin_pt = laban.Point3D(
+        origin_pt = Point3D(
             data=origin_data,
             index=[0.0],
             columns=["X", "Y", "Z"]
         )
 
         # Create reference frame with Point3D origin
-        rf = laban.ReferenceFrame(
+        rf = ReferenceFrame(
             origin=origin_pt,
             lateral_axis=[1.0, 0.0, 0.0],
             vertical_axis=[0.0, 1.0, 0.0]
@@ -720,7 +723,7 @@ class TestTimeseriesInputs:
         """Test Signal3D can be used for axes."""
         # Create Signal3D axes (2 samples)
         lateral_data = np.array([[1.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
-        lateral_sig = laban.Signal3D(
+        lateral_sig = Signal3D(
             data=lateral_data,
             index=[0.0, 1.0],
             unit="m/s",
@@ -728,7 +731,7 @@ class TestTimeseriesInputs:
         )
 
         vertical_data = np.array([[0.0, 1.0, 0.0], [0.0, 1.0, 0.0]])
-        vertical_sig = laban.Signal3D(
+        vertical_sig = Signal3D(
             data=vertical_data,
             index=[0.0, 1.0],
             unit="m/s",
@@ -739,7 +742,7 @@ class TestTimeseriesInputs:
         origin_data = np.array([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]])
 
         # Create reference frame with Signal3D axes
-        rf = laban.ReferenceFrame(
+        rf = ReferenceFrame(
             origin=origin_data,
             lateral_axis=lateral_sig,
             vertical_axis=vertical_sig
@@ -752,7 +755,7 @@ class TestTimeseriesInputs:
     def test_mixed_input_types(self):
         """Test mixing Point3D, arrays, and lists."""
         # Mix input types
-        origin_pt = laban.Point3D(
+        origin_pt = Point3D(
             data=np.array([[0.5, 1.0, 0.2]]),
             index=[0.0],
             columns=["X", "Y", "Z"]
@@ -762,7 +765,7 @@ class TestTimeseriesInputs:
         vertical_list = [[0.0, 1.0, 0.0]]
 
         # Should work with mixed types
-        rf = laban.ReferenceFrame(
+        rf = ReferenceFrame(
             origin=origin_pt,
             lateral_axis=lateral_array,
             vertical_axis=vertical_list
@@ -772,12 +775,12 @@ class TestTimeseriesInputs:
 
     def test_point3d_arithmetic_result(self):
         """Test Point3D from arithmetic (e.g., hip - knee) works."""
-        hip = laban.Point3D(
+        hip = Point3D(
             data=np.array([[0.0, 1.0, 0.0]]),
             index=[0.0],
             columns=["X", "Y", "Z"]
         )
-        knee = laban.Point3D(
+        knee = Point3D(
             data=np.array([[0.0, 0.5, 0.0]]),
             index=[0.0],
             columns=["X", "Y", "Z"]
@@ -787,7 +790,7 @@ class TestTimeseriesInputs:
         vertical_vec = hip - knee
 
         # Should accept Point3D result
-        rf = laban.ReferenceFrame(
+        rf = ReferenceFrame(
             origin=knee,
             lateral_axis=[1.0, 0.0, 0.0],
             vertical_axis=vertical_vec
@@ -800,7 +803,7 @@ class TestTimeseriesInputs:
         """Test that incompatible types raise TypeError."""
         # Try passing invalid type
         with pytest.raises(TypeError, match="must be np.ndarray, list, tuple, or Timeseries"):
-            laban.ReferenceFrame(
+            ReferenceFrame(
                 origin="invalid",  # String not supported
                 lateral_axis=[1.0, 0.0, 0.0],
                 vertical_axis=[0.0, 1.0, 0.0]
@@ -809,7 +812,7 @@ class TestTimeseriesInputs:
     def test_timeseries_wrong_columns_raises_error(self):
         """Test that Timeseries with wrong column count raises error."""
         # Create Signal1D (1 column, not 3)
-        signal_1d = laban.Signal1D(
+        signal_1d = Signal1D(
             data=np.array([[1.0], [2.0]]),
             index=[0.0, 1.0],
             unit="m"
@@ -817,7 +820,7 @@ class TestTimeseriesInputs:
 
         # Should raise ValueError during shape validation
         with pytest.raises(ValueError, match="must have 3 columns"):
-            laban.ReferenceFrame(
+            ReferenceFrame(
                 origin=signal_1d,  # Wrong shape
                 lateral_axis=[1.0, 0.0, 0.0],
                 vertical_axis=[0.0, 1.0, 0.0]
@@ -827,28 +830,28 @@ class TestTimeseriesInputs:
         """Test multi-sample Point3D works correctly."""
         n_samples = 50
         origin_data = np.random.rand(n_samples, 3)
-        origin_pt = laban.Point3D(
+        origin_pt = Point3D(
             data=origin_data,
             index=list(range(n_samples)),
             columns=["X", "Y", "Z"]
         )
 
         lateral_data = np.random.rand(n_samples, 3)
-        lateral_pt = laban.Point3D(
+        lateral_pt = Point3D(
             data=lateral_data,
             index=list(range(n_samples)),
             columns=["X", "Y", "Z"]
         )
 
         vertical_data = np.random.rand(n_samples, 3)
-        vertical_pt = laban.Point3D(
+        vertical_pt = Point3D(
             data=vertical_data,
             index=list(range(n_samples)),
             columns=["X", "Y", "Z"]
         )
 
         # Create reference frame with multi-sample Point3D
-        rf = laban.ReferenceFrame(
+        rf = ReferenceFrame(
             origin=origin_pt,
             lateral_axis=lateral_pt,
             vertical_axis=vertical_pt

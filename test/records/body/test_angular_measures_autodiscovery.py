@@ -6,7 +6,7 @@ all angular properties of the WholeBody class.
 """
 
 import pytest
-from labanalysis.records.bodies import WholeBody
+from labanalysis.records.body import WholeBody
 
 
 def test_angular_measures_auto_discovery():
@@ -32,25 +32,22 @@ def test_angular_measures_auto_discovery():
         "right_hip_abductionadduction",
         "left_hip_internalexternalrotation",
         "right_hip_internalexternalrotation",
-        # Pelvis (5)
+        # Pelvis (4)
         "pelvis_anteroposterior_tilt_global",
         "pelvis_lateraltilt_global",
-        "pelvis_lateraltilt_local",
         "pelvis_rotation_global",
         "pelvis_rotation_local",
-        # Trunk (2)
-        "trunk_lateralflexion",
+        # Trunk (1)
         "trunk_rotation",
-        # Shoulder girdle (2)
-        "shoulder_lateraltilt_global",
-        "shoulder_lateraltilt_local",
-        # Shoulder (6)
+        # Shoulder (8)
         "left_shoulder_abductionadduction",
         "right_shoulder_abductionadduction",
         "left_shoulder_flexionextension",
         "right_shoulder_flexionextension",
         "left_shoulder_internalexternalrotation",
         "right_shoulder_internalexternalrotation",
+        "left_shoulder_elevationdepression",
+        "right_shoulder_elevationdepression",
         # Scapular (2)
         "left_scapular_protractionretraction",
         "right_scapular_protractionretraction",

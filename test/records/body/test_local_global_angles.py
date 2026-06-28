@@ -8,8 +8,8 @@ and local (body-segment) reference frame angle measurements.
 import numpy as np
 import pytest
 
-from labanalysis.records.bodies import WholeBody
-from labanalysis.records.timeseries import Point3D
+from labanalysis.records.body import WholeBody
+from labanalysis.timeseries import Point3D
 
 
 @pytest.fixture
@@ -284,7 +284,7 @@ class TestPropertyExistence:
     def test_shoulder_properties_exist(self):
         """Test that shoulder properties exist (may require additional markers to compute)."""
         # Just verify the properties are defined on the class
-        from labanalysis.records.bodies import WholeBody
+        from.records.body import WholeBody
 
         shoulder_props = [
             'shoulder_lateraltilt_global',

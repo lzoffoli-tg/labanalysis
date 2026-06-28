@@ -13,12 +13,9 @@ and verifies that:
 import numpy as np
 import pytest
 
-import sys
-import os
-# Adjust path: now we're in test/records/, need to go up two levels to reach src/
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+from labanalysis.timeseries import Point3D, Signal1D, Timeseries
+from labanalysis.records.body import WholeBody
 
-import labanalysis as laban
 
 
 @pytest.fixture
@@ -28,12 +25,12 @@ def wholebody_shoulders_neutral():
     # C7 is posterior (backward), SC is anterior (forward)
     # Global coordinate system used for synthetic markers: +Z is backward, -Z is forward
     # Note: Local reference frame axes may differ - see ReferenceFrame construction
-    c7 = laban.Point3D(
+    c7 = Point3D(
         data=np.array([[0.00, 1.40, 0.05]]),  # Posterior: +Z
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    sc = laban.Point3D(
+    sc = Point3D(
         data=np.array([[0.00, 1.42, -0.05]]),  # Anterior: -Z
         index=[0],
         columns=["X", "Y", "Z"],
@@ -42,62 +39,62 @@ def wholebody_shoulders_neutral():
 
     # Shoulders in neutral position (slightly forward = natural protraction)
     # Global coords: Z = -0.03 means slightly forward (negative Z is forward)
-    left_acromion = laban.Point3D(
+    left_acromion = Point3D(
         data=np.array([[-0.20, 1.35, -0.03]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    right_acromion = laban.Point3D(
+    right_acromion = Point3D(
         data=np.array([[0.20, 1.35, -0.03]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
 
     # Elbow markers (needed for shoulder calculation via De Leva regression)
-    left_elbow_lat = laban.Point3D(
+    left_elbow_lat = Point3D(
         data=np.array([[-0.25, 1.10, -0.02]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    left_elbow_med = laban.Point3D(
+    left_elbow_med = Point3D(
         data=np.array([[-0.18, 1.10, -0.02]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    right_elbow_lat = laban.Point3D(
+    right_elbow_lat = Point3D(
         data=np.array([[0.25, 1.10, -0.02]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    right_elbow_med = laban.Point3D(
+    right_elbow_med = Point3D(
         data=np.array([[0.18, 1.10, -0.02]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
 
     # Pelvis markers (needed for reference frames)
-    left_asis = laban.Point3D(
+    left_asis = Point3D(
         data=np.array([[-0.10, 0.90, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    right_asis = laban.Point3D(
+    right_asis = Point3D(
         data=np.array([[0.10, 0.90, 0.00]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    left_psis = laban.Point3D(
+    left_psis = Point3D(
         data=np.array([[-0.08, 0.85, -0.15]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    right_psis = laban.Point3D(
+    right_psis = Point3D(
         data=np.array([[0.08, 0.85, -0.15]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
 
-    body = laban.WholeBody(
+    body = WholeBody(
         left_asis=left_asis,
         right_asis=right_asis,
         left_psis=left_psis,
@@ -117,33 +114,33 @@ def wholebody_shoulders_neutral():
 @pytest.fixture
 def wholebody_shoulders_protracted():
     """Create WholeBody with both shoulders protracted (forward) - rounded posture."""
-    c7 = laban.Point3D(data=np.array([[0.00, 1.40, 0.05]]), index=[0], columns=["X", "Y", "Z"])  # Posterior: +Z
-    sc = laban.Point3D(data=np.array([[0.00, 1.42, -0.05]]), index=[0], columns=["X", "Y", "Z"])  # Anterior: -Z
+    c7 = Point3D(data=np.array([[0.00, 1.40, 0.05]]), index=[0], columns=["X", "Y", "Z"])  # Posterior: +Z
+    sc = Point3D(data=np.array([[0.00, 1.42, -0.05]]), index=[0], columns=["X", "Y", "Z"])  # Anterior: -Z
 
     # Shoulders moved significantly forward (Z = -0.12)
-    left_acromion = laban.Point3D(
+    left_acromion = Point3D(
         data=np.array([[-0.20, 1.35, -0.12]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    right_acromion = laban.Point3D(
+    right_acromion = Point3D(
         data=np.array([[0.20, 1.35, -0.12]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
 
     # Elbow markers
-    left_elbow_lat = laban.Point3D(data=np.array([[-0.25, 1.10, -0.10]]), index=[0], columns=["X", "Y", "Z"])
-    left_elbow_med = laban.Point3D(data=np.array([[-0.18, 1.10, -0.10]]), index=[0], columns=["X", "Y", "Z"])
-    right_elbow_lat = laban.Point3D(data=np.array([[0.25, 1.10, -0.10]]), index=[0], columns=["X", "Y", "Z"])
-    right_elbow_med = laban.Point3D(data=np.array([[0.18, 1.10, -0.10]]), index=[0], columns=["X", "Y", "Z"])
+    left_elbow_lat = Point3D(data=np.array([[-0.25, 1.10, -0.10]]), index=[0], columns=["X", "Y", "Z"])
+    left_elbow_med = Point3D(data=np.array([[-0.18, 1.10, -0.10]]), index=[0], columns=["X", "Y", "Z"])
+    right_elbow_lat = Point3D(data=np.array([[0.25, 1.10, -0.10]]), index=[0], columns=["X", "Y", "Z"])
+    right_elbow_med = Point3D(data=np.array([[0.18, 1.10, -0.10]]), index=[0], columns=["X", "Y", "Z"])
 
-    left_asis = laban.Point3D(data=np.array([[-0.10, 0.90, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    right_asis = laban.Point3D(data=np.array([[0.10, 0.90, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    left_psis = laban.Point3D(data=np.array([[-0.08, 0.85, -0.15]]), index=[0], columns=["X", "Y", "Z"])
-    right_psis = laban.Point3D(data=np.array([[0.08, 0.85, -0.15]]), index=[0], columns=["X", "Y", "Z"])
+    left_asis = Point3D(data=np.array([[-0.10, 0.90, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    right_asis = Point3D(data=np.array([[0.10, 0.90, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    left_psis = Point3D(data=np.array([[-0.08, 0.85, -0.15]]), index=[0], columns=["X", "Y", "Z"])
+    right_psis = Point3D(data=np.array([[0.08, 0.85, -0.15]]), index=[0], columns=["X", "Y", "Z"])
 
-    body = laban.WholeBody(
+    body = WholeBody(
         left_asis=left_asis,
         right_asis=right_asis,
         left_psis=left_psis,
@@ -163,33 +160,33 @@ def wholebody_shoulders_protracted():
 @pytest.fixture
 def wholebody_shoulders_retracted():
     """Create WholeBody with both shoulders retracted (backward) - military posture."""
-    c7 = laban.Point3D(data=np.array([[0.00, 1.40, 0.05]]), index=[0], columns=["X", "Y", "Z"])  # Posterior: +Z
-    sc = laban.Point3D(data=np.array([[0.00, 1.42, -0.05]]), index=[0], columns=["X", "Y", "Z"])  # Anterior: -Z
+    c7 = Point3D(data=np.array([[0.00, 1.40, 0.05]]), index=[0], columns=["X", "Y", "Z"])  # Posterior: +Z
+    sc = Point3D(data=np.array([[0.00, 1.42, -0.05]]), index=[0], columns=["X", "Y", "Z"])  # Anterior: -Z
 
     # Shoulders moved backward (Z = +0.08)
-    left_acromion = laban.Point3D(
+    left_acromion = Point3D(
         data=np.array([[-0.20, 1.35, 0.08]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
-    right_acromion = laban.Point3D(
+    right_acromion = Point3D(
         data=np.array([[0.20, 1.35, 0.08]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
 
     # Elbow markers
-    left_elbow_lat = laban.Point3D(data=np.array([[-0.25, 1.10, 0.06]]), index=[0], columns=["X", "Y", "Z"])
-    left_elbow_med = laban.Point3D(data=np.array([[-0.18, 1.10, 0.06]]), index=[0], columns=["X", "Y", "Z"])
-    right_elbow_lat = laban.Point3D(data=np.array([[0.25, 1.10, 0.06]]), index=[0], columns=["X", "Y", "Z"])
-    right_elbow_med = laban.Point3D(data=np.array([[0.18, 1.10, 0.06]]), index=[0], columns=["X", "Y", "Z"])
+    left_elbow_lat = Point3D(data=np.array([[-0.25, 1.10, 0.06]]), index=[0], columns=["X", "Y", "Z"])
+    left_elbow_med = Point3D(data=np.array([[-0.18, 1.10, 0.06]]), index=[0], columns=["X", "Y", "Z"])
+    right_elbow_lat = Point3D(data=np.array([[0.25, 1.10, 0.06]]), index=[0], columns=["X", "Y", "Z"])
+    right_elbow_med = Point3D(data=np.array([[0.18, 1.10, 0.06]]), index=[0], columns=["X", "Y", "Z"])
 
-    left_asis = laban.Point3D(data=np.array([[-0.10, 0.90, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    right_asis = laban.Point3D(data=np.array([[0.10, 0.90, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    left_psis = laban.Point3D(data=np.array([[-0.08, 0.85, -0.15]]), index=[0], columns=["X", "Y", "Z"])
-    right_psis = laban.Point3D(data=np.array([[0.08, 0.85, -0.15]]), index=[0], columns=["X", "Y", "Z"])
+    left_asis = Point3D(data=np.array([[-0.10, 0.90, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    right_asis = Point3D(data=np.array([[0.10, 0.90, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    left_psis = Point3D(data=np.array([[-0.08, 0.85, -0.15]]), index=[0], columns=["X", "Y", "Z"])
+    right_psis = Point3D(data=np.array([[0.08, 0.85, -0.15]]), index=[0], columns=["X", "Y", "Z"])
 
-    body = laban.WholeBody(
+    body = WholeBody(
         left_asis=left_asis,
         right_asis=right_asis,
         left_psis=left_psis,
@@ -209,34 +206,34 @@ def wholebody_shoulders_retracted():
 @pytest.fixture
 def wholebody_shoulders_asymmetric():
     """Create WholeBody with left shoulder protracted, right shoulder retracted."""
-    c7 = laban.Point3D(data=np.array([[0.00, 1.40, 0.05]]), index=[0], columns=["X", "Y", "Z"])  # Posterior: +Z
-    sc = laban.Point3D(data=np.array([[0.00, 1.42, -0.05]]), index=[0], columns=["X", "Y", "Z"])  # Anterior: -Z
+    c7 = Point3D(data=np.array([[0.00, 1.40, 0.05]]), index=[0], columns=["X", "Y", "Z"])  # Posterior: +Z
+    sc = Point3D(data=np.array([[0.00, 1.42, -0.05]]), index=[0], columns=["X", "Y", "Z"])  # Anterior: -Z
 
     # Left shoulder forward (protracted)
-    left_acromion = laban.Point3D(
+    left_acromion = Point3D(
         data=np.array([[-0.20, 1.35, -0.10]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
     # Right shoulder backward (retracted)
-    right_acromion = laban.Point3D(
+    right_acromion = Point3D(
         data=np.array([[0.20, 1.35, 0.08]]),
         index=[0],
         columns=["X", "Y", "Z"],
     )
 
     # Elbow markers
-    left_elbow_lat = laban.Point3D(data=np.array([[-0.25, 1.10, -0.08]]), index=[0], columns=["X", "Y", "Z"])
-    left_elbow_med = laban.Point3D(data=np.array([[-0.18, 1.10, -0.08]]), index=[0], columns=["X", "Y", "Z"])
-    right_elbow_lat = laban.Point3D(data=np.array([[0.25, 1.10, 0.06]]), index=[0], columns=["X", "Y", "Z"])
-    right_elbow_med = laban.Point3D(data=np.array([[0.18, 1.10, 0.06]]), index=[0], columns=["X", "Y", "Z"])
+    left_elbow_lat = Point3D(data=np.array([[-0.25, 1.10, -0.08]]), index=[0], columns=["X", "Y", "Z"])
+    left_elbow_med = Point3D(data=np.array([[-0.18, 1.10, -0.08]]), index=[0], columns=["X", "Y", "Z"])
+    right_elbow_lat = Point3D(data=np.array([[0.25, 1.10, 0.06]]), index=[0], columns=["X", "Y", "Z"])
+    right_elbow_med = Point3D(data=np.array([[0.18, 1.10, 0.06]]), index=[0], columns=["X", "Y", "Z"])
 
-    left_asis = laban.Point3D(data=np.array([[-0.10, 0.90, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    right_asis = laban.Point3D(data=np.array([[0.10, 0.90, 0.00]]), index=[0], columns=["X", "Y", "Z"])
-    left_psis = laban.Point3D(data=np.array([[-0.08, 0.85, -0.15]]), index=[0], columns=["X", "Y", "Z"])
-    right_psis = laban.Point3D(data=np.array([[0.08, 0.85, -0.15]]), index=[0], columns=["X", "Y", "Z"])
+    left_asis = Point3D(data=np.array([[-0.10, 0.90, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    right_asis = Point3D(data=np.array([[0.10, 0.90, 0.00]]), index=[0], columns=["X", "Y", "Z"])
+    left_psis = Point3D(data=np.array([[-0.08, 0.85, -0.15]]), index=[0], columns=["X", "Y", "Z"])
+    right_psis = Point3D(data=np.array([[0.08, 0.85, -0.15]]), index=[0], columns=["X", "Y", "Z"])
 
-    body = laban.WholeBody(
+    body = WholeBody(
         left_asis=left_asis,
         right_asis=right_asis,
         left_psis=left_psis,
