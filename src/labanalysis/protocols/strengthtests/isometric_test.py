@@ -5,11 +5,11 @@ from typing import Callable, Literal
 import numpy as np
 import pandas as pd
 
-from ...records import TimeseriesRecord
-from ...pipelines import get_default_processing_pipeline
 from ...exercises.strength import IsometricExercise
-from ...timeseries import Signal1D, EMGSignal
+from ...pipelines import get_default_processing_pipeline
+from ...records import TimeseriesRecord
 from ...signalprocessing import butterworth_filt
+from ...timeseries import EMGSignal, Signal1D
 from ..participant import Participant
 from ..test_protocol import TestProtocol
 from .isometric_test_results import IsometricTestResults
@@ -105,9 +105,9 @@ class IsometricTest(TestProtocol):
     >>> # Create participant
     >>> participant = Participant(surname='Athlete', weight=75)
     >>>
-    >>> # Load exercise data
-    >>> left_ex = IsometricExercise.from_biostrength("left_leg_press.txt")
-    >>> right_ex = IsometricExercise.from_biostrength("right_leg_press.txt")
+    >>> # Load exercise data (analyze first 2 seconds only)
+    >>> left_ex = IsometricExercise.from_biostrength("left_leg_press.txt", max_time_s=2)
+    >>> right_ex = IsometricExercise.from_biostrength("right_leg_press.txt", max_time_s=2)
     >>>
     >>> # Create test protocol
     >>> test = IsometricTest(
@@ -205,7 +205,8 @@ class IsometricTest(TestProtocol):
         return self._bilateral
 
     def _process_exercise(self, exercise: IsometricExercise):
-        # apply the pipeline to the test data
+        # Apply the pipeline to the test data
+        # The pipeline will preserve max_time_s via copy()
         exe = self.processing_pipeline(exercise, inplace=False)
         if not isinstance(exe, IsometricExercise):
             raise ValueError("Something went wrong during data processing.")
@@ -285,6 +286,7 @@ class IsometricTest(TestProtocol):
         left_emg_filename: str | None = None,
         right_emg_filename: str | None = None,
         bilateral_emg_filename: str | None = None,
+        max_time_s: int | None = None,
         normative_data: pd.DataFrame = pd.DataFrame(),
         emg_normalization_references: TimeseriesRecord = TimeseriesRecord(),
         emg_normalization_function: Callable = np.mean,
@@ -309,6 +311,7 @@ class IsometricTest(TestProtocol):
             left = IsometricExercise(
                 side="left",
                 synchronize_signals=True,
+                max_time_s=max_time_s,
                 **left,
             )
         else:
@@ -330,6 +333,7 @@ class IsometricTest(TestProtocol):
             right = IsometricExercise(
                 side="right",
                 synchronize_signals=True,
+                max_time_s=max_time_s,
                 **right,
             )
         else:
@@ -351,6 +355,7 @@ class IsometricTest(TestProtocol):
             bilateral = IsometricExercise(
                 side="bilateral",
                 synchronize_signals=True,
+                max_time_s=max_time_s,
                 **bilateral,
             )
         else:

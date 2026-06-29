@@ -109,14 +109,37 @@ class IsometricExercise(BiostrengthExercise):
     ):
         return self._get_repetitions_index(force, time)[0][0]
 
+    @property
+    def repetitions(self):
+        """Return the tracked repetitions data, trimmed to max_time_s if set."""
+        # Get the base repetitions from parent class
+        reps = super().repetitions
+
+        # Apply max_time_s trimming if set
+        if hasattr(self, '_max_time_s') and self._max_time_s is not None:
+            trimmed_reps = []
+            for rep in reps:
+                rep_start_time = float(rep.index[0])
+                rep_end_time = rep_start_time + float(self._max_time_s)
+                # Use loc with time slice to trim
+                trimmed_rep = rep.loc[rep_start_time:rep_end_time]
+                trimmed_reps.append(trimmed_rep)
+            return trimmed_reps
+
+        return reps
+
     def __init__(
         self,
         side: Literal["bilateral", "left", "right"],
         force: Signal1D,
         position: Signal1D,
         synchronize_signals: bool = True,
+        max_time_s: int | None = None,
         **signals: EMGSignal,
     ):
+        if max_time_s is not None and max_time_s < 1:
+            raise ValueError("max_time_s must be >= 1 or None")
+
         super().__init__(
             side=side,
             force=force,
@@ -124,10 +147,12 @@ class IsometricExercise(BiostrengthExercise):
             synchronize_signals=synchronize_signals,
             **signals,
         )
+        self._max_time_s = max_time_s
 
     def copy(self):
         return IsometricExercise(
             side=self.side,  # type: ignore
             synchronize_signals=False,
+            max_time_s=getattr(self, '_max_time_s', None),
             **{i: v.copy() for i, v in self._data.items()},  # type: ignore
         )

@@ -12,6 +12,7 @@ def _get_force_figure(
     tracks: pd.DataFrame,
     summary: pd.DataFrame,
     include_emg: bool = True,
+    time_mode: str = 'percentage',  # 'percentage' or 'absolute'
 ):
 
     # generate the figure
@@ -69,11 +70,18 @@ def _get_force_figure(
 
     # plot force profiles
     f_data = tracks.loc[tracks.parameter == "force_amplitude"]
-    f_data = f_data.groupby(["time_%", "side", "limb"], as_index=False).max()
+
+    # Determine time column based on mode
+    time_col = "time_ms" if time_mode == 'absolute' else "time_%"
+
+    # Group by appropriate time column
+    group_cols = [time_col, "side", "limb"]
+    f_data = f_data.groupby(group_cols, as_index=False).max()
+
     for i, side in enumerate(sides):
         y = f_data.loc[f_data.side == side, "value"].to_numpy()  # type: ignore
         y = y.astype(float).flatten()
-        x = f_data.loc[f_data.side == side, "time_%"].to_numpy()  # type: ignore
+        x = f_data.loc[f_data.side == side, time_col].to_numpy()  # type: ignore
         x = x.astype(float).flatten()
         fig.add_trace(
             go.Scatter(
@@ -86,6 +94,42 @@ def _get_force_figure(
             row=1,
             col=i + 1,
         )
+
+        # Add markers for specific time points (only in absolute mode)
+        if time_mode == 'absolute':
+            time_points = [100, 200, 500, 1000]
+            for tp in time_points:
+                # Get force at this time point from summary
+                param_name = f"force at {tp} ms (N)"
+                force_row = summary.loc[summary.parameter == param_name]
+                if not force_row.empty and side in force_row.columns:
+                    try:
+                        force_val = float(force_row[side].iloc[0])
+                        # Add marker on the curve
+                        fig.add_trace(
+                            go.Scatter(
+                                x=[tp],
+                                y=[force_val],
+                                mode="markers+text",
+                                text=f" {force_val:0.0f}N",  # Space before text for padding
+                                textposition="middle right",
+                                marker=dict(
+                                    size=6,
+                                    color=SIDE_COLORS[side],
+                                    symbol='circle',
+                                    opacity=0.6,
+                                    line=dict(width=1, color='white')
+                                ),
+                                textfont=dict(size=9, color=SIDE_COLORS[side]),
+                                showlegend=False,
+                                name=f"force @ {tp}ms",
+                            ),
+                            row=1,
+                            col=i + 1,
+                        )
+                    except (IndexError, ValueError, TypeError):
+                        continue
+
         x_peak = x[np.argmax(y)]
         fig.add_trace(
             go.Scatter(
@@ -155,13 +199,26 @@ def _get_force_figure(
     yrange = np.array([np.min(yrange), np.max(yrange)])
     yrange *= np.array([0.9, 1.3])
     yrange = yrange.tolist()
-    xrange = f_data["time_%"].to_numpy().flatten()  # type: ignore
-    xrange = [np.min(xrange), np.max(xrange)]
-    xticks = np.linspace(xrange[0], xrange[1], 5)
-    xticks = [int(round(i / 5) * 5) for i in xticks]
+
+    # Configure x-axis based on time mode
+    if time_mode == 'absolute':
+        xrange = f_data["time_ms"].to_numpy().flatten()  # type: ignore
+        xrange = [np.min(xrange), np.max(xrange)]
+        # Create ticks at key intervals for absolute time
+        xticks = [0, 500, 1000, 1500, 2000]
+        # Filter ticks to only those within the data range
+        xticks = [t for t in xticks if xrange[0] <= t <= xrange[1]]
+        xlabel = "Time (ms)"
+    else:
+        xrange = f_data["time_%"].to_numpy().flatten()  # type: ignore
+        xrange = [np.min(xrange), np.max(xrange)]
+        xticks = np.linspace(xrange[0], xrange[1], 5)
+        xticks = [int(round(i / 5) * 5) for i in xticks]
+        xlabel = "Concentric Phase (%)"
+
     for i in range(len(sides)):
         fig.update_xaxes(
-            title="Concentric Phase (%)",
+            title=xlabel,
             row=1,
             col=i + 1,
             showline=True,

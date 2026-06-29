@@ -385,6 +385,7 @@ class IsometricTest(TestProtocol):
         Right side isometric exercise data
     bilateral : IsometricExercise or None
         Bilateral isometric exercise data
+        Default: None
     normative_data : pd.DataFrame, optional
         Reference normative values
         Default: empty DataFrame
@@ -433,6 +434,7 @@ class IsometricTest(TestProtocol):
     Examples
     --------
     >>> from labanalysis.protocols import IsometricTest, Participant
+    >>> from labanalysis.exercises.strength import IsometricExercise
     >>> 
     >>> # Create participant
     >>> participant = Participant(surname='Smith', weight=80)
@@ -445,6 +447,15 @@ class IsometricTest(TestProtocol):
     ...     right_biostrength_filename='right_mvc.txt'
     ... )
     >>> 
+    >>> # Or create exercise with max_time_s to limit analysis duration
+    >>> left_ex = IsometricExercise.from_biostrength("left_mvc.txt", max_time_s=2)
+    >>> test = IsometricTest(
+    ...     participant=participant,
+    ...     left=left_ex,
+    ...     right=None,
+    ...     bilateral=None
+    ... )
+    >>> 
     >>> # Process
     >>> results = test.get_results(include_emg=False)
     >>> 
@@ -452,6 +463,19 @@ class IsometricTest(TestProtocol):
     >>> summary = results.summary
     >>> print(summary[summary['parameter'] == 'rate of force development (kN/s)'])
     """
+```
+
+**Time Duration Control:**
+
+To limit analysis to a specific duration (e.g., first 2 seconds for early-phase RFD):
+- Set `max_time_s` parameter on `IsometricExercise` (not `IsometricTest`)
+- All metrics will be computed only within that duration
+- Force at time points (100, 200, 500, 1000 ms) show force development profile
+
+```python
+# Analyze only first 2 seconds
+left_ex = IsometricExercise.from_biostrength("left.txt", max_time_s=2)
+test = IsometricTest(participant=participant, left=left_ex, right=None, bilateral=None)
 ```
 
 **Signal Processing:**
@@ -470,10 +494,14 @@ class IsometricTest(TestProtocol):
 **Key Metrics:**
 
 1. **Peak Force (N)**: Maximum force during MVC
-2. **Rate of Force Development (kN/s)**: RFD from start to peak
-3. **Time to Peak Force (ms)**: Duration from start to peak force
-4. **Force Symmetry (%)**: Left-right force balance
-5. **EMG Symmetry (%)**: Left-right muscle activation balance (if available)
+2. **Force at 100 ms (N)**: Force level at 100ms from contraction onset
+3. **Force at 200 ms (N)**: Force level at 200ms from contraction onset
+4. **Force at 500 ms (N)**: Force level at 500ms from contraction onset
+5. **Force at 1000 ms (N)**: Force level at 1000ms (1s) from contraction onset
+6. **Rate of Force Development (kN/s)**: RFD from start to peak
+7. **Time to Peak Force (ms)**: Duration from start to peak force
+8. **Force Symmetry (%)**: Left-right force balance
+9. **EMG Symmetry (%)**: Left-right muscle activation balance (if available)
 
 ---
 
@@ -513,12 +541,13 @@ from labanalysis.protocols import IsometricTest, Participant
 
 participant = Participant(surname='Athlete', weight=75, gender='F')
 
-# Bilateral isometric leg extension MVC
+# Bilateral isometric leg extension MVC (analyze first 2 seconds only)
 test = IsometricTest.from_files(
     participant=participant,
     product='LEG EXTENSION',
     bilateral_biostrength_filename='legext_mvc.txt',
     bilateral_emg_filename='legext_mvc_emg.tdf',
+    max_time_s=2,  # Limit analysis to first 2 seconds
     relevant_muscle_map=[
         'left_vastus_lateralis',
         'right_vastus_lateralis',
@@ -531,10 +560,13 @@ test = IsometricTest.from_files(
 
 results = test.get_results(include_emg=True)
 
-# Analyze RFD
+# Analyze RFD and force development profile
 summary = results.summary
 rfd = summary[summary['parameter'] == 'rate of force development (kN/s)']['bilateral'].values[0]
+f_100ms = summary[summary['parameter'] == 'force at 100 ms (N)']['bilateral'].values[0]
+f_200ms = summary[summary['parameter'] == 'force at 200 ms (N)']['bilateral'].values[0]
 print(f"RFD: {rfd:.2f} kN/s")
+print(f"Force at 100ms: {f_100ms:.1f} N, at 200ms: {f_200ms:.1f} N")
 ```
 
 ---
@@ -598,9 +630,13 @@ class IsometricTestResults(TestResults):
 - `symmetry (%)`: Left-right asymmetry percentage
 
 **Parameters include:**
+- `peak force (N)`: Maximum force
+- `force at 100 ms (N)`: Force at 100ms from onset
+- `force at 200 ms (N)`: Force at 200ms from onset
+- `force at 500 ms (N)`: Force at 500ms from onset
+- `force at 1000 ms (N)`: Force at 1000ms from onset
 - `rate of force development (kN/s)`: RFD
 - `time to peak force (ms)`: Time to reach peak force
-- `peak force (N)`: Maximum force
 - `<muscle_name> (%)`: EMG amplitude (if normalized)
 - `<muscle_name> (uV)`: EMG amplitude (if not normalized)
 

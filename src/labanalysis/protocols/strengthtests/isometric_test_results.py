@@ -1,13 +1,13 @@
 """Isometric test results implementation."""
 
-from ...exercises.strength import IsometricExercise
 from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
-from scipy.signal import find_peaks
 
-from ...signalprocessing import cubicspline_interp
+from ...exercises.strength import IsometricExercise
+
+from ...signalprocessing import cubicspline_interp, find_peaks
 from ..test_results import TestResults
 from ._plotting import _get_force_figure
 
@@ -36,6 +36,10 @@ class IsometricTestResults(TestResults):
     summary : pd.DataFrame
         Comprehensive table of isometric metrics including:
         - Peak force (N)
+        - Force at 100 ms (N)
+        - Force at 200 ms (N)
+        - Force at 500 ms (N)
+        - Force at 1000 ms (N)
         - Rate of force development (kN/s)
         - Time to peak force (ms)
         - EMG mean amplitude (% or µV) per muscle
@@ -92,21 +96,40 @@ class IsometricTestResults(TestResults):
             raise ValueError("'test' must be an IsometricTest instance.")
         super().__init__(test, include_emg)
 
-    def _get_peak_force(self, test: IsometricExercise):
-        return float(test.force.to_numpy().max())
+    def _get_peak_force(self, exe: IsometricExercise, rep_index: int):
+        """Get peak force for a specific repetition."""
+        force = exe.repetitions[rep_index].force.to_numpy().flatten()
+        return float(np.max(force))
 
-    def _get_rate_of_force_development_kns(self, exe: IsometricExercise):
-        force = exe.repetitions[0].force.to_numpy().flatten()
-        time = np.array(exe.index)
+    def _get_rate_of_force_development_kns(self, exe: IsometricExercise, rep_index: int):
+        """Get RFD for a specific repetition."""
+        rep = exe.repetitions[rep_index]
+        force = rep.force.to_numpy().flatten()
+        time = np.array(rep.index)
         peaks = find_peaks(force, height=float(np.max(force) * 0.8))
         peak = np.argmax(force) if len(peaks) == 0 else peaks[0]
         return (force[peak] - force[0]) / (time[peak] - time[0]) / 1000
 
-    def _get_time_to_peak_force_ms(self, exe: IsometricExercise):
-        force = exe.repetitions[0].force.to_numpy().flatten()
-        time = np.array(exe.index)
+    def _get_time_to_peak_force_ms(self, exe: IsometricExercise, rep_index: int):
+        """Get time to peak force for a specific repetition."""
+        rep = exe.repetitions[rep_index]
+        force = rep.force.to_numpy().flatten()
+        time = np.array(rep.index)
         peak = np.argmax(force)
         return (time[peak] - time[0]) * 1000
+
+    def _get_force_at_time_ms(self, exe: IsometricExercise, rep_index: int, time_ms: float):
+        """Get force level at specific time point (ms) from contraction onset for a specific repetition."""
+        rep = exe.repetitions[rep_index]
+        force = rep.force.to_numpy().flatten()
+        time = (np.array(rep.index) - rep.index[0]) * 1000  # Convert to ms from onset
+
+        # If the requested time is beyond the data, return the last force value
+        if time_ms >= time[-1]:
+            return float(force[-1])
+
+        # Interpolate force at requested time
+        return float(np.interp(time_ms, time, force))
 
     def _get_summary(self, test: "IsometricTest"):
         trials = [test.left, test.right, test.bilateral]
@@ -120,9 +143,13 @@ class IsometricTestResults(TestResults):
             if trial is None:
                 continue
             emg_norms = test.emg_normalization_values
-            if self.include_emg:
-                for rep in trial.repetitions:
-                    new = pd.DataFrame(columns=active_sides)
+
+            # Iterate over all repetitions to get metrics for each
+            for i, rep in enumerate(trial.repetitions):
+                new = pd.DataFrame(columns=active_sides)
+
+                # EMG data for this repetition
+                if self.include_emg:
                     for m in rep.emgsignals.values():
                         ename = str(m.muscle_name)
                         eside = str(m.side)
@@ -130,14 +157,29 @@ class IsometricTestResults(TestResults):
                         check = [i[0] == ename and i[1] == eside for i in keys]
                         ename += " (%)" if any(check) else " (uV)"
                         new.loc[ename, eside] = m.to_numpy().mean()
-                    metrics = pd.concat([metrics, new])
-            metrics.loc["rate of force development (kN/s)", side] = (
-                self._get_rate_of_force_development_kns(trial)
-            )
-            metrics.loc["time to peak force (ms)", side] = (
-                self._get_time_to_peak_force_ms(trial)
-            )
-            metrics.loc["peak force (N)", side] = self._get_peak_force(trial)
+
+                # Force metrics for this repetition
+                new.loc["rate of force development (kN/s)", side] = (
+                    self._get_rate_of_force_development_kns(trial, i)
+                )
+                new.loc["time to peak force (ms)", side] = (
+                    self._get_time_to_peak_force_ms(trial, i)
+                )
+                new.loc["peak force (N)", side] = self._get_peak_force(trial, i)
+                new.loc["force at 100 ms (N)", side] = (
+                    self._get_force_at_time_ms(trial, i, 100)
+                )
+                new.loc["force at 200 ms (N)", side] = (
+                    self._get_force_at_time_ms(trial, i, 200)
+                )
+                new.loc["force at 500 ms (N)", side] = (
+                    self._get_force_at_time_ms(trial, i, 500)
+                )
+                new.loc["force at 1000 ms (N)", side] = (
+                    self._get_force_at_time_ms(trial, i, 1000)
+                )
+
+                metrics = pd.concat([metrics, new])
         metrics.insert(0, "parameter", metrics.index)
         metrics.reset_index(inplace=True, drop=True)
         summary = metrics.groupby("parameter", as_index=False).mean()
@@ -201,30 +243,41 @@ class IsometricTestResults(TestResults):
             # If we can't find these columns, skip figure generation
             return {}
 
+        # Determine time limit for figure based on max_time_s from exercises
+        # Check if any exercise has max_time_s set
+        max_time_s = None
+        for exe in [test.left, test.right, test.bilateral]:
+            if exe is not None and hasattr(exe, '_max_time_s') and exe._max_time_s is not None:
+                max_time_s = exe._max_time_s
+                break
+        # Default to 2000 ms if max_time_s is not set
+        max_time_ms = max_time_s * 1000 if max_time_s is not None else 2000
+
         # Process force data for each side and repetition
-        y_arr = {side: [] for side in sides}
-        for (side, rep), dfr in analytics.groupby(by=["side", "repetition"]):
-            force = dfr[force_col].to_numpy().flatten()
-            # Interpolate to 201 points for smoother curves
-            fint = cubicspline_interp(force, 201)
-            y_arr[side].append(np.atleast_2d(fint))
-
-        # Build tracks dataframe in format expected by _get_force_figure
+        # Build tracks with absolute time (ms)
         tracks_data = []
-        for side in sides:
-            if len(y_arr[side]) == 0:
+        for side, rep_group in analytics.groupby('side'):
+            # Get the first repetition for this side
+            first_rep = rep_group[rep_group['repetition'] == 1]
+            if first_rep.empty:
                 continue
-            # Get max force profile across all repetitions
-            y = np.vstack(y_arr[side]).max(axis=0)
-            # Create time percentage axis (0-100%)
-            time_pct = np.linspace(0, 100, len(y))
 
-            for i, (t, val) in enumerate(zip(time_pct, y)):
+            # Get time in ms and force
+            time_ms = (first_rep['time_s'].to_numpy() * 1000).flatten()
+            force = first_rep[force_col].to_numpy().flatten()
+
+            # Limit to max_time_ms
+            mask = time_ms <= max_time_ms
+            time_ms = time_ms[mask]
+            force = force[mask]
+
+            # Store in tracks_data
+            for t, val in zip(time_ms, force):
                 tracks_data.append({
                     "parameter": "force_amplitude",
                     "side": side,
                     "limb": side,
-                    "time_%": t,
+                    "time_ms": t,
                     "value": val
                 })
 
@@ -235,6 +288,7 @@ class IsometricTestResults(TestResults):
                 tracks,
                 self.summary,
                 include_emg=self.include_emg,
+                time_mode='absolute',  # Use absolute time mode
             )
         }
 
