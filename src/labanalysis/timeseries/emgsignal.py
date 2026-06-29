@@ -80,7 +80,7 @@ class EMGSignal(Signal1D):
 
     def set_side(self, side: Literal["left", "right", "bilateral"] | str):
         if not isinstance(side, str) or not any(
-            [side == i for i in ["left", "right", "bilataral"]]
+            [side == i for i in ["left", "right", "bilateral"]]
         ):
             raise ValueError("side must be 'left', 'right' or 'bilateral'.")
         self._side = side

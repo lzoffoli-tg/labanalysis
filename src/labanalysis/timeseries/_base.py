@@ -491,6 +491,10 @@ class Timeseries:
                 view_obj._vertical_axis = self._vertical_axis
             if hasattr(self, '_anteroposterior_axis'):
                 view_obj._anteroposterior_axis = self._anteroposterior_axis
+            if hasattr(self, '_name'):
+                view_obj._name = self._name
+            if hasattr(self, '_side'):
+                view_obj._side = self._side
         else:
             view_obj = Timeseries.__new__(Timeseries)
             try:
