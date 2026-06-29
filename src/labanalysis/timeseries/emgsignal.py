@@ -118,8 +118,8 @@ class EMGSignal(Signal1D):
         return EMGSignal(
             self._data.copy(),
             self.index.copy(),
-            self.muscle_name,
-            self.side,
+            self._name,
+            self._side,
             self.unit,
         )
 

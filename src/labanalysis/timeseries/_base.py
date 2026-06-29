@@ -144,30 +144,58 @@ class Timeseries:
         if axis is not None:
             if not isinstance(axis, int) or axis not in [0, 1]:
                 raise ValueError("axis must be None or 0 or 1")
+
         out = self if inplace else self.copy()
-        if axis is None or axis == 0:
-            index = out.to_dataframe().dropna(how="all", axis=0).index.to_numpy()
-            if len(index) > 0:
-                start = float(np.min(index))
-                stop = float(np.max(index))
-                if inplace:
-                    temp = out.loc[start:stop, :]
-                    out._data = temp._data
-                    out.index = temp.index
-                else:
-                    out = out.loc[start:stop, :]
-        if axis is None or axis == 1:
-            cols = out.columns
-            nonan_cols = out.to_dataframe().dropna(how="all", axis=1).columns.to_numpy()
-            indices = [i for i, v in enumerate(out.columns) if v in nonan_cols]
-            if len(indices) > 0:
-                indices = np.arange(np.min(indices), np.max(indices) + 1)
-                if inplace:
-                    temp = out[:, cols[indices]]
-                    out._data = temp._data
-                    out.columns = temp.columns
-                else:
-                    out = out[:, cols[indices]]
+
+        # Optimize: create DataFrame only once if needed, or use np.isnan directly
+        if axis is None:
+            # Need both operations, create DataFrame once
+            df = out.to_dataframe()
+
+            # Axis 0: remove all-NaN rows
+            row_mask = ~df.isna().all(axis=1).to_numpy()
+            if row_mask.any():
+                row_indices = np.where(row_mask)[0]
+                start_idx = row_indices[0]
+                stop_idx = row_indices[-1] + 1
+
+                # Direct slicing instead of using .loc
+                out._data = out._data[start_idx:stop_idx, :]
+                out.index = out.index[start_idx:stop_idx]
+
+            # Axis 1: remove all-NaN columns
+            col_mask = ~df.isna().all(axis=0).to_numpy()
+            if col_mask.any():
+                col_indices = np.where(col_mask)[0]
+                start_col = col_indices[0]
+                stop_col = col_indices[-1] + 1
+
+                # Direct slicing
+                out._data = out._data[:, start_col:stop_col]
+                out.columns = out.columns[start_col:stop_col]
+
+        elif axis == 0:
+            # Only axis 0: use isnan directly on _data (avoid DataFrame creation)
+            row_mask = ~np.isnan(out._data).all(axis=1)
+            if row_mask.any():
+                row_indices = np.where(row_mask)[0]
+                start_idx = row_indices[0]
+                stop_idx = row_indices[-1] + 1
+
+                out._data = out._data[start_idx:stop_idx, :]
+                out.index = out.index[start_idx:stop_idx]
+
+        elif axis == 1:
+            # Only axis 1: use isnan directly on _data (avoid DataFrame creation)
+            col_mask = ~np.isnan(out._data).all(axis=0)
+            if col_mask.any():
+                col_indices = np.where(col_mask)[0]
+                start_col = col_indices[0]
+                stop_col = col_indices[-1] + 1
+
+                out._data = out._data[:, start_col:stop_col]
+                out.columns = out.columns[start_col:stop_col]
+
         if not inplace:
             return out
 

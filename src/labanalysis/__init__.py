@@ -24,6 +24,10 @@ from .protocols import *
 from .records import *
 from .referenceframes import *
 from .timeseries import *
+from .utils import *
+from .signalprocessing import *
+from .constants import *
+from .messages import *
 
 # Common usage:
 # import labanalysis as la

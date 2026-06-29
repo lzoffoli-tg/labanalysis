@@ -312,21 +312,53 @@ from records.timeseries import Signal1D
         else:
             # New behavior: shared timeframe across all elements
             if len(out._data) > 0:
-                # Combine all elements into single DataFrame
-                combined_df = out.to_dataframe()
+                # OPTIMIZATION: instead of creating full DataFrame, iterate over elements
+                # to find bounds
+                all_valid_indices = []
 
-                # Find rows where at least one element has non-NaN value
-                non_empty_rows = combined_df.dropna(how="all", axis=0)
+                for elem in out.values():
+                    # Find non-all-NaN rows for this element
+                    if isinstance(elem, Timeseries):
+                        row_mask = ~np.isnan(elem._data).all(axis=1)
+                        if row_mask.any():
+                            valid_idx = elem.index[row_mask]
+                            all_valid_indices.append(valid_idx)
+                    elif isinstance(elem, Record):
+                        # For nested Records, get their combined index
+                        elem_index = elem.index
+                        if len(elem_index) > 0:
+                            all_valid_indices.append(elem_index)
 
-                if len(non_empty_rows) > 0:
-                    # Extract shared timeframe boundaries
-                    shared_index = non_empty_rows.index.to_numpy()
-                    start = float(np.min(shared_index))
-                    stop = float(np.max(shared_index))
+                if all_valid_indices:
+                    # Find global min/max
+                    all_indices = np.concatenate(all_valid_indices)
+                    start = float(np.min(all_indices))
+                    stop = float(np.max(all_indices))
 
-                    # Apply shared timeframe to each element
+                    # Apply bounds to each element using mask
                     for key in out.keys():
-                        out._data[key] = out._data[key].loc[start:stop, :]
+                        elem = out._data[key]
+
+                        # For Timeseries objects, modify in-place to preserve subclass attributes
+                        if isinstance(elem, Timeseries):
+                            # Find indices in range [start, stop]
+                            mask = (elem.index >= start) & (elem.index <= stop)
+                            if mask.any():
+                                # Modify in-place using object.__setattr__ to bypass
+                                # custom __setattr__ in subclasses and preserve attributes
+                                object.__setattr__(elem, '_data', elem._data[mask, :])
+                                object.__setattr__(elem, 'index', elem.index[mask])
+
+                        # For Record objects (like ForcePlatform), recursively strip
+                        elif isinstance(elem, Record):
+                            # Recursively modify children in-place
+                            for child_key in elem.keys():
+                                child = elem._data[child_key]
+                                if isinstance(child, Timeseries):
+                                    mask = (child.index >= start) & (child.index <= stop)
+                                    if mask.any():
+                                        object.__setattr__(child, '_data', child._data[mask, :])
+                                        object.__setattr__(child, 'index', child.index[mask])
 
                     # Handle column stripping if axis=None
                     if axis is None:
