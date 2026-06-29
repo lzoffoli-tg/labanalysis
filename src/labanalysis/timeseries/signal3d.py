@@ -81,5 +81,16 @@ class Signal3D(Timeseries):
             self.anteroposterior_axis,
         )
 
+    def _copy_view_attributes(self, view_obj):
+        """
+        Copy Signal3D-specific attributes to view object.
+
+        This override ensures that vertical_axis and anteroposterior_axis
+        are preserved during slicing operations.
+        """
+        super()._copy_view_attributes(view_obj)
+        # Attributes are already handled by parent, but we keep this
+        # as an example of how to override if needed in the future
+
 
 __all__ = ["Signal3D"]

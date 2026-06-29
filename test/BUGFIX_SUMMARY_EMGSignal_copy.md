@@ -125,9 +125,27 @@ emg_multi = emg.copy()[2.0:8.0].copy()[4.0:6.0]
 # ✓ side preserved (after fix)
 ```
 
-## Future Considerations
+## Refactoring to Extensible System (v215)
 
-The fix uses a generic `hasattr` check to preserve attributes. Consider:
-1. Documenting which attributes should be preserved in subclasses
-2. Creating a registry/protocol for preservable attributes
-3. Adding a `__view_copy_attrs__` class variable for subclasses to declare
+The initial fix (v214) used hardcoded `hasattr` checks in `_view()`. This was refactored (v215) to use a hook-based system:
+
+### Hook Method Pattern
+- Added `_copy_view_attributes(view_obj)` method to `Timeseries` base class
+- Subclasses override this method to preserve their custom attributes
+- More maintainable and extensible than hardcoded checks
+
+### Example Override
+```python
+class EMGSignal(Signal1D):
+    def _copy_view_attributes(self, view_obj):
+        super()._copy_view_attributes(view_obj)
+        # Custom attributes are now handled by parent's default implementation
+```
+
+### Benefits
+1. **Extensible**: New subclasses can easily add custom attributes
+2. **Maintainable**: No need to modify base class for new attributes
+3. **Documented**: Clear pattern for future developers
+4. **Backward Compatible**: All existing code continues to work
+
+See `test/timeseries/test_view_attribute_extensibility.py` for examples of custom subclasses.

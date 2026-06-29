@@ -487,14 +487,9 @@ class Timeseries:
                 view_obj._unit = self._unit
             except AttributeError:
                 view_obj._unit = "dimensionless"
-            if hasattr(self, '_vertical_axis'):
-                view_obj._vertical_axis = self._vertical_axis
-            if hasattr(self, '_anteroposterior_axis'):
-                view_obj._anteroposterior_axis = self._anteroposterior_axis
-            if hasattr(self, '_name'):
-                view_obj._name = self._name
-            if hasattr(self, '_side'):
-                view_obj._side = self._side
+
+            # Copy subclass-specific attributes using hook method
+            self._copy_view_attributes(view_obj)
         else:
             view_obj = Timeseries.__new__(Timeseries)
             try:
@@ -507,6 +502,48 @@ class Timeseries:
         view_obj.columns = view_columns.copy() if isinstance(view_columns, np.ndarray) else view_columns
 
         return view_obj
+
+    def _copy_view_attributes(self, view_obj):
+        """
+        Copy subclass-specific attributes to a view object.
+
+        This method is called during slicing operations to preserve
+        subclass-specific attributes. Subclasses can override this method
+        to specify which attributes should be copied.
+
+        The default implementation copies common attributes used by
+        Signal3D and EMGSignal subclasses.
+
+        Parameters
+        ----------
+        view_obj : Timeseries
+            The new view object to copy attributes to.
+
+        Notes
+        -----
+        Subclasses should call super()._copy_view_attributes(view_obj)
+        to ensure parent class attributes are also copied.
+
+        Examples
+        --------
+        Override in a subclass:
+
+        >>> def _copy_view_attributes(self, view_obj):
+        ...     super()._copy_view_attributes(view_obj)
+        ...     if hasattr(self, '_my_custom_attr'):
+        ...         view_obj._my_custom_attr = self._my_custom_attr
+        """
+        # Copy Signal3D/Point3D attributes
+        if hasattr(self, '_vertical_axis'):
+            view_obj._vertical_axis = self._vertical_axis
+        if hasattr(self, '_anteroposterior_axis'):
+            view_obj._anteroposterior_axis = self._anteroposterior_axis
+
+        # Copy EMGSignal attributes
+        if hasattr(self, '_name'):
+            view_obj._name = self._name
+        if hasattr(self, '_side'):
+            view_obj._side = self._side
 
     def _binary_op(self, other, op):
         if isinstance(other, Timeseries):
