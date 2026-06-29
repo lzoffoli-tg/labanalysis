@@ -4,6 +4,7 @@ import warnings
 import numpy as np
 from ....timeseries import Signal1D
 
+
 class TrunkAnglesMixin:
     """TrunkAngles properties for WholeBody."""
 
@@ -79,7 +80,149 @@ class TrunkAnglesMixin:
         except (AttributeError, TypeError, ValueError):
             warnings.warn(
                 "Cannot calculate trunk_rotation: missing required markers. Returning NaN.",
-                UserWarning
+                UserWarning,
+            )
+            ref = self._find_any_valid_marker()
+            return self._create_nan_signal1d(ref)
+
+    @property
+    def trunk_lateralflexion_local(self):
+        """
+        Calculate trunk lateral flexion in pelvis frontal plane.
+
+        The angle represents the lateral bending of the trunk relative to
+        the pelvis orientation, measured in the pelvis frontal plane.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Trunk bending to the LEFT
+          The neck_base is displaced to the left of pelvis_center when viewed
+          in the pelvis frontal plane.
+        - **Negative (-)**: Trunk bending to the RIGHT
+          The neck_base is displaced to the right of pelvis_center when viewed
+          in the pelvis frontal plane.
+        - **0°**: Neutral position (trunk vertical in pelvis frontal plane)
+
+        Calculation Method
+        ------------------
+        Calculates the angle of the trunk segment (pelvis_center → neck_base)
+        projected onto the pelvis frontal plane (defined by pelvis lateral_axis
+        and vertical_axis).
+
+        The trunk vector is projected onto the pelvis frontal plane and the
+        angle is calculated as arctan2(lateral_component, vertical_component),
+        giving the lateral flexion angle relative to the pelvis vertical axis.
+
+        Returns
+        -------
+        Signal1D
+            Trunk lateral flexion angle in degrees.
+            Positive = trunk bending left
+            Negative = trunk bending right
+
+        See Also
+        --------
+        trunk_lateralflexion_global : Trunk lateral flexion in global frame
+        pelvis_lateral_tilt_local : Pelvis lateral tilt in local frame
+        pelvis_referenceframe : Pelvis reference frame
+        """
+        try:
+            # Get trunk segment points
+            pelvis_center = self.pelvis_center
+            neck_base = self.neck_base
+
+            # Calculate trunk vector (pelvis_center → neck_base)
+            trunk_vec = (neck_base - pelvis_center).to_numpy()
+
+            # Get pelvis reference frame axes
+            pelvis_rf = self.pelvis_referenceframe
+            pelvis_lateral = pelvis_rf.rotation_matrix[
+                :, :, 0
+            ]  # Column 0 = lateral_axis (LEFT)
+            pelvis_vertical = pelvis_rf.rotation_matrix[
+                :, :, 1
+            ]  # Column 1 = vertical_axis (UP)
+
+            # Project trunk vector onto pelvis frontal plane (lateral, vertical)
+            lateral_comp = np.sum(trunk_vec * pelvis_lateral, axis=1)
+            vertical_comp = np.sum(trunk_vec * pelvis_vertical, axis=1)
+
+            # arctan2(lateral, vertical): positive when trunk bends left
+            angle = np.degrees(np.arctan2(lateral_comp, vertical_comp))
+
+            return Signal1D(data=angle, index=pelvis_center.index, unit="°")
+        except (AttributeError, TypeError, ValueError):
+            warnings.warn(
+                "Cannot calculate trunk_lateralflexion_local: missing required markers. Returning NaN.",
+                UserWarning,
+            )
+            ref = self._find_any_valid_marker()
+            return self._create_nan_signal1d(ref)
+
+    @property
+    def trunk_lateralflexion_global(self):
+        """
+        Calculate trunk lateral flexion in global frontal plane.
+
+        The angle represents the lateral bending of the trunk relative to
+        the global vertical, measured in the global frontal plane.
+
+        Interpretation
+        --------------
+        - **Positive (+)**: Trunk bending to the LEFT
+          The neck_base is displaced to the left of pelvis_center when viewed
+          in the global frontal plane (absolute reference).
+        - **Negative (-)**: Trunk bending to the RIGHT
+          The neck_base is displaced to the right of pelvis_center when viewed
+          in the global frontal plane (absolute reference).
+        - **0°**: Neutral position (trunk aligned with global vertical)
+
+        Calculation Method
+        ------------------
+        Calculates the angle of the trunk segment (pelvis_center → neck_base)
+        projected onto the global frontal plane (defined by global lateral_axis
+        and vertical_axis).
+
+        The trunk vector lateral and vertical components are extracted using
+        the global coordinate system axes, and the angle is calculated as
+        arctan2(lateral_component, vertical_component).
+
+        Returns
+        -------
+        Signal1D
+            Trunk lateral flexion angle in degrees.
+            Positive = trunk bending left
+            Negative = trunk bending right
+
+        See Also
+        --------
+        trunk_lateralflexion_local : Trunk lateral flexion in pelvis frame
+        pelvis_lateral_tilt_global : Pelvis lateral tilt in global frame
+        """
+        try:
+            # Get trunk segment points
+            pelvis_center = self.pelvis_center
+            neck_base = self.neck_base
+
+            # Calculate trunk vector (pelvis_center → neck_base)
+            trunk_vec = (neck_base - pelvis_center).to_numpy()
+
+            # Project onto global frontal plane (lateral_axis, vertical_axis)
+            cols = pelvis_center.columns
+            lateral_idx = np.where(cols == self.lateral_axis)[0][0]
+            vertical_idx = np.where(cols == self.vertical_axis)[0][0]
+
+            lateral_comp = trunk_vec[:, lateral_idx]
+            vertical_comp = trunk_vec[:, vertical_idx]
+
+            # arctan2(lateral, vertical): positive when trunk bends left
+            angle = np.degrees(np.arctan2(lateral_comp, vertical_comp))
+
+            return Signal1D(data=angle, index=pelvis_center.index, unit="°")
+        except (AttributeError, TypeError, ValueError):
+            warnings.warn(
+                "Cannot calculate trunk_lateralflexion_global: missing required markers. Returning NaN.",
+                UserWarning,
             )
             ref = self._find_any_valid_marker()
             return self._create_nan_signal1d(ref)

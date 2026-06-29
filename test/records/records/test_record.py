@@ -475,3 +475,99 @@ def test_record_iloc_indexer():
 
     assert hasattr(rec, 'iloc')
     assert rec.iloc is not None
+
+
+def test_record_loc_getter_single_item():
+    """
+    Test Record.loc[] gets single item.
+
+    Expected:
+        Should return Record with selected item
+    """
+    sig1 = Signal1D(np.array([1.0, 2.0, 3.0]), np.array([0.0, 1.0, 2.0]), unit='V')
+    sig2 = Signal1D(np.array([4.0, 5.0, 6.0]), np.array([0.0, 1.0, 2.0]), unit='A')
+    rec = Record(voltage=sig1, current=sig2)
+
+    subset = rec.loc[:, 'voltage']
+    assert isinstance(subset, Record)
+    assert 'voltage' in subset.keys()
+    assert 'current' not in subset.keys()
+
+
+def test_record_loc_setter_scalar():
+    """
+    Test Record.loc[] setter with scalar.
+
+    Expected:
+        Should broadcast scalar to all rows in item
+    """
+    sig1 = Signal1D(np.array([1.0, 2.0, 3.0]), np.array([0.0, 1.0, 2.0]), unit='V')
+    sig2 = Signal1D(np.array([4.0, 5.0, 6.0]), np.array([0.0, 1.0, 2.0]), unit='A')
+    rec = Record(voltage=sig1, current=sig2)
+
+    rec.loc[:, 'voltage'] = 99.0
+    assert np.all(rec._data['voltage']._data == 99.0)
+
+
+def test_record_loc_setter_dict():
+    """
+    Test Record.loc[] setter with dict.
+
+    Expected:
+        Should update values from dict
+    """
+    sig1 = Signal1D(np.array([1.0, 2.0, 3.0]), np.array([0.0, 1.0, 2.0]), unit='V')
+    sig2 = Signal1D(np.array([4.0, 5.0, 6.0]), np.array([0.0, 1.0, 2.0]), unit='A')
+    rec = Record(voltage=sig1, current=sig2)
+
+    rec.loc[1.0, :] = {'voltage': 100.0, 'current': 200.0}
+    assert rec._data['voltage']._data[1, 0] == 100.0
+    assert rec._data['current']._data[1, 0] == 200.0
+
+
+def test_record_iloc_getter_by_position():
+    """
+    Test Record.iloc[] gets item by position.
+
+    Expected:
+        Should return Record with item at position
+    """
+    sig1 = Signal1D(np.array([1.0, 2.0, 3.0]), np.array([0.0, 1.0, 2.0]), unit='V')
+    sig2 = Signal1D(np.array([4.0, 5.0, 6.0]), np.array([0.0, 1.0, 2.0]), unit='A')
+    rec = Record(voltage=sig1, current=sig2)
+
+    subset = rec.iloc[:, 0]  # First item
+    assert isinstance(subset, Record)
+    assert len(subset.keys()) == 1
+
+
+def test_record_iloc_setter_scalar():
+    """
+    Test Record.iloc[] setter with scalar.
+
+    Expected:
+        Should broadcast scalar to selected item
+    """
+    sig1 = Signal1D(np.array([1.0, 2.0, 3.0]), np.array([0.0, 1.0, 2.0]), unit='V')
+    sig2 = Signal1D(np.array([4.0, 5.0, 6.0]), np.array([0.0, 1.0, 2.0]), unit='A')
+    rec = Record(voltage=sig1, current=sig2)
+
+    rec.iloc[:, 0] = 42.0
+    first_key = rec.keys()[0]
+    assert np.all(rec._data[first_key]._data == 42.0)
+
+
+def test_record_loc_broadcast_to_all_items():
+    """
+    Test broadcasting scalar to all items in Record.
+
+    Expected:
+        Should broadcast to all items at selected time
+    """
+    sig1 = Signal1D(np.array([1.0, 2.0, 3.0]), np.array([0.0, 1.0, 2.0]), unit='V')
+    sig2 = Signal1D(np.array([4.0, 5.0, 6.0]), np.array([0.0, 1.0, 2.0]), unit='V')
+    rec = Record(sig1=sig1, sig2=sig2)
+
+    rec.loc[1.0, :] = 42.0  # Broadcast to all items at time 1.0
+    assert rec._data['sig1']._data[1, 0] == 42.0
+    assert rec._data['sig2']._data[1, 0] == 42.0

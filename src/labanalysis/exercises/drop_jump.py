@@ -446,6 +446,20 @@ class DropJump(SingleJump):
         )
 
     def copy(self):
+        """
+        Create a deep copy of this DropJump, preserving custom attributes.
+
+        Returns
+        -------
+        DropJump
+            A new DropJump instance with copies of all signals and attributes.
+
+        Notes
+        -----
+        This method follows the same pattern as EMGSignal and TimeseriesRecord,
+        explicitly passing custom non-signal attributes (box_height_cm, bodymass_kg,
+        free_hands) to the constructor while copying all signal data.
+        """
         return DropJump(
             box_height_cm=self.box_height_cm,
             bodymass_kg=self.bodymass_kg,

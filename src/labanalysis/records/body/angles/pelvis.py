@@ -5,6 +5,7 @@ import numpy as np
 from ....timeseries import Signal1D
 from ....referenceframes import ReferenceFrame
 
+
 class PelvisAnglesMixin:
     """PelvisAngles properties for WholeBody."""
 
@@ -70,7 +71,7 @@ class PelvisAnglesMixin:
         except (AttributeError, TypeError, ValueError):
             warnings.warn(
                 "Cannot calculate pelvis_anteroposterior_tilt_global: missing required markers. Returning NaN.",
-                UserWarning
+                UserWarning,
             )
             ref = self._find_any_valid_marker()
             return self._create_nan_signal1d(ref)
@@ -139,11 +140,15 @@ class PelvisAnglesMixin:
             pelvis_center = self.pelvis_center
             neck_base = self.neck_base
             trunk_vertical = (neck_base - pelvis_center).to_numpy()
-            trunk_vertical = trunk_vertical / np.linalg.norm(trunk_vertical, axis=1, keepdims=True)
+            trunk_vertical = trunk_vertical / np.linalg.norm(
+                trunk_vertical, axis=1, keepdims=True
+            )
 
             # Get pelvis reference frame anteroposterior axis (FORWARD direction in pelvis frame)
             pelvis_rf = self.pelvis_referenceframe
-            pelvis_ap = pelvis_rf.rotation_matrix[:, :, 2]  # Column 2 = anteroposterior_axis (FORWARD)
+            pelvis_ap = pelvis_rf.rotation_matrix[
+                :, :, 2
+            ]  # Column 2 = anteroposterior_axis (FORWARD)
 
             # Project pelvis anteroposterior axis onto plane perpendicular to trunk vertical
             # This gives the FORWARD direction in the trunk's sagittal plane
@@ -163,7 +168,7 @@ class PelvisAnglesMixin:
         except (AttributeError, TypeError, ValueError):
             warnings.warn(
                 "Cannot calculate pelvis_anteroposterior_tilt_local: missing required markers. Returning NaN.",
-                UserWarning
+                UserWarning,
             )
             ref = self._find_any_valid_marker()
             return self._create_nan_signal1d(ref)
@@ -216,7 +221,9 @@ class PelvisAnglesMixin:
 
             # Get pelvis reference frame lateral axis (anatomical LEFT direction)
             pelvis_rf = self.pelvis_referenceframe
-            pelvis_lateral = pelvis_rf.rotation_matrix[:, :, 0]  # Column 0 = lateral_axis (LEFT)
+            pelvis_lateral = pelvis_rf.rotation_matrix[
+                :, :, 0
+            ]  # Column 0 = lateral_axis (LEFT)
 
             # For global measurement, use GLOBAL vertical axis (absolute up/down)
             # Find which column in the data corresponds to the global vertical axis
@@ -232,7 +239,9 @@ class PelvisAnglesMixin:
             # - vertical_comp: projection onto global UP (absolute vertical)
             # For neutral pelvis (hips level), lateral_comp is positive (right→left aligns with LEFT)
             lateral_comp = np.sum(hip_vector * pelvis_lateral, axis=1)
-            vertical_comp = hip_vector[:, vertical_idx]  # Direct component along global vertical
+            vertical_comp = hip_vector[
+                :, vertical_idx
+            ]  # Direct component along global vertical
 
             # arctan2(vertical, lateral): positive when left hip is higher
             angle = np.degrees(np.arctan2(vertical_comp, lateral_comp))
@@ -240,7 +249,7 @@ class PelvisAnglesMixin:
         except (AttributeError, TypeError, ValueError):
             warnings.warn(
                 "Cannot calculate pelvis_lateral_tilt_global: missing required markers. Returning NaN.",
-                UserWarning
+                UserWarning,
             )
             ref = self._find_any_valid_marker()
             return self._create_nan_signal1d(ref)
@@ -302,18 +311,24 @@ class PelvisAnglesMixin:
             pelvis_center = self.pelvis_center
             neck_base = self.neck_base
             trunk_vertical = (neck_base - pelvis_center).to_numpy()
-            trunk_vertical = trunk_vertical / np.linalg.norm(trunk_vertical, axis=1, keepdims=True)
+            trunk_vertical = trunk_vertical / np.linalg.norm(
+                trunk_vertical, axis=1, keepdims=True
+            )
 
             # Get pelvis reference frame lateral axis (LEFT direction in pelvis frame)
             pelvis_rf = self.pelvis_referenceframe
-            pelvis_lateral = pelvis_rf.rotation_matrix[:, :, 0]  # Column 0 = lateral_axis (LEFT)
+            pelvis_lateral = pelvis_rf.rotation_matrix[
+                :, :, 0
+            ]  # Column 0 = lateral_axis (LEFT)
 
             # Project pelvis lateral axis onto plane perpendicular to trunk vertical
             # This gives the LEFT direction in the trunk's frontal plane
             # projection = lateral - (lateral · vertical) * vertical
             dot_product = np.sum(pelvis_lateral * trunk_vertical, axis=1, keepdims=True)
             trunk_lateral = pelvis_lateral - dot_product * trunk_vertical
-            trunk_lateral = trunk_lateral / np.linalg.norm(trunk_lateral, axis=1, keepdims=True)
+            trunk_lateral = trunk_lateral / np.linalg.norm(
+                trunk_lateral, axis=1, keepdims=True
+            )
 
             # Calculate hip-to-hip vector (right to left)
             hip_vector = (left_hip - right_hip).to_numpy()
@@ -329,7 +344,7 @@ class PelvisAnglesMixin:
         except (AttributeError, TypeError, ValueError):
             warnings.warn(
                 "Cannot calculate pelvis_lateral_tilt_local: missing required markers. Returning NaN.",
-                UserWarning
+                UserWarning,
             )
             ref = self._find_any_valid_marker()
             return self._create_nan_signal1d(ref)
@@ -454,7 +469,7 @@ class PelvisAnglesMixin:
         except (AttributeError, TypeError, ValueError):
             warnings.warn(
                 "Cannot calculate pelvis_rotation_global: missing required markers. Returning NaN.",
-                UserWarning
+                UserWarning,
             )
             ref = self._find_any_valid_marker()
             return self._create_nan_signal1d(ref)
@@ -520,7 +535,7 @@ class PelvisAnglesMixin:
         except (AttributeError, TypeError, ValueError):
             warnings.warn(
                 "Cannot calculate pelvis_rotation_local: missing required markers. Returning NaN.",
-                UserWarning
+                UserWarning,
             )
             ref = self._find_any_valid_marker()
             return self._create_nan_signal1d(ref)

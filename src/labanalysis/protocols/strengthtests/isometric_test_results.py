@@ -3,8 +3,11 @@
 from ...exercises.strength import IsometricExercise
 from typing import TYPE_CHECKING
 
+import numpy as np
 import pandas as pd
+from scipy.signal import find_peaks
 
+from ...signalprocessing import cubicspline_interp
 from ..test_results import TestResults
 from ._plotting import _get_force_figure
 
@@ -108,14 +111,18 @@ class IsometricTestResults(TestResults):
     def _get_summary(self, test: "IsometricTest"):
         trials = [test.left, test.right, test.bilateral]
         sides = ["left", "right", "bilateral"]
-        metrics = pd.DataFrame()
+
+        # Initialize metrics with all required columns
+        active_sides = [s for s, t in zip(sides, trials) if t is not None]
+        metrics = pd.DataFrame(columns=active_sides)
+
         for side, trial in zip(sides, trials):
             if trial is None:
                 continue
             emg_norms = test.emg_normalization_values
             if self.include_emg:
                 for rep in trial.repetitions:
-                    new = pd.DataFrame()
+                    new = pd.DataFrame(columns=active_sides)
                     for m in rep.emgsignals.values():
                         ename = str(m.muscle_name)
                         eside = str(m.side)
@@ -170,34 +177,64 @@ class IsometricTestResults(TestResults):
     def _get_figures(self, test: "IsometricTest"):
 
         # force data
-        tracks = self.analytics
-        sides = np.unique(tracks.side).tolist()
-        force_data = [
-            "side",
-            "repetition",
-            "time_s",
-            "force_amplitude",
-            "position_amplitude",
-        ]
-        force_data = tracks[force_data].copy()
+        analytics = self.analytics
+        sides = np.unique(analytics.side).tolist()
+
+        # Find actual force and position column names
+        available_cols = analytics.columns.tolist()
+
+        # Find force column (e.g., "force N")
+        force_col = None
+        for col in available_cols:
+            if 'force' in col.lower():
+                force_col = col
+                break
+
+        # Find position column (e.g., "position m")
+        position_col = None
+        for col in available_cols:
+            if 'position' in col.lower():
+                position_col = col
+                break
+
+        if force_col is None or position_col is None:
+            # If we can't find these columns, skip figure generation
+            return {}
+
+        # Process force data for each side and repetition
         y_arr = {side: [] for side in sides}
-        for (side, rep), dfr in force_data.groupby(by=["side", "repetition"]):
-            force = dfr.force_amplitude.to_numpy().flatten()
+        for (side, rep), dfr in analytics.groupby(by=["side", "repetition"]):
+            force = dfr[force_col].to_numpy().flatten()
+            # Interpolate to 201 points for smoother curves
             fint = cubicspline_interp(force, 201)
             y_arr[side].append(np.atleast_2d(fint))
-        tracks = []
-        for i, side in enumerate(sides):
+
+        # Build tracks dataframe in format expected by _get_force_figure
+        tracks_data = []
+        for side in sides:
+            if len(y_arr[side]) == 0:
+                continue
+            # Get max force profile across all repetitions
             y = np.vstack(y_arr[side]).max(axis=0)
-            x = np.linspace(0, 5, len(y))
-            df = pd.DataFrame({"Time (s)": x, "y": y})
-            df.insert(0, "side", side)
-            tracks.append(df)
-        tracks = pd.concat(tracks, ignore_index=True)
+            # Create time percentage axis (0-100%)
+            time_pct = np.linspace(0, 100, len(y))
+
+            for i, (t, val) in enumerate(zip(time_pct, y)):
+                tracks_data.append({
+                    "parameter": "force_amplitude",
+                    "side": side,
+                    "limb": side,
+                    "time_%": t,
+                    "value": val
+                })
+
+        tracks = pd.DataFrame(tracks_data)
 
         return {
             "force_profiles_with_muscle_balance": _get_force_figure(
                 tracks,
                 self.summary,
+                include_emg=self.include_emg,
             )
         }
 

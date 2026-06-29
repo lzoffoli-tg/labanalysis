@@ -241,3 +241,68 @@ def test_point3d_indexing_access():
 
     assert hasattr(point, 'loc')
     assert hasattr(point, 'iloc')
+
+
+def test_point3d_loc_preserves_type():
+    """
+    Test loc[] getter preserves Point3D type and axes.
+
+    Expected:
+        Sliced point should be Point3D with same axes
+    """
+    data = np.random.randn(10, 3)
+    index = np.arange(10, dtype=float)
+    point = Point3D(data, index, unit='m', vertical_axis='Y', anteroposterior_axis='Z')
+
+    sliced = point.loc[2.0:6.0, :]
+    assert isinstance(sliced, Point3D)
+    assert sliced.vertical_axis == point.vertical_axis
+    assert sliced.anteroposterior_axis == point.anteroposterior_axis
+    assert sliced.unit == 'm'
+
+
+def test_point3d_iloc_preserves_type():
+    """
+    Test iloc[] getter preserves Point3D type and axes.
+
+    Expected:
+        Sliced point should be Point3D with preserved attributes
+    """
+    data = np.random.randn(10, 3)
+    index = np.arange(10, dtype=float)
+    point = Point3D(data, index, unit='m')
+
+    sliced = point.iloc[2:6, :]
+    assert isinstance(sliced, Point3D)
+    assert sliced.unit == 'm'
+
+
+def test_point3d_loc_setter():
+    """
+    Test loc[] setter works correctly.
+
+    Expected:
+        Should update data while preserving Point3D type
+    """
+    data = np.random.randn(10, 3)
+    index = np.arange(10, dtype=float)
+    point = Point3D(data, index)
+
+    point.loc[2.0, :] = [5.0, 6.0, 7.0]
+    assert np.allclose(point._data[2, :], [5.0, 6.0, 7.0])
+    assert isinstance(point, Point3D)
+
+
+def test_point3d_iloc_setter():
+    """
+    Test iloc[] setter works correctly.
+
+    Expected:
+        Should update data by position
+    """
+    data = np.random.randn(10, 3)
+    index = np.arange(10, dtype=float)
+    point = Point3D(data, index)
+
+    point.iloc[3, 1] = 99.0
+    assert point._data[3, 1] == 99.0

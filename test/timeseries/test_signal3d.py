@@ -307,3 +307,71 @@ def test_signal3d_indexing_access():
 
     assert hasattr(signal, 'loc')
     assert hasattr(signal, 'iloc')
+
+
+def test_signal3d_loc_preserves_axes():
+    """
+    Test loc[] getter preserves vertical_axis and anteroposterior_axis.
+
+    Expected:
+        Sliced Signal3D should retain axis attributes
+    """
+    data = np.random.randn(10, 3)
+    index = np.arange(10, dtype=float)
+    signal = Signal3D(data, index, unit='m', vertical_axis='Y', anteroposterior_axis='Z')
+
+    sliced = signal.loc[2.0:6.0, :]
+    assert isinstance(sliced, Signal3D)
+    assert sliced.vertical_axis == signal.vertical_axis
+    assert sliced.anteroposterior_axis == signal.anteroposterior_axis
+    assert sliced.unit == 'm'
+
+
+def test_signal3d_iloc_preserves_axes():
+    """
+    Test iloc[] getter preserves axis attributes.
+
+    Expected:
+        Sliced Signal3D should retain all custom attributes
+    """
+    data = np.random.randn(10, 3)
+    index = np.arange(10, dtype=float)
+    signal = Signal3D(data, index, unit='mm', vertical_axis='Y', anteroposterior_axis='Z')
+
+    sliced = signal.iloc[2:6, :]
+    assert isinstance(sliced, Signal3D)
+    assert sliced.vertical_axis == signal.vertical_axis
+    assert sliced.anteroposterior_axis == signal.anteroposterior_axis
+    assert sliced.unit == 'mm'
+
+
+def test_signal3d_loc_setter_array():
+    """
+    Test loc[] setter with array preserves axes.
+
+    Expected:
+        Should update data while preserving axis attributes
+    """
+    data = np.random.randn(10, 3)
+    index = np.arange(10, dtype=float)
+    signal = Signal3D(data, index, unit='m', vertical_axis='Y', anteroposterior_axis='Z')
+
+    signal.loc[2.0, :] = [1.0, 2.0, 3.0]
+    assert np.allclose(signal._data[2, :], [1.0, 2.0, 3.0])
+    assert signal.vertical_axis == 'Y'
+
+
+def test_signal3d_iloc_setter():
+    """
+    Test iloc[] setter preserves type and axes.
+
+    Expected:
+        Should update data without losing Signal3D attributes
+    """
+    data = np.random.randn(10, 3)
+    index = np.arange(10, dtype=float)
+    signal = Signal3D(data, index, unit='m', vertical_axis='Y', anteroposterior_axis='Z')
+
+    signal.iloc[3, :] = [10.0, 20.0, 30.0]
+    assert np.allclose(signal._data[3, :], [10.0, 20.0, 30.0])
+    assert signal.vertical_axis == 'Y'

@@ -446,6 +446,20 @@ class RepeatedJumps(WholeBody):
             **record._data,
         )
 
+    def _get_constructor_args(self):
+        """
+        Return custom constructor arguments for loc/iloc slicing.
+
+        Returns dict with custom attributes needed to reconstruct RepeatedJumps
+        after slicing operations.
+        """
+        return {
+            'bodymass_kg': self.bodymass_kg,
+            'free_hands': self.free_hands,
+            'exclude_jumps': self.excluded_jumps,
+            'straight_legs': self.straight_legs,
+        }
+
     def copy(self):
         return RepeatedJumps(
             bodymass_kg=self.bodymass_kg,

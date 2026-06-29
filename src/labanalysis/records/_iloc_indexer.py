@@ -83,7 +83,14 @@ class RecordILocIndexer:
             else:
                 result_dict[item_key] = item.iloc[row_key, column_spec]
 
-        return type(self.rec)(**result_dict)
+        # Get constructor args to preserve custom attributes (e.g., bodymass_kg, box_height_cm)
+        if hasattr(self.rec, '_get_constructor_args'):
+            constructor_args = self.rec._get_constructor_args()
+            # Update with sliced signals
+            constructor_args.update(result_dict)
+            return type(self.rec)(**constructor_args)
+        else:
+            return type(self.rec)(**result_dict)
 
     def __setitem__(self, key, value):
         """Set data using position-based indexing."""

@@ -97,8 +97,9 @@ class JumpTest(TestProtocol):
         Remove repeated jump by index
     from_files(...)
         Create test from TDF files (class method)
-    process()
-        Process all jumps and return results
+    get_results(include_emg=True)
+        Process all jumps and return JumpTestResults object with
+        summary tables, analytics, and visualizations
     save(file_path)
         Save test protocol to file
     load(file_path)

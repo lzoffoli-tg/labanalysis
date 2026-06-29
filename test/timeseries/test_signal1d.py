@@ -223,3 +223,68 @@ def test_signal1d_indexing_access():
 
     assert hasattr(signal, 'loc')
     assert hasattr(signal, 'iloc')
+
+
+def test_signal1d_loc_getter_preserves_type():
+    """
+    Test loc[] getter preserves Signal1D type.
+
+    Expected:
+        Sliced signal should be Signal1D instance
+    """
+    data = np.array([10.0, 20.0, 30.0, 40.0, 50.0])
+    index = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
+    signal = Signal1D(data, index, unit='V')
+
+    sliced = signal.loc[1.0:3.0, :]
+    assert isinstance(sliced, Signal1D)
+    assert len(sliced.index) == 3
+    assert sliced.unit == 'V'
+
+
+def test_signal1d_iloc_getter_preserves_type():
+    """
+    Test iloc[] getter preserves Signal1D type.
+
+    Expected:
+        Sliced signal should be Signal1D instance
+    """
+    data = np.array([10.0, 20.0, 30.0, 40.0, 50.0])
+    index = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
+    signal = Signal1D(data, index, unit='mV')
+
+    sliced = signal.iloc[1:4, :]
+    assert isinstance(sliced, Signal1D)
+    assert len(sliced.index) == 3
+    assert sliced.unit == 'mV'
+
+
+def test_signal1d_loc_setter():
+    """
+    Test loc[] setter modifies data correctly.
+
+    Expected:
+        Should update value without breaking type
+    """
+    data = np.array([10.0, 20.0, 30.0])
+    index = np.array([0.0, 1.0, 2.0])
+    signal = Signal1D(data, index, unit='V')
+
+    signal.loc[1.0, 'amplitude'] = 999.0
+    assert signal._data[1, 0] == 999.0
+    assert isinstance(signal, Signal1D)
+
+
+def test_signal1d_iloc_setter():
+    """
+    Test iloc[] setter modifies data correctly.
+
+    Expected:
+        Should update value by position
+    """
+    data = np.array([10.0, 20.0, 30.0])
+    index = np.array([0.0, 1.0, 2.0])
+    signal = Signal1D(data, index, unit='V')
+
+    signal.iloc[2, 0] = 777.0
+    assert signal._data[2, 0] == 777.0

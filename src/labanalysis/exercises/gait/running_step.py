@@ -182,6 +182,183 @@ class RunningStep(GaitCycle):
         """
         return self.end_s - self.footstrike_s
 
+    @property
+    def peak_braking_force(self):
+        """
+        Get the peak braking force during loading response phase.
+
+        The braking force is the negative (backward) component of the
+        anteroposterior ground reaction force during the loading response
+        phase (footstrike to midstance).
+
+        Returns
+        -------
+        Signal1D or None
+            Peak braking force in Newtons, or None if no force data available.
+        """
+        phase = self.loading_response_phase
+        res = phase.resultant_force
+        if res is None:
+            return None
+
+        ap_force = res.force[self.anteroposterior_axis].to_numpy().flatten()
+
+        # Braking = negative values (backward direction)
+        braking = ap_force[ap_force < 0]
+        if len(braking) == 0:
+            return None
+
+        peak_value = np.abs(np.min(braking))
+        return Signal1D(
+            data=np.array([peak_value]),
+            index=np.array([self.init_s]),
+            unit="N"
+        )
+
+    @property
+    def peak_propulsion_force(self):
+        """
+        Get the peak propulsion force during propulsion phase.
+
+        The propulsion force is the positive (forward) component of the
+        anteroposterior ground reaction force during the propulsion phase
+        (midstance to toe-off).
+
+        Returns
+        -------
+        Signal1D or None
+            Peak propulsion force in Newtons, or None if no force data available.
+        """
+        phase = self.propulsion_phase
+        res = phase.resultant_force
+        if res is None:
+            return None
+
+        ap_force = res.force[self.anteroposterior_axis].to_numpy().flatten()
+
+        # Propulsion = positive values (forward direction)
+        propulsion = ap_force[ap_force > 0]
+        if len(propulsion) == 0:
+            return None
+
+        peak_value = np.max(propulsion)
+        return Signal1D(
+            data=np.array([peak_value]),
+            index=np.array([self.init_s]),
+            unit="N"
+        )
+
+    @property
+    def vertical_oscillation(self):
+        """
+        Get the vertical oscillation of the pelvis center during the cycle.
+
+        Vertical oscillation is calculated as the difference between the
+        maximum and minimum vertical position of the pelvis center marker
+        during the running step.
+
+        Returns
+        -------
+        Signal1D or None
+            Vertical oscillation in meters or millimeters (depending on marker
+            unit), or None if pelvis_center is not available.
+        """
+        pelvis = self.pelvis_center
+        if pelvis is None:
+            return None
+
+        vertical_data = pelvis[self.vertical_axis].to_numpy().flatten()
+        oscillation = np.max(vertical_data) - np.min(vertical_data)
+
+        return Signal1D(
+            data=np.array([oscillation]),
+            index=np.array([self.init_s]),
+            unit=pelvis.unit
+        )
+
+    @property
+    def peak_trunk_lateral_flexion(self):
+        """
+        Get the peak trunk lateral flexion during the cycle.
+
+        Peak lateral flexion is the maximum absolute value of trunk
+        lateral flexion angle (in the local reference frame) during
+        the running step.
+
+        Returns
+        -------
+        Signal1D or None
+            Peak trunk lateral flexion in degrees, or None if
+            trunk_lateralflexion_local is not available.
+        """
+        trunk_lat = self.trunk_lateralflexion_local
+        if trunk_lat is None:
+            return None
+
+        angles = trunk_lat.to_numpy().flatten()
+        peak_value = np.max(np.abs(angles))
+
+        return Signal1D(
+            data=np.array([peak_value]),
+            index=np.array([self.init_s]),
+            unit="deg"
+        )
+
+    @property
+    def peak_pelvis_lateral_tilt(self):
+        """
+        Get the peak pelvis lateral tilt during the cycle.
+
+        Peak lateral tilt is the maximum absolute value of pelvis
+        lateral tilt angle (in the global reference frame) during
+        the running step.
+
+        Returns
+        -------
+        Signal1D or None
+            Peak pelvis lateral tilt in degrees, or None if
+            pelvis_lateral_tilt_global is not available.
+        """
+        pelvis_tilt = self.pelvis_lateral_tilt_global
+        if pelvis_tilt is None:
+            return None
+
+        angles = pelvis_tilt.to_numpy().flatten()
+        peak_value = np.max(np.abs(angles))
+
+        return Signal1D(
+            data=np.array([peak_value]),
+            index=np.array([self.init_s]),
+            unit="deg"
+        )
+
+    @property
+    def peak_trunk_rotation(self):
+        """
+        Get the peak trunk rotation during the cycle.
+
+        Peak trunk rotation is the maximum absolute value of trunk
+        rotation angle during the running step.
+
+        Returns
+        -------
+        Signal1D or None
+            Peak trunk rotation in degrees, or None if
+            trunk_rotation is not available.
+        """
+        trunk_rot = self.trunk_rotation
+        if trunk_rot is None:
+            return None
+
+        angles = trunk_rot.to_numpy().flatten()
+        peak_value = np.max(np.abs(angles))
+
+        return Signal1D(
+            data=np.array([peak_value]),
+            index=np.array([self.init_s]),
+            unit="deg"
+        )
+
     def _footstrike_kinetics(self):
         """
         Find the footstrike time using the kinetics algorithm.

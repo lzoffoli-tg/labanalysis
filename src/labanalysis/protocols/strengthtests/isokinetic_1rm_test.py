@@ -7,8 +7,12 @@ import pandas as pd
 
 from ...records import TimeseriesRecord
 from ...exercises.strength import IsokineticExercise
+from ...timeseries import EMGSignal
+from ...pipelines import ProcessingPipeline, get_default_emgsignal_processing_func
+from ...io.read.biostrength import PRODUCTS
 from ..participant import Participant
 from ..test_protocol import TestProtocol
+from .isokinetic_1rm_test_results import Isokinetic1RMTestResults
 
 
 class Isokinetic1RMTest(TestProtocol):

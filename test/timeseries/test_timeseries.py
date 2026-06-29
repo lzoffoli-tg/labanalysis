@@ -179,3 +179,142 @@ def test_timeseries_invalid_unit_raises_error():
 
     with pytest.raises(ValueError, match="unit must be"):
         ts.set_unit(123)  # Invalid unit type
+
+
+def test_timeseries_loc_getter_scalar():
+    """
+    Test loc[] getter with scalar indices.
+
+    Expected:
+        Should return Timeseries with single row
+    """
+    data = np.random.randn(10, 3)
+    index = np.arange(10, dtype=float)
+    ts = Timeseries(data, index, columns=['X', 'Y', 'Z'], unit='m')
+
+    val = ts.loc[2.0, 'X']
+    assert val.shape == (1, 1)
+    assert isinstance(val, Timeseries)
+
+
+def test_timeseries_loc_getter_slice():
+    """
+    Test loc[] getter with slice.
+
+    Expected:
+        Should return sliced Timeseries
+    """
+    data = np.random.randn(10, 3)
+    index = np.arange(10, dtype=float)
+    ts = Timeseries(data, index, columns=['X', 'Y', 'Z'], unit='m')
+
+    sliced = ts.loc[2.0:6.0, :]
+    assert isinstance(sliced, Timeseries)
+    assert len(sliced.index) == 5
+    assert sliced.unit == 'm'
+
+
+def test_timeseries_loc_setter_scalar():
+    """
+    Test loc[] setter with scalar value.
+
+    Expected:
+        Should update single value
+    """
+    data = np.random.randn(10, 3)
+    index = np.arange(10, dtype=float)
+    ts = Timeseries(data, index, columns=['X', 'Y', 'Z'], unit='m')
+
+    ts.loc[2.0, 'X'] = 999.0
+    assert ts._data[2, 0] == 999.0
+
+
+def test_timeseries_loc_setter_array():
+    """
+    Test loc[] setter with array.
+
+    Expected:
+        Should update multiple values
+    """
+    data = np.random.randn(10, 3)
+    index = np.arange(10, dtype=float)
+    ts = Timeseries(data, index, columns=['X', 'Y', 'Z'], unit='m')
+
+    ts.loc[2.0:4.0, 'X'] = np.array([100.0, 200.0, 300.0])
+    assert np.allclose(ts._data[2:5, 0], [100.0, 200.0, 300.0])
+
+
+def test_timeseries_loc_setter_broadcasting():
+    """
+    Test loc[] setter with broadcasting.
+
+    Expected:
+        Should broadcast scalar to all selected rows
+    """
+    data = np.random.randn(10, 3)
+    index = np.arange(10, dtype=float)
+    ts = Timeseries(data, index, columns=['X', 'Y', 'Z'], unit='m')
+
+    ts.loc[:, 'Y'] = 42.0
+    assert np.all(ts._data[:, 1] == 42.0)
+
+
+def test_timeseries_iloc_getter_scalar():
+    """
+    Test iloc[] getter with scalar indices.
+
+    Expected:
+        Should return Timeseries with single value
+    """
+    data = np.random.randn(10, 3)
+    index = np.arange(10, dtype=float)
+    ts = Timeseries(data, index, columns=['X', 'Y', 'Z'], unit='m')
+
+    val = ts.iloc[2, 0]
+    assert val.shape == (1, 1)
+
+
+def test_timeseries_iloc_getter_slice():
+    """
+    Test iloc[] getter with slice.
+
+    Expected:
+        Should return sliced Timeseries
+    """
+    data = np.random.randn(10, 3)
+    index = np.arange(10, dtype=float)
+    ts = Timeseries(data, index, columns=['X', 'Y', 'Z'], unit='m')
+
+    sliced = ts.iloc[2:6, :]
+    assert isinstance(sliced, Timeseries)
+    assert len(sliced.index) == 4
+
+
+def test_timeseries_iloc_setter_scalar():
+    """
+    Test iloc[] setter with scalar.
+
+    Expected:
+        Should update single value by position
+    """
+    data = np.random.randn(10, 3)
+    index = np.arange(10, dtype=float)
+    ts = Timeseries(data, index, columns=['X', 'Y', 'Z'], unit='m')
+
+    ts.iloc[2, 0] = 777.0
+    assert ts._data[2, 0] == 777.0
+
+
+def test_timeseries_iloc_setter_broadcasting():
+    """
+    Test iloc[] setter with broadcasting.
+
+    Expected:
+        Should broadcast scalar to all rows in column
+    """
+    data = np.random.randn(10, 3)
+    index = np.arange(10, dtype=float)
+    ts = Timeseries(data, index, columns=['X', 'Y', 'Z'], unit='m')
+
+    ts.iloc[:, 1] = 99.0
+    assert np.all(ts._data[:, 1] == 99.0)

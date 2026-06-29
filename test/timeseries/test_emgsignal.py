@@ -1,7 +1,8 @@
 """
 Test suite for EMGSignal class.
 
-Tests verify EMG signal handling with muscle name, side, and automatic unit conversion.
+Tests verify EMG signal handling with muscle name, side, automatic unit conversion,
+and loc/iloc indexing with custom attribute preservation.
 """
 
 import numpy as np
@@ -250,3 +251,87 @@ def test_emgsignal_inherits_signal1d():
 
     assert emg.shape[1] == 1
     assert 'amplitude' in emg.columns
+
+
+def test_emgsignal_loc_preserves_custom_attributes():
+    """
+    Test that loc[] indexing preserves muscle_name and side attributes.
+
+    Expected:
+        Sliced EMGSignal should retain muscle_name and side
+    """
+    data = np.array([10.0, 20.0, 30.0, 40.0, 50.0])
+    index = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
+
+    original = EMGSignal(data, index, muscle_name='biceps_brachii', side='left', unit='uV')
+
+    # Test loc[] getter
+    sliced = original.loc[1.0:3.0, :]
+
+    assert isinstance(sliced, EMGSignal)
+    assert sliced.muscle_name == 'biceps_brachii'
+    assert sliced.side == 'left'
+    assert len(sliced.index) == 3  # 1.0, 2.0, 3.0
+    assert sliced.unit == original.unit
+
+
+def test_emgsignal_iloc_preserves_custom_attributes():
+    """
+    Test that iloc[] indexing preserves muscle_name and side attributes.
+
+    Expected:
+        Sliced EMGSignal should retain muscle_name and side
+    """
+    data = np.array([10.0, 20.0, 30.0, 40.0, 50.0])
+    index = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
+
+    original = EMGSignal(data, index, muscle_name='gastrocnemius', side='right', unit='uV')
+
+    # Test iloc[] getter
+    sliced = original.iloc[1:4, :]
+
+    assert isinstance(sliced, EMGSignal)
+    assert sliced.muscle_name == 'gastrocnemius'
+    assert sliced.side == 'right'
+    assert len(sliced.index) == 3
+    assert sliced.unit == original.unit
+
+
+def test_emgsignal_loc_setter():
+    """
+    Test that loc[] setter works correctly without breaking attributes.
+
+    Expected:
+        Should modify data while preserving custom attributes
+    """
+    data = np.array([10.0, 20.0, 30.0])
+    index = np.array([0.0, 1.0, 2.0])
+
+    emg = EMGSignal(data, index, muscle_name='triceps', side='left', unit='uV')
+
+    # Set value using loc[]
+    emg.loc[1.0, 'amplitude'] = 999.0
+
+    assert emg._data[1, 0] == 999.0
+    assert emg.muscle_name == 'triceps'
+    assert emg.side == 'left'
+
+
+def test_emgsignal_iloc_setter():
+    """
+    Test that iloc[] setter works correctly without breaking attributes.
+
+    Expected:
+        Should modify data while preserving custom attributes
+    """
+    data = np.array([10.0, 20.0, 30.0])
+    index = np.array([0.0, 1.0, 2.0])
+
+    emg = EMGSignal(data, index, muscle_name='quadriceps', side='bilateral', unit='uV')
+
+    # Set value using iloc[]
+    emg.iloc[2, 0] = 777.0
+
+    assert emg._data[2, 0] == 777.0
+    assert emg.muscle_name == 'quadriceps'
+    assert emg.side == 'bilateral'

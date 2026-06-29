@@ -464,4 +464,38 @@ class GaitCycle(GaitObject):
             raise ValueError("'side' must be 'left' or 'right'.")
         self._side = side
 
+    def _get_constructor_args(self):
+        """
+        Get constructor arguments for copy/slice operations.
+
+        Returns
+        -------
+        dict
+            Dictionary with constructor arguments including side and algorithm.
+        """
+        return {
+            "side": self._side,
+            "algorithm": self.algorithm,
+            "ground_reaction_force_threshold": self.ground_reaction_force_threshold,
+            "height_threshold": self.height_threshold,
+        }
+
+    def copy(self):
+        """
+        Return a copy of this GaitCycle.
+
+        Returns
+        -------
+        GaitCycle
+            Independent copy with preserved side and algorithm.
+        """
+        # Get constructor args
+        constructor_args = self._get_constructor_args()
+
+        # Copy all timeseries data
+        data_copy = {i: v.copy() for i, v in self._data.items()}
+
+        # Merge and create new instance
+        return self.__class__(**{**constructor_args, **data_copy})
+
 

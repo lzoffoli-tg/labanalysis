@@ -278,3 +278,87 @@ def test_forceplatform_to_dataframe():
     df = fp.to_dataframe()
 
     assert df.shape == (10, 9)  # 3 signals × 3 columns each
+
+
+def test_forceplatform_loc_preserves_type():
+    """
+    Test loc[] getter preserves ForcePlatform type.
+
+    Expected:
+        Sliced force platform should be ForcePlatform instance
+    """
+    data = np.random.randn(10, 3)
+    index = np.arange(10, dtype=float)
+
+    origin = Point3D(data, index, unit='m')
+    force = Signal3D(data, index, unit='N')
+    torque = Signal3D(data, index, unit='Nm')
+
+    fp = ForcePlatform(origin=origin, force=force, torque=torque)
+    sliced = fp.loc[2.0:6.0, :]
+
+    assert isinstance(sliced, ForcePlatform)
+    assert 'origin' in sliced.keys()
+    assert 'force' in sliced.keys()
+    assert 'torque' in sliced.keys()
+
+
+def test_forceplatform_iloc_preserves_type():
+    """
+    Test iloc[] getter preserves ForcePlatform type.
+
+    Expected:
+        Sliced force platform should be ForcePlatform instance
+    """
+    data = np.random.randn(10, 3)
+    index = np.arange(10, dtype=float)
+
+    origin = Point3D(data, index, unit='m')
+    force = Signal3D(data, index, unit='N')
+    torque = Signal3D(data, index, unit='Nm')
+
+    fp = ForcePlatform(origin=origin, force=force, torque=torque)
+    sliced = fp.iloc[2:6, :]
+
+    assert isinstance(sliced, ForcePlatform)
+
+
+def test_forceplatform_loc_setter():
+    """
+    Test loc[] setter works correctly.
+
+    Expected:
+        Should update data while preserving ForcePlatform type
+    """
+    data = np.random.randn(10, 3)
+    index = np.arange(10, dtype=float)
+
+    origin = Point3D(data, index, unit='m')
+    force = Signal3D(data, index, unit='N')
+    torque = Signal3D(data, index, unit='Nm')
+
+    fp = ForcePlatform(origin=origin, force=force, torque=torque)
+    fp.loc[2.0, 'force'] = np.array([100.0, 200.0, 300.0])
+
+    assert np.allclose(fp._data['force']._data[2, :], [100.0, 200.0, 300.0])
+    assert isinstance(fp, ForcePlatform)
+
+
+def test_forceplatform_iloc_setter():
+    """
+    Test iloc[] setter works correctly.
+
+    Expected:
+        Should update data by position
+    """
+    data = np.random.randn(10, 3)
+    index = np.arange(10, dtype=float)
+
+    origin = Point3D(data, index, unit='m')
+    force = Signal3D(data, index, unit='N')
+    torque = Signal3D(data, index, unit='Nm')
+
+    fp = ForcePlatform(origin=origin, force=force, torque=torque)
+    fp.iloc[3, 1] = np.array([10.0, 20.0, 30.0])
+
+    assert np.allclose(fp._data['force']._data[3, :], [10.0, 20.0, 30.0])

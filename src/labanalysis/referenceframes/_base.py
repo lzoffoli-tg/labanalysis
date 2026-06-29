@@ -9,9 +9,10 @@ import pandas as pd
 
 from ..signalprocessing import gram_schmidt
 from ..timeseries import Timeseries
+from ..records import ForcePlatform, Record
 
 if TYPE_CHECKING:
-    from ..records import ForcePlatform, Record
+    pass
 
 __all__ = ["ReferenceFrame"]
 

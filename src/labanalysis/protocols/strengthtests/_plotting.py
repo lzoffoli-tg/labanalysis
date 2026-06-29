@@ -5,7 +5,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from ...constants import RANK_4COLORS
+from ...constants import RANK_4COLORS, SIDE_COLORS
 
 
 def _get_force_figure(
@@ -107,11 +107,16 @@ def _get_force_figure(
             "time to peak force (ms)",
         ]
         for ext in extras:
-            est = summary.loc[summary.parameter == ext]
-            if est.empty:
+            est_row = summary.loc[summary.parameter == ext]
+            if est_row.empty:
                 continue
-            est = est[side]
-            est = float(np.squeeze(est.to_numpy()))
+            if side not in est_row.columns:
+                continue
+            # Extract the value directly using iloc
+            try:
+                est = float(est_row[side].iloc[0])
+            except (IndexError, ValueError, TypeError):
+                continue
             key = (
                 ext.replace("estimated", "Est.")
                 .replace("rate of force development", "RFD")

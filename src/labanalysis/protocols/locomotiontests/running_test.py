@@ -121,45 +121,50 @@ class RunningTest(RunningExercise, TestProtocol):
     >>> print(results['analytics']['ground_reaction_force'])  # GRF time-series
     """
 
-    @property
-    def get_results(self):
-        cop_list = []
-        grf_list = []
-        metrics = []
-        horizontal_axes = [self.lateral_axis, self.anteroposterior_axis]
-        for i, cycle in enumerate(self.cycles):
+    def get_results(self, include_emg: bool = False):
+        """
+        Generate comprehensive running test results.
 
-            # add cop
-            res = cycle.resultant_force
-            if res is None:
-                continue
-            cop = res["origin"].copy().reset_time(inplace=False).to_dataframe()[horizontal_axes]  # type: ignore
-            cop.insert(0, "Time", cop.index)
-            cop.insert(0, "Cycle", i + 1)
-            cop.insert(0, "Side", cycle.side)
-            cop_list += [cop]
+        Parameters
+        ----------
+        include_emg : bool, optional
+            Include EMG metrics in results. Default is False.
 
-            # add grf
-            grf = res["force"].copy().reset_time().to_dataframe()[[self.vertical_axis]]  # type: ignore
-            grf.insert(0, "Time", grf.index)
-            grf.insert(0, "Cycle", i + 1)
-            grf.insert(0, "Side", cycle.side)
-            grf_list += [grf]
+        Returns
+        -------
+        RunningTestResults
+            Complete test results with summary tables (per-step and aggregate),
+            time-series analytics, and interactive force profile figures.
 
-            # add summary metrics
-            metrics_cycle = cycle.output_metrics
-            metrics_cycle.insert(0, "cycle", i + 1)
-            metrics += [metrics_cycle]
+        Notes
+        -----
+        The returned results include:
 
-        # outcomes
-        out = {
-            "summary": pd.concat(metrics, ignore_index=True),
-            "analytics": {
-                "centre_of_pressure": pd.concat(cop_list, ignore_index=True),
-                "ground_reaction_force": pd.concat(grf_list, ignore_index=True),
-            },
-        }
-        return out
+        Summary Tables:
+        - per_step: Individual metrics for each detected running step
+          (contact_time, propulsion_time, flight_time, cadence, peak forces,
+          vertical oscillation)
+        - aggregate: Mean, standard deviation, coefficient of variation,
+          and left-right asymmetry for all metrics
+
+        Analytics:
+        - Time-series data in long format with normalized contact phases
+
+        Figures:
+        - force_profiles: 2×2 subplot grid showing vertical and anteroposterior
+          ground reaction forces for left and right sides, with mean curves
+          and standard deviation bands
+
+        Examples
+        --------
+        >>> test = RunningTest.from_tdf('trial.tdf', participant=p)
+        >>> results = test.get_results()
+        >>> print(results.summary['per_step'])
+        >>> print(results.summary['aggregate'])
+        >>> results.figures['force_profiles'].show()
+        """
+        from .running_test_results import RunningTestResults
+        return RunningTestResults(self, include_emg=include_emg)
 
     def __init__(
         self,

@@ -8,8 +8,11 @@ import pandas as pd
 from ...records import TimeseriesRecord
 from ...pipelines import get_default_processing_pipeline
 from ...exercises.strength import IsometricExercise
+from ...timeseries import Signal1D, EMGSignal
+from ...signalprocessing import butterworth_filt
 from ..participant import Participant
 from ..test_protocol import TestProtocol
+from .isometric_test_results import IsometricTestResults
 
 
 class IsometricTest(TestProtocol):

@@ -280,3 +280,72 @@ def test_timeseriesrecord_shape_property():
     rec = TimeseriesRecord(a=sig1, b=sig2)
 
     assert rec.shape == (3, 2)
+
+
+def test_timeseriesrecord_loc_getter_preserves_type():
+    """
+    Test loc[] getter preserves TimeseriesRecord type.
+
+    Expected:
+        Sliced record should be TimeseriesRecord instance
+    """
+    data = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    index = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
+    sig1 = Signal1D(data, index, unit='m')
+    sig2 = Signal1D(data * 2, index, unit='V')
+    rec = TimeseriesRecord(a=sig1, b=sig2)
+
+    sliced = rec.loc[1.0:3.0, :]
+    assert isinstance(sliced, TimeseriesRecord)
+    assert 'a' in sliced.keys()
+    assert 'b' in sliced.keys()
+
+
+def test_timeseriesrecord_iloc_getter_preserves_type():
+    """
+    Test iloc[] getter preserves TimeseriesRecord type.
+
+    Expected:
+        Sliced record should be TimeseriesRecord instance
+    """
+    data = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    index = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
+    sig1 = Signal1D(data, index, unit='m')
+    sig2 = Signal1D(data * 2, index, unit='V')
+    rec = TimeseriesRecord(a=sig1, b=sig2)
+
+    sliced = rec.iloc[1:4, :]
+    assert isinstance(sliced, TimeseriesRecord)
+    assert len(sliced.keys()) == 2
+
+
+def test_timeseriesrecord_loc_setter():
+    """
+    Test loc[] setter modifies data correctly.
+
+    Expected:
+        Should update values without breaking type
+    """
+    data = np.array([1.0, 2.0, 3.0])
+    index = np.array([0.0, 1.0, 2.0])
+    sig = Signal1D(data, index, unit='m')
+    rec = TimeseriesRecord(signal=sig)
+
+    rec.loc[1.0, 'signal'] = 999.0
+    assert rec._data['signal']._data[1, 0] == 999.0
+
+
+def test_timeseriesrecord_iloc_setter():
+    """
+    Test iloc[] setter modifies data correctly.
+
+    Expected:
+        Should update values by position
+    """
+    data = np.array([1.0, 2.0, 3.0])
+    index = np.array([0.0, 1.0, 2.0])
+    sig = Signal1D(data, index, unit='m')
+    rec = TimeseriesRecord(signal=sig)
+
+    rec.iloc[2, 0] = 777.0
+    assert rec._data['signal']._data[2, 0] == 777.0

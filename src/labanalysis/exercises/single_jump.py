@@ -29,6 +29,8 @@ class SingleJump(WholeBody):
     def __init__(
         self,
         bodymass_kg: float,
+        free_hands: bool = False,
+        straight_legs: bool = False,
         left_hand_ground_reaction_force: ForcePlatform | None = None,
         right_hand_ground_reaction_force: ForcePlatform | None = None,
         left_foot_ground_reaction_force: ForcePlatform | None = None,
@@ -80,8 +82,13 @@ class SingleJump(WholeBody):
         head_right: Point3D | None = None,
         **kwargs,
     ):
+        # Store non-signal attributes using object.__setattr__
+        # to bypass Record.__setattr__ which would try to store them as signals
+        object.__setattr__(self, '_bodymass_kg', bodymass_kg)
+        object.__setattr__(self, '_free_hands', free_hands)
+        object.__setattr__(self, '_straight_legs', straight_legs)
+
         super().__init__(
-            bodymass_kg=bodymass_kg,
             left_hand_ground_reaction_force=left_hand_ground_reaction_force,
             right_hand_ground_reaction_force=right_hand_ground_reaction_force,
             left_foot_ground_reaction_force=left_foot_ground_reaction_force,
@@ -181,6 +188,44 @@ class SingleJump(WholeBody):
         return self._right_foot_ground_reaction_force
 
     @property
+    def bodymass_kg(self):
+        """Return the body mass in kilograms."""
+        return self._bodymass_kg
+
+    @property
+    def free_hands(self):
+        """Return whether hands were free during the jump."""
+        return self._free_hands
+
+    @property
+    def straight_legs(self):
+        """Return whether legs were kept straight during the jump."""
+        return self._straight_legs
+
+    @property
+    def side(self):
+        """
+        Determine jump laterality from available force platforms.
+
+        Returns
+        -------
+        str
+            "left", "right", or "bilateral"
+        """
+        has_left = self.left_foot_ground_reaction_force is not None
+        has_right = self.right_foot_ground_reaction_force is not None
+
+        if has_left and has_right:
+            return "bilateral"
+        elif has_left:
+            return "left"
+        elif has_right:
+            return "right"
+        else:
+            # Default to bilateral if no force platforms
+            return "bilateral"
+
+    @property
     def ground_reaction_force(self):
         left = self.left_foot_ground_reaction_force
         right = self.right_foot_ground_reaction_force
@@ -216,16 +261,18 @@ class SingleJump(WholeBody):
         flight = ~contact
         batches = continuous_batches(flight)
         durations = []
+        timestamps = []
         for batch in batches:
             if len(batch) > 0:
                 duration = vgrf.index[batch[-1]] - vgrf.index[batch[0]]
                 if duration >= MINIMUM_FLIGHT_TIME_S:
                     durations.append(duration)
+                    timestamps.append(vgrf.index[batch[0]])  # Start time of flight phase
         if len(durations) == 0:
             return None
         return Signal1D(
             data=np.array(durations),
-            index=np.arange(len(durations)),
+            index=np.array(timestamps),
             unit="s",
         )
 
@@ -238,17 +285,112 @@ class SingleJump(WholeBody):
         contact = module > MINIMUM_CONTACT_FORCE_N
         batches = continuous_batches(contact)
         durations = []
+        timestamps = []
+
+        # Minimum contact duration to filter out noise (10ms)
+        MINIMUM_CONTACT_DURATION_S = 0.010
+
         for batch in batches:
             if len(batch) > 0:
                 duration = vgrf.index[batch[-1]] - vgrf.index[batch[0]]
-                durations.append(duration)
+                # Filter out very short contacts (likely noise)
+                if duration >= MINIMUM_CONTACT_DURATION_S:
+                    durations.append(duration)
+                    timestamps.append(vgrf.index[batch[0]])  # Start time of contact phase
         if len(durations) == 0:
             return None
         return Signal1D(
             data=np.array(durations),
-            index=np.arange(len(durations)),
+            index=np.array(timestamps),
             unit="s",
         )
+
+    @property
+    def contact_phase(self):
+        """
+        Returns the ground contact phase as a WholeBody record.
+
+        Returns
+        -------
+        WholeBody or SingleJump (or subclass)
+            Data segment from first ground contact to takeoff.
+
+        Notes
+        -----
+        For jumps with multiple contact phases (e.g., drop jumps), this returns
+        the primary propulsive contact phase (typically the last one).
+        """
+        vgrf = self.vertical_ground_reaction_force
+        if vgrf is None:
+            return None
+
+        module = np.abs(vgrf.to_numpy().flatten())
+        contact = module > MINIMUM_CONTACT_FORCE_N
+        batches = continuous_batches(contact)
+
+        if len(batches) == 0:
+            return None
+
+        # Minimum contact duration to filter out noise (10ms)
+        MINIMUM_CONTACT_DURATION_S = 0.010
+
+        # Filter batches by minimum duration
+        valid_batches = []
+        for batch in batches:
+            if len(batch) > 0:
+                duration = vgrf.index[batch[-1]] - vgrf.index[batch[0]]
+                if duration >= MINIMUM_CONTACT_DURATION_S:
+                    valid_batches.append(batch)
+
+        if len(valid_batches) == 0:
+            return None
+
+        # Use the last valid contact batch (primary propulsive phase)
+        batch = valid_batches[-1]
+
+        # Use iloc to slice by integer positions (preserves all samples in batch)
+        return self.iloc[batch[0]:batch[-1]+1, :]
+
+    @property
+    def flight_phase(self):
+        """
+        Returns the flight (aerial) phase as a WholeBody record.
+
+        Returns
+        -------
+        WholeBody or SingleJump (or subclass)
+            Data segment during aerial phase after takeoff.
+
+        Notes
+        -----
+        For jumps with multiple flight phases, this returns the primary
+        flight phase (typically the longest one meeting minimum duration).
+        """
+        vgrf = self.vertical_ground_reaction_force
+        if vgrf is None:
+            return None
+
+        module = np.abs(vgrf.to_numpy().flatten())
+        contact = module > MINIMUM_CONTACT_FORCE_N
+        flight = ~contact
+        batches = continuous_batches(flight)
+
+        # Find valid flight phases (meeting minimum duration)
+        valid_batches = []
+        for batch in batches:
+            if len(batch) > 0:
+                duration = vgrf.index[batch[-1]] - vgrf.index[batch[0]]
+                if duration >= MINIMUM_FLIGHT_TIME_S:
+                    valid_batches.append(batch)
+
+        if len(valid_batches) == 0:
+            return None
+
+        # Use the first valid flight batch
+        batch = valid_batches[0]
+
+        # Use iloc to slice by integer positions (preserves all samples in batch)
+        return self.iloc[batch[0]:batch[-1]+1, :]
 
     @property
     def jump_height(self):
@@ -282,10 +424,37 @@ class SingleJump(WholeBody):
         contact_time = self.contact_time
         if jump_height is None or contact_time is None:
             return None
-        rsi = jump_height.to_numpy().flatten() / contact_time.to_numpy().flatten()
+
+        # Get data and timestamps
+        jh_data = jump_height.to_numpy().flatten()
+        jh_times = jump_height.index
+        ct_data = contact_time.to_numpy().flatten()
+        ct_times = contact_time.index
+
+        if len(jh_data) == 0 or len(ct_data) == 0:
+            return None
+
+        # Pair each flight phase with the nearest preceding contact phase
+        rsi_values = []
+        rsi_times = []
+
+        for i, jh_time in enumerate(jh_times):
+            # Find contact phases that ended before or at this flight phase start
+            preceding_contacts = ct_times <= jh_time
+            if np.any(preceding_contacts):
+                # Get the closest preceding contact
+                ct_idx = np.where(preceding_contacts)[0][-1]
+                # Avoid division by zero
+                if ct_data[ct_idx] > 0:
+                    rsi_values.append(jh_data[i] / ct_data[ct_idx])
+                    rsi_times.append(jh_time)
+
+        if len(rsi_values) == 0:
+            return None
+
         return Signal1D(
-            data=rsi,
-            index=jump_height.index,
+            data=np.array(rsi_values),
+            index=np.array(rsi_times),
             unit="m/s",
         )
 
@@ -434,7 +603,26 @@ class SingleJump(WholeBody):
         )
 
     def copy(self):
-        return SingleJump(**self._get_object_args())
+        """
+        Create a deep copy of this SingleJump, preserving custom attributes.
+
+        Returns
+        -------
+        SingleJump
+            A new SingleJump instance with copies of all signals and attributes.
+
+        Notes
+        -----
+        This method follows the same pattern as EMGSignal and TimeseriesRecord,
+        explicitly passing custom non-signal attributes (bodymass_kg, free_hands,
+        straight_legs) to the constructor while copying all signal data.
+        """
+        return SingleJump(
+            bodymass_kg=self.bodymass_kg,
+            free_hands=self.free_hands,
+            straight_legs=self.straight_legs,
+            **{k: v.copy() if hasattr(v, 'copy') else v for k, v in self._data.items()}
+        )
 
 
 __all__ = ["SingleJump"]

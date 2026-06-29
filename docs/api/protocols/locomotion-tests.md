@@ -80,15 +80,14 @@ class RunningTest(RunningExercise, TestProtocol):
         Reference data for normative comparisons
     cycles : list of RunningStep
         Detected running steps from continuous data
-    get_results : dict
-        Dictionary with 'summary' DataFrame and 'analytics' dict
     
     Methods
     -------
     from_tdf(...)
         Create test from TDF file (class method)
-    get_results
-        Property returning summary and analytics
+    get_results(include_emg=False)
+        Method returning RunningTestResults object with summary tables,
+        analytics, and force profile figures
     save(file_path)
         Save test protocol to file
     load(file_path)
@@ -230,46 +229,129 @@ grf = results['analytics']['ground_reaction_force']
 
 ### get_results (RunningTest)
 
-Get test results with summary and analytics.
+Generate comprehensive running test results with summary tables, analytics, and force profile figures.
 
 ```python
-@property
-def get_results(self) -> dict
+def get_results(self, include_emg: bool = False) -> RunningTestResults
 ```
+
+**Parameters:**
+
+- `include_emg` (bool, optional): Include EMG metrics in results. Default is False.
 
 **Returns:**
 
-Dictionary with two keys:
+`RunningTestResults` object with the following attributes:
 
-1. **'summary'** (pd.DataFrame): Per-step metrics
-   - Columns: `cycle`, `side`, `contact_time_ms`, `flight_time_ms`, `cycle_time_ms`, `peak_vertical_force_N`, etc.
-   - One row per detected step
+1. **`summary`** (dict): Dictionary with two DataFrames:
+   - **'per_step'** (pd.DataFrame): Per-step metrics for each detected cycle
+     - Columns: `cycle`, `side`, `contact_time_s`, `propulsion_time_s`, `flight_time_s`, 
+       `cadence_steps_per_min`, `peak_vertical_force_N`, `peak_braking_force_N`, 
+       `peak_propulsion_force_N`, `vertical_oscillation_mm`, `peak_trunk_lateral_flexion_deg`, 
+       `peak_pelvis_lateral_tilt_deg`, `peak_trunk_rotation_deg`
+   - **'aggregate'** (pd.DataFrame): Aggregated statistics by side (left/right)
+     - Columns: `metric`, `left_mean`, `left_std`, `left_cv%`, `right_mean`, `right_std`, 
+       `right_cv%`, `diff_%` (left-right asymmetry)
 
-2. **'analytics'** (dict): Time-series data
-   - `'centre_of_pressure'`: COP trajectory DataFrame (columns: Side, Cycle, Time, lateral_axis, anteroposterior_axis)
-   - `'ground_reaction_force'`: GRF time-series DataFrame (columns: Side, Cycle, Time, vertical_axis)
+2. **`analytics`** (pd.DataFrame): Time-series data in long format
+   - Columns: `cycle`, `side`, `time_s`, `vertical_force_N`, `anteroposterior_force_N`
+
+3. **`figures`** (dict): Interactive Plotly figures
+   - **'force_profiles'**: 2×2 subplot grid showing vertical and anteroposterior forces for left/right sides
+     - Mean force curves normalized to 0-100% contact phase
+     - Shaded area representing ±1 standard deviation
 
 **Example:**
 
 ```python
-results = test.get_results
+results = test.get_results(include_emg=False)
 
-# Analyze left vs right asymmetry
-summary = results['summary']
-left_steps = summary[summary['side'] == 'left']
-right_steps = summary[summary['side'] == 'right']
+# Access per-step metrics
+per_step = results.summary['per_step']
+print(f"Average cadence: {per_step['cadence_steps_per_min'].mean():.1f} steps/min")
 
-contact_left = left_steps['contact_time_ms'].mean()
-contact_right = right_steps['contact_time_ms'].mean()
-asymmetry = abs(contact_left - contact_right) / ((contact_left + contact_right) / 2) * 100
-
+# Access aggregate statistics
+aggregate = results.summary['aggregate']
+asymmetry = aggregate[aggregate['metric'] == 'contact_time_s']['diff_%'].values[0]
 print(f"Contact time asymmetry: {asymmetry:.1f}%")
 
-# Plot GRF for all cycles
-import plotly.express as px
-grf = results['analytics']['ground_reaction_force']
-fig = px.line(grf, x='Time', y=grf.columns[-1], color='Cycle', facet_col='Side')
-fig.show()
+# Display force profile figure
+results.figures['force_profiles'].show()
+```
+
+---
+
+### RunningTestResults
+
+Container for comprehensive running test analysis results.
+
+```python
+class RunningTestResults(TestResults):
+    """
+    Results container for RunningTest protocol.
+    
+    Provides comprehensive analysis of running gait including per-step metrics,
+    aggregate statistics, time-series analytics, and interactive force profile
+    visualizations.
+    
+    Attributes
+    ----------
+    summary : dict
+        Dictionary with two DataFrames:
+        - 'per_step': Per-step metrics for each detected cycle
+        - 'aggregate': Aggregated statistics (mean, std, CV%, asymmetry)
+    analytics : pd.DataFrame
+        Time-series data in long format with normalized contact phases
+    figures : dict
+        Dictionary of plotly figures including 'force_profiles'
+    
+    Notes
+    -----
+    Per-Step Metrics:
+    - contact_time_s: Duration of foot-ground contact (s)
+    - propulsion_time_s: Duration of push-off phase (s)
+    - flight_time_s: Duration of aerial phase (s)
+    - cadence_steps_per_min: Step frequency (steps/min)
+    - peak_vertical_force_N: Maximum vertical ground reaction force (N)
+    - peak_braking_force_N: Maximum braking force during loading (N)
+    - peak_propulsion_force_N: Maximum propulsion force during push-off (N)
+    - vertical_oscillation_mm: Vertical displacement of pelvis (mm)
+    - peak_trunk_lateral_flexion_deg: Peak trunk lateral flexion angle (deg)
+    - peak_pelvis_lateral_tilt_deg: Peak pelvis lateral tilt angle (deg)
+    - peak_trunk_rotation_deg: Peak trunk rotation angle (deg)
+    
+    Aggregate Metrics (per side):
+    - mean: Average across all steps
+    - std: Standard deviation
+    - cv%: Coefficient of variation (%)
+    - diff_%: Left-right asymmetry (%)
+    
+    Force Profiles Figure:
+    - 2×2 subplot grid (vertical/AP × left/right)
+    - Mean force curves normalized to 0-100% contact phase
+    - Shaded area representing ±1 standard deviation
+    - Distinct colors: blue for vertical, red for anteroposterior
+    """
+```
+
+**Example:**
+
+```python
+# Generate results
+results = running_test.get_results()
+
+# Access per-step data
+per_step_df = results.summary['per_step']
+print(per_step_df[['cycle', 'side', 'cadence_steps_per_min', 'vertical_oscillation_mm']])
+
+# Access aggregate statistics
+agg_df = results.summary['aggregate']
+contact_time_row = agg_df[agg_df['metric'] == 'contact_time_s']
+print(f"Left: {contact_time_row['left_mean'].values[0]:.3f} ± {contact_time_row['left_std'].values[0]:.3f} s")
+print(f"Asymmetry: {contact_time_row['diff_%'].values[0]:.1f}%")
+
+# Visualize force profiles
+results.figures['force_profiles'].show()
 ```
 
 ---

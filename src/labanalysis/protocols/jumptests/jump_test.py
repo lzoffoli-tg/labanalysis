@@ -1,19 +1,23 @@
 """Jump test implementation."""
 
+from os.path import exists
 from typing import Any, Callable, Literal
 
 import numpy as np
 import pandas as pd
 
-from ...constants import G
-from ...timeseries import EMGSignal
-from ...records import TimeseriesRecord
+from ...constants import G, MINIMUM_CONTACT_FORCE_N
+from ...timeseries import EMGSignal, Point3D
+from ...records import ForcePlatform, TimeseriesRecord
 from ...exercises import DropJump, RepeatedJumps, SingleJump
 from ...pipelines import get_default_processing_pipeline
+from ...signalprocessing import butterworth_filt, fillna
+from ...referenceframes import ReferenceFrame
 from ..participant import Participant
 from ..test_protocol import TestProtocol
 from ..test_results import TestResults
 from ..normativedata import jumps_normative_values
+from .jump_test_results import JumpTestResults
 
 
 class JumpTest(TestProtocol):
@@ -561,7 +565,7 @@ class JumpTest(TestProtocol):
             ap = np.cross(ml, vt)
             origin = (rt + lt) / 2
             ref_frame = ReferenceFrame(origin, ml, vt, ap)
-            exe.apply(ref_frame, inplace=True)
+            exe = ref_frame.apply(exe, inplace=False)
             if exe is None:
                 raise ValueError("reference frame alignment returned None")
 

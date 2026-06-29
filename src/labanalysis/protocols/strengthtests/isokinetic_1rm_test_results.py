@@ -2,10 +2,13 @@
 
 from typing import TYPE_CHECKING
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
+from ...constants import G
 from ...exercises.strength import IsokineticExercise
+from ...signalprocessing import cubicspline_interp
 from ..test_results import TestResults
 from ._plotting import _get_force_figure
 
@@ -229,6 +232,20 @@ class Isokinetic1RMTestResults(TestResults):
 
         # force data
         tracks = self.analytics
+
+        # Find actual force and position column names
+        available_cols = tracks.columns.tolist()
+        force_col = None
+        position_col = None
+        for col in available_cols:
+            if 'force' in col.lower():
+                force_col = col
+            if 'position' in col.lower():
+                position_col = col
+
+        if force_col is None or position_col is None:
+            return {}
+
         if self.include_emg:
             cols = tracks.columns
         else:
@@ -236,14 +253,14 @@ class Isokinetic1RMTestResults(TestResults):
                 "side",
                 "repetition",
                 "time_s",
-                "force_amplitude",
-                "position_amplitude",
+                force_col,
+                position_col,
             ]
         force_data = tracks[cols].copy()
         dfs = []
         for (side, rep), dfr in force_data.groupby(by=["side", "repetition"]):
             df = dfr.drop(
-                ["side", "repetition", "time_s", "position_amplitude"],
+                ["side", "repetition", "time_s", position_col],
                 axis=1,
             ).copy()
             arr = df.to_numpy()
@@ -264,6 +281,10 @@ class Isokinetic1RMTestResults(TestResults):
                 var_name="parameter",
                 value_name="value",
             )
+            # Map column names to standard names for plotting
+            df['parameter'] = df['parameter'].replace({
+                force_col: 'force_amplitude'
+            })
             df.insert(
                 0,
                 "side",
