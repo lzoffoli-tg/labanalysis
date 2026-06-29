@@ -6,7 +6,7 @@ import numpy as np
 
 from ....constants import MINIMUM_ISOMETRIC_DISPLACEMENT_M
 from ....timeseries import EMGSignal, Point3D, Signal1D, Signal3D
-from ...forceplatform import ForcePlatform
+from ....records.forceplatform import ForcePlatform
 from .default_freeweight_object import DefaultFreeWeightObject
 
 

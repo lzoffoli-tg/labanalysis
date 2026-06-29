@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from ....timeseries import EMGSignal, Signal1D
-from ...timeseriesrecord import TimeseriesRecord
+from ....records.timeseriesrecord import TimeseriesRecord
 
 
 class BiostrengthRepetition(TimeseriesRecord):

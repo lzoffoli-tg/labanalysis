@@ -6,6 +6,8 @@ from .drop_jump import *
 from .repeated_jumps import *
 from .upright_posture import *
 from .prone_posture import *
+from .gait import *
+from .strength import *
 
 __all__ = [
     "ChangeOfDirectionExercise",
@@ -14,4 +16,21 @@ __all__ = [
     "RepeatedJumps",
     "UprightPosture",
     "PronePosture",
+    # Gait
+    "GaitExercise",
+    "GaitCycle",
+    "GaitObject",
+    "RunningExercise",
+    "WalkingExercise",
+    "RunningStep",
+    "WalkingStride",
+    # Strength
+    "BiostrengthRepetition",
+    "BiostrengthExercise",
+    "IsokineticExercise",
+    "IsometricExercise",
+    "DefaultFreeWeightObject",
+    "RepetitionPhase",
+    "FreeWeightRepetition",
+    "FreeWeightExercise",
 ]

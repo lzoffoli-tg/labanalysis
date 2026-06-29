@@ -10,7 +10,7 @@ from ...constants import (
     DEFAULT_MINIMUM_HEIGHT_PERCENTAGE,
 )
 from ...records import ForcePlatform, TimeseriesRecord
-from ...records.locomotion import RunningExercise
+from ...exercises.gait import RunningExercise
 from ...timeseries import EMGSignal, Point3D, Signal1D, Signal3D
 from ...pipelines import get_default_processing_pipeline
 from ..participant import Participant

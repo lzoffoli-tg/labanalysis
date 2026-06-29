@@ -8,7 +8,7 @@ import pandas as pd
 from ...constants import *
 from ...signalprocessing import *
 from ...timeseries import *
-from ..forceplatform import ForcePlatform
+from ...records.forceplatform import ForcePlatform
 
 from ._base import GaitObject
 

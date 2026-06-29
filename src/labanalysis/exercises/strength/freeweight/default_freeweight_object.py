@@ -4,8 +4,8 @@ import numpy as np
 
 from ....constants import G
 from ....timeseries import EMGSignal, Point3D, Signal1D, Signal3D
-from ...forceplatform import ForcePlatform
-from ...body import WholeBody
+from ....records.forceplatform import ForcePlatform
+from ....records.body import WholeBody
 
 
 class DefaultFreeWeightObject(WholeBody):

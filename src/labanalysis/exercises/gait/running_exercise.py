@@ -8,7 +8,7 @@ import numpy as np
 from ...constants import DEFAULT_MINIMUM_CONTACT_GRF_N, DEFAULT_MINIMUM_HEIGHT_PERCENTAGE
 from ...signalprocessing import find_peaks
 from ...timeseries import Signal1D, Signal3D, EMGSignal, Point3D
-from ..forceplatform import ForcePlatform
+from ...records.forceplatform import ForcePlatform
 
 from ._exercise import GaitExercise
 from .running_step import RunningStep

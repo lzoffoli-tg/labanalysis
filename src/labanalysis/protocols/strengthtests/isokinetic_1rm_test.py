@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from ...records import TimeseriesRecord
-from ...records.strength import IsokineticExercise
+from ...exercises.strength import IsokineticExercise
 from ..participant import Participant
 from ..test_protocol import TestProtocol
 

@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 import plotly.graph_objects as go
 
-from ...records.strength import IsokineticExercise
+from ...exercises.strength import IsokineticExercise
 from ..test_results import TestResults
 from ._plotting import _get_force_figure
 

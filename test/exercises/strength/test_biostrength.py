@@ -1,7 +1,7 @@
-"""Test suite for labanalysis.records.strength.biostrength module."""
+"""Test suite for labanalysis.exercises.strength.biostrength module."""
 
 import pytest
-from labanalysis.records.strength.biostrength import BiostrengthExercise
+from labanalysis.exercises.strength.biostrength import BiostrengthExercise
 
 
 def test_biostrength_exercise_importable():

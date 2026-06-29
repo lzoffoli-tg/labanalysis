@@ -5,7 +5,7 @@ import pandas as pd
 
 from ....signalprocessing import find_peaks
 from ....timeseries import EMGSignal, Point3D, Signal1D, Signal3D
-from ...forceplatform import ForcePlatform
+from ....records.forceplatform import ForcePlatform
 from .default_freeweight_object import DefaultFreeWeightObject
 from .repetition_phase import RepetitionPhase
 

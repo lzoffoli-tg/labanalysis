@@ -1,7 +1,7 @@
-"""Test suite for labanalysis.records.strength.freeweight module."""
+"""Test suite for labanalysis.exercises.strength.freeweight module."""
 
 import pytest
-from labanalysis.records.strength.freeweight import FreeWeightExercise
+from labanalysis.exercises.strength.freeweight import FreeWeightExercise
 
 
 def test_freeweight_exercise_importable():

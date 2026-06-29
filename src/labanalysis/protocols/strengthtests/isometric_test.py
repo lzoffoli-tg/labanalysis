@@ -7,7 +7,7 @@ import pandas as pd
 
 from ...records import TimeseriesRecord
 from ...pipelines import get_default_processing_pipeline
-from ...records.strength import IsometricExercise
+from ...exercises.strength import IsometricExercise
 from ..participant import Participant
 from ..test_protocol import TestProtocol
 
@@ -97,7 +97,7 @@ class IsometricTest(TestProtocol):
     Examples
     --------
     >>> from labanalysis.protocols import IsometricTest, Participant
-    >>> from labanalysis.records.strength import IsometricExercise
+    >>> from labanalysis.exercises.strength import IsometricExercise
     >>>
     >>> # Create participant
     >>> participant = Participant(surname='Athlete', weight=75)

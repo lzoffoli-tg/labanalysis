@@ -1,6 +1,6 @@
 """Isometric test results implementation."""
 
-from ...records.strength import IsometricExercise
+from ...exercises.strength import IsometricExercise
 from typing import TYPE_CHECKING
 
 import pandas as pd
@@ -62,7 +62,7 @@ class IsometricTestResults(TestResults):
     Examples
     --------
     >>> from labanalysis.protocols import IsometricTest, Participant
-    >>> from labanalysis.records.strength import IsometricExercise
+    >>> from labanalysis.exercises.strength import IsometricExercise
     >>>
     >>> # Create and process test
     >>> participant = Participant(surname='Athlete', weight=75)

@@ -5,8 +5,8 @@ from typing import Literal
 from ...constants import *
 from ...signalprocessing import *
 from ...timeseries import *
-from ..body import WholeBody
-from ..forceplatform import ForcePlatform
+from ...records.body import WholeBody
+from ...records.forceplatform import ForcePlatform
 
 
 class GaitObject(WholeBody):

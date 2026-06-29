@@ -166,7 +166,7 @@ The WholeBody class provides a complete biomechanical model:
 
 ```python
 # Load walking/running data
-from labanalysis.records.locomotion import WalkingExercise
+from labanalysis.exercises.gait import WalkingExercise
 
 walking = WalkingExercise.from_tdf(
     "walking.tdf",

@@ -8,7 +8,7 @@ from ....constants import G
 from labanalysis.io.read.biostrength import PRODUCTS as BIOSTRENGTH_PRODUCTS_MAP
 from ....signalprocessing import *
 from ....timeseries import EMGSignal, Signal1D
-from ...timeseriesrecord import TimeseriesRecord
+from ....records.timeseriesrecord import TimeseriesRecord
 from .biostrength_repetition import BiostrengthRepetition
 
 

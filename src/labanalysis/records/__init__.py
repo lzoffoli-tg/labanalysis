@@ -10,8 +10,6 @@ from .timeseriesrecord import *
 
 # Submodules
 from .body import *
-from .locomotion import *
-from .strength import *
 
 __all__ = [
     # Core records

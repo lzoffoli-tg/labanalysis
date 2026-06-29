@@ -11,9 +11,9 @@ from plotly.subplots import make_subplots
 from ...constants import *
 from ...signalprocessing import *
 from ...timeseries import Signal1D, Signal3D, EMGSignal, Point3D
-from ..body import WholeBody
-from ..forceplatform import ForcePlatform
-from ..timeseriesrecord import TimeseriesRecord
+from ...records.body import WholeBody
+from ...records.forceplatform import ForcePlatform
+from ...records.timeseriesrecord import TimeseriesRecord
 
 from ._base import GaitObject
 from ._cycle import GaitCycle

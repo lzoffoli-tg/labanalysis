@@ -1,7 +1,7 @@
-"""Test suite for labanalysis.records.locomotion running classes."""
+"""Test suite for labanalysis.exercises.gait running classes."""
 
 import pytest
-from labanalysis.records.locomotion import RunningExercise, RunningStep
+from labanalysis.exercises.gait import RunningExercise, RunningStep
 
 
 def test_running_exercise_importable():

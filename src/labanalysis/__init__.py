@@ -11,7 +11,7 @@ Main modules:
 """
 
 # Version
-__version__ = "212"
+__version__ = "213"
 
 # Wildcard imports from all main submodules and subpackages
 from .equations import *
@@ -22,7 +22,6 @@ from .pipelines import *
 from .plotting import *
 from .protocols import *
 from .records import *
-from .records.body import *
 from .referenceframes import *
 from .timeseries import *
 

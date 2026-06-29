@@ -1,22 +1,24 @@
-# labanalysis.records.locomotion
+# labanalysis.exercises.gait
 
 Gait analysis classes for running and walking locomotion.
 
-**Source**: `src/labanalysis/records/locomotion/`
+**Source**: `src/labanalysis/exercises/gait/`
 
 ## Overview
 
-The `locomotion` module provides a comprehensive framework for gait analysis, supporting both running and walking movements with automatic cycle detection using kinematic (marker-based) or kinetic (force platform-based) algorithms.
+The `gait` module provides a comprehensive framework for gait analysis, supporting both running and walking movements with automatic cycle detection using kinematic (marker-based) or kinetic (force platform-based) algorithms.
 
-**Module Structure** (refactored from monolithic to modular):
+**Module Structure**:
 
 ```
-labanalysis.records.locomotion/
-├── _base.py         - GaitObject (base class)
-├── _cycle.py        - GaitCycle (single cycle)
-├── _exercise.py     - GaitExercise (multi-cycle container)
-├── running.py       - RunningStep, RunningExercise
-└── walking.py       - WalkingStride, WalkingExercise
+labanalysis.exercises.gait/
+├── _base.py            - GaitObject (base class)
+├── _cycle.py           - GaitCycle (single cycle)
+├── _exercise.py        - GaitExercise (multi-cycle container)
+├── running_step.py     - RunningStep
+├── running_exercise.py - RunningExercise
+├── walking_stride.py   - WalkingStride
+└── walking_exercise.py - WalkingExercise
 ```
 
 **Key Features**:

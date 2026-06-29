@@ -1,8 +1,8 @@
 """FreeWeightExercise module."""
 
-from ...timeseriesrecord import TimeseriesRecord
+from ....records.timeseriesrecord import TimeseriesRecord
 from ....timeseries import EMGSignal, Point3D, Signal1D, Signal3D
-from ...forceplatform import ForcePlatform
+from ....records.forceplatform import ForcePlatform
 from .default_freeweight_object import DefaultFreeWeightObject
 from .freeweight_repetition import FreeWeightRepetition
 

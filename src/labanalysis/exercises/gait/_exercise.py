@@ -10,8 +10,8 @@ from plotly.subplots import make_subplots
 from ...constants import *
 from ...signalprocessing import *
 from ...timeseries import *
-from ..forceplatform import ForcePlatform
-from ..timeseriesrecord import TimeseriesRecord
+from ...records.forceplatform import ForcePlatform
+from ...records.timeseriesrecord import TimeseriesRecord
 
 from ._base import GaitObject
 

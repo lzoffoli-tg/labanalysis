@@ -6,9 +6,9 @@ import numpy as np
 
 from ...constants import DEFAULT_MINIMUM_CONTACT_GRF_N, DEFAULT_MINIMUM_HEIGHT_PERCENTAGE
 from ...timeseries import Signal1D, Signal3D, EMGSignal, Point3D
-from ..forceplatform import ForcePlatform
-from ..timeseriesrecord import TimeseriesRecord
-from ..body import WholeBody
+from ...records.forceplatform import ForcePlatform
+from ...records.timeseriesrecord import TimeseriesRecord
+from ...records.body import WholeBody
 
 from ._cycle import GaitCycle
 

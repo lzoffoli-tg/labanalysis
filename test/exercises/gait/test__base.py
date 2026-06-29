@@ -1,11 +1,11 @@
-"""Test suite for labanalysis.records.locomotion._base module."""
+"""Test suite for labanalysis.exercises.gait._base module."""
 
 import pytest
-from labanalysis.records.locomotion import _base
+from labanalysis.exercises.gait import _base
 
 
 def test_base_module_importable():
-    """Test that locomotion._base module imports successfully."""
+    """Test that gait._base module imports successfully."""
     assert _base is not None
 
 
