@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "labanalysis"
-version = "223"
+version = "224"
 description = "A small package to simplify data processing in python."
 authors = [{ name = "Luca Zoffoli", email = "lzoffoli@technogym.com" }]
 requires-python = ">=3.12"
@@ -23,7 +23,8 @@ dependencies = [
     "openpyxl",
     "pint",
     "torch",
-    "onnxmodels @ git+https://github.com/lzoffoli-tg/onnxmodels.git"
+    "onnxmodels @ git+https://github.com/lzoffoli-tg/onnxmodels.git",
+    "biostrengthdataconverter @ git+ssh://git@github.com/lzoffoli-tg/biostrengthdataconverter.git"
 ]
 readme = "README.md"
 

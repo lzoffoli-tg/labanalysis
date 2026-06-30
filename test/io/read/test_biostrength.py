@@ -31,20 +31,17 @@ def test_biostrengthproduct_class_exists():
 
 def test_biostrengthproduct_class_attributes():
     """
-    Test that BiostrengthProduct has expected class constants.
+    Test that BiostrengthProduct wrapper has expected structure.
 
     Expected:
-        Class should define calibration constants like spring_correction,
-        pulley_radius_m, etc.
+        Wrapper class should have _external_class attribute pointing to
+        biostrengthdataconverter package classes.
     """
     cls = biostrength.BiostrengthProduct
-    expected_attrs = [
-        '_spring_correction',
-        '_pulley_radius_m',
-        '_lever_weight_kgf',
-        '_camme_ratio',
-        '_lever_number',
-    ]
+    # Wrapper must have _external_class attribute (set in subclasses)
+    assert hasattr(cls, '_external_class'), "Missing _external_class attribute"
 
-    for attr in expected_attrs:
-        assert hasattr(cls, attr), f"Missing class attribute: {attr}"
+    # Verify subclasses have _external_class set
+    from biostrengthdataconverter import Biostrength as _Biostrength
+    assert biostrength.ChestPress._external_class == _Biostrength.ChestPress
+    assert biostrength.LegPress._external_class == _Biostrength.LegPress
