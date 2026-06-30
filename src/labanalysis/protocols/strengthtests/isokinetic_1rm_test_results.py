@@ -309,6 +309,7 @@ class Isokinetic1RMTestResults(TestResults):
                 v,
                 self.summary,
                 self.include_emg,
+                time_mode='percentage',
             )
 
         return out

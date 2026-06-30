@@ -5,7 +5,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from ...constants import RANK_4COLORS, SIDE_COLORS
+from ...constants import RANK_4COLORS, SIDE_COLORS, MARKER_COLORS
 
 
 def _get_force_figure(
@@ -76,7 +76,7 @@ def _get_force_figure(
     # Determine time column based on mode
     time_col = "time_ms" if time_mode == 'absolute' else "time_%"
 
-    # For isokinetic (percentage mode), show all repetitions with color gradient
+    # For isokinetic (percentage mode), show only best repetition with markers
     if time_mode == 'percentage' and 'repetition' in f_data.columns:
         for i, side in enumerate(sides):
             side_data = f_data.loc[f_data.side == side]
@@ -86,205 +86,335 @@ def _get_force_figure(
 
             # Calculate peak force for each repetition
             rep_peaks = {}
+            rep_peak_positions = {}
             for rep in repetitions:
                 rep_data = side_data.loc[side_data.repetition == rep]
-                rep_peaks[rep] = float(rep_data['value'].max())
+                y_rep = rep_data["value"].to_numpy().astype(float).flatten()
+                x_rep = rep_data[time_col].to_numpy().astype(float).flatten()
+                if len(y_rep) > 0:
+                    rep_peaks[rep] = float(y_rep.max())
+                    rep_peak_positions[rep] = (float(x_rep[np.argmax(y_rep)]), float(y_rep.max()))
 
-            # Sort repetitions by peak force for color gradient
-            sorted_reps = sorted(repetitions, key=lambda r: rep_peaks[r])
+            # Find best repetition (highest peak force)
+            best_rep = max(repetitions, key=lambda r: rep_peaks[r])
 
-            # Define color gradient (lighter to darker based on peak force)
+            # Plot only the best repetition
+            rep_data = side_data.loc[side_data.repetition == best_rep]
+            y = rep_data["value"].to_numpy().astype(float).flatten()
+            x = rep_data[time_col].to_numpy().astype(float).flatten()
+
             base_color = SIDE_COLORS[side]
 
-            for idx, rep in enumerate(sorted_reps):
-                rep_data = side_data.loc[side_data.repetition == rep]
-                y = rep_data["value"].to_numpy().astype(float).flatten()
-                x = rep_data[time_col].to_numpy().astype(float).flatten()
-
-                # Calculate opacity (higher peak = more opaque)
-                opacity = 0.4 + 0.6 * (idx / max(1, len(sorted_reps) - 1))
-
-                fig.add_trace(
-                    go.Scatter(
-                        x=x,
-                        y=y,
-                        name=f"Rep {rep}",
-                        showlegend=False,
-                        line=dict(color=base_color, width=2),
-                        opacity=opacity,
-                    ),
-                    row=1,
-                    col=i + 1,
-                )
-
-                # Add peak marker and label for each repetition
-                peak_idx = np.argmax(y)
-                peak_force_kn = y[peak_idx] / 1000.0
-
-                fig.add_trace(
-                    go.Scatter(
-                        x=[x[peak_idx]],
-                        y=[y[peak_idx]],
-                        mode="markers+text",
-                        marker=dict(
-                            size=8,
-                            color=base_color,
-                            symbol='circle',
-                            line=dict(width=1, color='white'),
-                            opacity=opacity,
-                        ),
-                        text=f"{peak_force_kn:.2f}kN",
-                        textposition="top center",
-                        textfont=dict(size=9, color=base_color),
-                        showlegend=False,
-                        hovertemplate=f"Rep {rep}<br>Peak: {peak_force_kn:.2f}kN<extra></extra>",
-                    ),
-                    row=1,
-                    col=i + 1,
-                )
-    else:
-        # For isometric (absolute mode), use existing single-line approach
-        group_cols = [time_col, "side", "limb"]
-        f_data_grouped = f_data.groupby(group_cols, as_index=False).max()
-
-        for i, side in enumerate(sides):
-            y = f_data_grouped.loc[f_data_grouped.side == side, "value"].to_numpy()  # type: ignore
-            y = y.astype(float).flatten()
-            x = f_data_grouped.loc[f_data_grouped.side == side, time_col].to_numpy()  # type: ignore
-            x = x.astype(float).flatten()
             fig.add_trace(
                 go.Scatter(
                     x=x,
                     y=y,
                     name="force profile",
                     showlegend=False,
-                    line_color=SIDE_COLORS[side],
+                    line=dict(color=base_color, width=2),
                 ),
                 row=1,
                 col=i + 1,
             )
 
-        # Add markers for specific time points (only in absolute mode)
-        if time_mode == 'absolute' and len(time_points) > 0:
-            # Define colors for markers (distinct colors, same across subplots)
-            marker_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f']
+            # Add peak marker with vertical dashed line
+            peak_idx = np.argmax(y)
+            peak_force_n = y[peak_idx]
+            peak_force_kn = peak_force_n / 1000.0
+            peak_position_pct = x[peak_idx]
 
-            # Pre-calculate all marker positions
-            marker_data = []
-            legend_lines = []
+            # Peak marker color
+            color = MARKER_COLORS[0]  # Use first marker color for peak
 
-            for idx, tp in enumerate(time_points):
-                if tp <= x.max():
-                    force_val_n = float(np.interp(tp, x, y))
-                    force_val_kn = force_val_n / 1000.0  # Convert to kN
+            # Vertical dashed line from peak to zero (same color as marker)
+            fig.add_trace(
+                go.Scatter(
+                    x=[peak_position_pct, peak_position_pct],
+                    y=[0, peak_force_n],
+                    mode="lines",
+                    line=dict(color=color, dash='dash', width=1),
+                    showlegend=False,
+                    hoverinfo='skip',
+                ),
+                row=1,
+                col=i + 1,
+            )
 
-                    # Get RFD from summary (now in kN/s)
-                    rfd_param = f"RFD 0-{tp} ms (kN/s)"
-                    rfd_row = summary.loc[summary.parameter == rfd_param]
-                    rfd_val = None
-                    if not rfd_row.empty and side in rfd_row.columns:
-                        try:
-                            rfd_val = float(rfd_row[side].iloc[0])
-                        except (IndexError, ValueError, TypeError):
-                            pass
+            # Peak marker (colored)
+            fig.add_trace(
+                go.Scatter(
+                    x=[peak_position_pct],
+                    y=[peak_force_n],
+                    mode="markers",
+                    marker=dict(
+                        size=12,
+                        color=color,
+                        symbol='circle',
+                        line=dict(width=2, color='white'),
+                    ),
+                    showlegend=False,
+                    hovertemplate=f"Peak: {peak_force_kn:.2f}kN @ {peak_position_pct:.1f}%<extra></extra>",
+                ),
+                row=1,
+                col=i + 1,
+            )
 
-                    # Get color for this marker (consistent across subplots)
-                    color = marker_colors[idx % len(marker_colors)]
+            # Get 1RM estimate from summary
+            rm1_param = "estimated 1RM (kg)"
+            rm1_row = summary.loc[summary.parameter == rm1_param]
+            rm1_text = ""
+            if not rm1_row.empty and side in rm1_row.columns:
+                try:
+                    rm1_val = float(rm1_row[side].iloc[0])
+                    rm1_text = f"1RM: {rm1_val:.1f}kg"
+                except (IndexError, ValueError, TypeError):
+                    pass
 
-                    # Add marker on the curve
+            # Build annotation text: Peak force, 1RM, ROM%
+            annotation_parts = [f"{peak_force_kn:.2f}kN"]
+            if rm1_text:
+                annotation_parts.append(rm1_text)
+            annotation_parts.append(f"ROM: {peak_position_pct:.1f}%")
+            annotation_text = "<br>".join(annotation_parts)
+
+            # Add text annotation above peak marker (same color as marker)
+            fig.add_annotation(
+                x=peak_position_pct,
+                y=peak_force_n,
+                text=annotation_text,
+                showarrow=False,
+                yshift=30,
+                xref=f"x{i+1}" if i > 0 else "x",
+                yref=f"y{i+1}" if i > 0 else "y",
+                font=dict(size=10, color=color),
+                bgcolor="rgba(255, 255, 255, 0.8)",
+                bordercolor=color,
+                borderwidth=1,
+                borderpad=4,
+            )
+    else:
+        # For isometric (absolute mode), show all repetitions
+        if 'repetition' in f_data.columns:
+            # Show all repetitions with lighter opacity for non-peak reps
+            for i, side in enumerate(sides):
+                side_data = f_data.loc[f_data.side == side]
+                repetitions = side_data['repetition'].unique()
+
+                # Calculate peak force for each repetition
+                rep_peaks = {}
+                for rep in repetitions:
+                    rep_data = side_data.loc[side_data.repetition == rep]
+                    rep_peaks[rep] = float(rep_data['value'].max())
+
+                # Find best rep (highest peak)
+                best_rep = max(repetitions, key=lambda r: rep_peaks[r])
+
+                for rep in repetitions:
+                    rep_data = side_data.loc[side_data.repetition == rep]
+                    y = rep_data["value"].to_numpy().astype(float).flatten()
+                    x = rep_data[time_col].to_numpy().astype(float).flatten()
+
+                    # Best rep: full opacity, others: lighter
+                    is_best = (rep == best_rep)
+                    opacity = 1.0 if is_best else 0.3
+
                     fig.add_trace(
                         go.Scatter(
-                            x=[tp],
-                            y=[force_val_n],  # Plot in N (original scale)
-                            mode="markers",
-                            marker=dict(
-                                size=12,  # Large markers
-                                color=color,
-                                symbol='circle',
-                                line=dict(width=2, color='white')
-                            ),
+                            x=x,
+                            y=y,
+                            name=f"Rep {rep}" if not is_best else "force profile",
                             showlegend=False,
-                            hovertemplate=f"{tp}ms: {force_val_kn:.2f}kN<br>RFD: {rfd_val:.2f} kN/s<extra></extra>" if rfd_val else f"{tp}ms: {force_val_kn:.2f}kN<extra></extra>",
+                            line=dict(color=SIDE_COLORS[side], width=2 if is_best else 1),
+                            opacity=opacity,
                         ),
                         row=1,
                         col=i + 1,
                     )
+        else:
+            # Fallback: single line (grouped max)
+            group_cols = [time_col, "side", "limb"]
+            f_data_grouped = f_data.groupby(group_cols, as_index=False).max()
 
-                    # Build legend text for this subplot (show in kN and kN/s)
-                    legend_text = f"● {tp}ms: {force_val_kn:.2f}kN"
-                    if rfd_val is not None:
-                        legend_text += f" | RFD: {rfd_val:.2f} kN/s"
-                    legend_lines.append(f'<span style="color:{color}">{legend_text}</span>')
+            for i, side in enumerate(sides):
+                y = f_data_grouped.loc[f_data_grouped.side == side, "value"].to_numpy()  # type: ignore
+                y = y.astype(float).flatten()
+                x = f_data_grouped.loc[f_data_grouped.side == side, time_col].to_numpy()  # type: ignore
+                x = x.astype(float).flatten()
+                fig.add_trace(
+                    go.Scatter(
+                        x=x,
+                        y=y,
+                        name="force profile",
+                        showlegend=False,
+                        line_color=SIDE_COLORS[side],
+                    ),
+                    row=1,
+                    col=i + 1,
+                )
 
-            # Add peak force to legend with RFD (calculated same way as other time points)
-            peak_force_kn = np.max(y) / 1000.0
-            peak_time_ms = x[np.argmax(y)]
+        # Add markers for specific time points (only in absolute mode)
+        if time_mode == 'absolute' and len(time_points) > 0:
+            # Process each side independently
+            for i, side in enumerate(sides):
+                side_data = f_data.loc[f_data.side == side]
 
-            # Get RFD for peak using the same approach as time points
-            rfd_peak_param = f"RFD 0-{int(peak_time_ms)} ms (kN/s)"
-            rfd_peak_row = summary.loc[summary.parameter == rfd_peak_param]
-            rfd_peak_text = ""
-            if not rfd_peak_row.empty and side in rfd_peak_row.columns:
-                try:
-                    rfd_peak = float(rfd_peak_row[side].iloc[0])
-                    rfd_peak_text = f" | RFD: {rfd_peak:.2f} kN/s"
-                except (IndexError, ValueError, TypeError):
-                    pass
+                # Pre-calculate all marker positions
+                legend_lines = []
 
-            peak_legend = f"<b>Peak: {peak_time_ms:.0f}ms | {peak_force_kn:.2f}kN{rfd_peak_text}</b>"
-            legend_lines.append(peak_legend)
+                # For each time point, find the best force value across all repetitions
+                for idx, tp in enumerate(time_points):
+                    # Find best force value at this time point across all reps
+                    best_force_at_tp = 0
+                    if 'repetition' in side_data.columns:
+                        for rep in side_data['repetition'].unique():
+                            rep_data = side_data.loc[side_data.repetition == rep]
+                            x_rep = rep_data[time_col].to_numpy().astype(float).flatten()
+                            y_rep = rep_data["value"].to_numpy().astype(float).flatten()
+                            if len(x_rep) > 0 and tp <= x_rep.max():
+                                force_at_tp = float(np.interp(tp, x_rep, y_rep))
+                                if force_at_tp > best_force_at_tp:
+                                    best_force_at_tp = force_at_tp
+                    else:
+                        # Fallback: use single curve
+                        x = side_data[time_col].to_numpy().astype(float).flatten()
+                        y = side_data["value"].to_numpy().astype(float).flatten()
+                        if len(x) > 0 and tp <= x.max():
+                            best_force_at_tp = float(np.interp(tp, x, y))
 
-            # Add legend as annotation in bottom-right corner of this subplot
-            legend_text_html = "<br>".join(legend_lines)
+                    if best_force_at_tp > 0:
+                        force_val_n = best_force_at_tp
+                        force_val_kn = force_val_n / 1000.0  # Convert to kN
 
-            # Determine subplot domain for positioning
-            # Each subplot has domain [col_start, col_end] in x-axis
-            col_width = 1.0 / ncols
-            x_domain_start = i * col_width
-            x_domain_end = (i + 1) * col_width
+                        # Get RFD from summary (now in kN/s)
+                        rfd_param = f"RFD 0-{tp} ms (kN/s)"
+                        rfd_row = summary.loc[summary.parameter == rfd_param]
+                        rfd_val = None
+                        if not rfd_row.empty and side in rfd_row.columns:
+                            try:
+                                rfd_val = float(rfd_row[side].iloc[0])
+                            except (IndexError, ValueError, TypeError):
+                                pass
 
-            fig.add_annotation(
-                text=legend_text_html,
-                xref="paper",
-                yref="paper",
-                x=x_domain_end - 0.01,  # Bottom-right corner with small margin
-                y=0.05,  # Near bottom
-                xanchor="right",
-                yanchor="bottom",
-                showarrow=False,
-                font=dict(size=9, color="black"),
-                bgcolor="rgba(255, 255, 255, 0.8)",
-                bordercolor="gray",
-                borderwidth=1,
-                borderpad=4,
+                        # Get color for this marker (consistent across subplots)
+                        color = MARKER_COLORS[idx % len(MARKER_COLORS)]
+
+                        # Add marker on the curve
+                        fig.add_trace(
+                            go.Scatter(
+                                x=[tp],
+                                y=[force_val_n],  # Plot in N (original scale)
+                                mode="markers",
+                                marker=dict(
+                                    size=12,  # Large markers
+                                    color=color,
+                                    symbol='circle',
+                                    line=dict(width=2, color='white')
+                                ),
+                                showlegend=False,
+                                hovertemplate=f"{tp}ms: {force_val_kn:.2f}kN<br>RFD: {rfd_val:.2f} kN/s<extra></extra>" if rfd_val else f"{tp}ms: {force_val_kn:.2f}kN<extra></extra>",
+                            ),
+                            row=1,
+                            col=i + 1,
+                        )
+
+                        # Build legend text for this subplot (show in kN and kN/s)
+                        legend_text = f"● {tp}ms: {force_val_kn:.2f}kN"
+                        if rfd_val is not None:
+                            legend_text += f" | RFD: {rfd_val:.2f} kN/s"
+                        legend_lines.append(f'<span style="color:{color}">{legend_text}</span>')
+
+                # Add peak force to legend with RFD
+                # Find best peak across all reps
+                best_peak_force = 0
+                best_peak_time = 0
+                if 'repetition' in side_data.columns:
+                    for rep in side_data['repetition'].unique():
+                        rep_data = side_data.loc[side_data.repetition == rep]
+                        y_rep = rep_data["value"].to_numpy().astype(float).flatten()
+                        x_rep = rep_data[time_col].to_numpy().astype(float).flatten()
+                        if len(y_rep) > 0:
+                            peak_force_rep = float(np.max(y_rep))
+                            if peak_force_rep > best_peak_force:
+                                best_peak_force = peak_force_rep
+                                best_peak_time = float(x_rep[np.argmax(y_rep)])
+                else:
+                    x = side_data[time_col].to_numpy().astype(float).flatten()
+                    y = side_data["value"].to_numpy().astype(float).flatten()
+                    if len(y) > 0:
+                        best_peak_force = float(np.max(y))
+                        best_peak_time = float(x[np.argmax(y)])
+
+                peak_force_kn = best_peak_force / 1000.0
+                peak_time_ms = best_peak_time
+
+                # Get RFD for peak using the same approach as time points
+                rfd_peak_param = f"RFD 0-{int(peak_time_ms)} ms (kN/s)"
+                rfd_peak_row = summary.loc[summary.parameter == rfd_peak_param]
+                rfd_peak_text = ""
+                if not rfd_peak_row.empty and side in rfd_peak_row.columns:
+                    try:
+                        rfd_peak = float(rfd_peak_row[side].iloc[0])
+                        rfd_peak_text = f" | RFD: {rfd_peak:.2f} kN/s"
+                    except (IndexError, ValueError, TypeError):
+                        pass
+
+                peak_legend = f"<b>Peak: {peak_time_ms:.0f}ms | {peak_force_kn:.2f}kN{rfd_peak_text}</b>"
+                legend_lines.append(peak_legend)
+
+                # Add peak marker (same size as time point markers)
+                fig.add_trace(
+                    go.Scatter(
+                        x=[peak_time_ms],
+                        y=[best_peak_force],
+                        mode="markers",
+                        marker=dict(
+                            size=12,  # Same size as time point markers
+                            color='black',
+                            symbol='circle',
+                            line=dict(width=2, color='white')
+                        ),
+                        showlegend=False,
+                        hovertemplate=f"Peak: {peak_time_ms:.0f}ms | {peak_force_kn:.2f}kN<extra></extra>",
+                    ),
+                    row=1,
+                    col=i + 1,
+                )
+
+                # Add legend as annotation in bottom-right corner of this subplot
+                legend_text_html = "<br>".join(legend_lines)
+
+                # Determine subplot domain for positioning
+                # Each subplot has domain [col_start, col_end] in x-axis
+                col_width = 1.0 / ncols
+                x_domain_start = i * col_width
+                x_domain_end = (i + 1) * col_width
+
+                fig.add_annotation(
+                    text=legend_text_html,
+                    xref="paper",
+                    yref="paper",
+                    x=x_domain_end - 0.01,  # Bottom-right corner with small margin
+                    y=0.05,  # Near bottom
+                    xanchor="right",
+                    yanchor="bottom",
+                    showarrow=False,
+                    font=dict(size=9, color="black"),
+                    bgcolor="rgba(255, 255, 255, 0.8)",
+                    bordercolor="gray",
+                    borderwidth=1,
+                    borderpad=4,
             )
-
-        # Add peak marker (same size as time point markers)
-        x_peak = x[np.argmax(y)]
-        fig.add_trace(
-            go.Scatter(
-                x=[x_peak],
-                y=[np.max(y)],
-                mode="markers",
-                marker=dict(
-                    size=12,  # Same size as time point markers
-                    color='black',
-                    symbol='circle',
-                    line=dict(width=2, color='white')
-                ),
-                showlegend=False,
-                hovertemplate=f"Peak: {x_peak:.0f}ms | {np.max(y)/1000:.2f}kN<extra></extra>",
-            ),
-            row=1,
-            col=i + 1,
-        )
-
 
     # update force profiles figure layout
     yrange = f_data["value"].to_numpy().flatten()  # type: ignore
-    yrange = np.array([np.min(yrange), np.max(yrange)])
-    yrange *= np.array([0.95, 1.15])  # Reduced expansion (was 0.9, 1.3)
-    yrange = yrange.tolist()
+    if time_mode == 'percentage':
+        # For isokinetic: Y-axis starts from zero
+        yrange = [0, float(np.max(yrange)) * 1.15]
+    else:
+        # For isometric: keep existing behavior
+        yrange = np.array([np.min(yrange), np.max(yrange)])
+        yrange *= np.array([0.95, 1.15])
+        yrange = yrange.tolist()
 
     # Configure x-axis based on time mode
     if time_mode == 'absolute':
