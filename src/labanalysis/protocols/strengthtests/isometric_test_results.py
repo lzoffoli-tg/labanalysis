@@ -312,6 +312,7 @@ class IsometricTestResults(TestResults):
                 include_emg=self.include_emg,
                 time_mode='absolute',  # Use absolute time mode
                 time_points=time_points,  # Pass time points to figure
+                max_time_ms=max_time_ms,  # Pass max time for X-axis limit
             )
         }
 

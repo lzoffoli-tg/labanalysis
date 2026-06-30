@@ -14,6 +14,7 @@ def _get_force_figure(
     include_emg: bool = True,
     time_mode: str = 'percentage',  # 'percentage' or 'absolute'
     time_points: list[int] = [100, 200, 500, 1000],  # Time points for markers (ms)
+    max_time_ms: int = 2000,  # Maximum time for X-axis (ms)
 ):
 
     # generate the figure
@@ -148,6 +149,24 @@ def _get_force_figure(
                         legend_text += f" | RFD: {rfd_val:.2f} kN/s"
                     legend_lines.append(f'<span style="color:{color}">{legend_text}</span>')
 
+            # Add peak force to legend with RFD
+            peak_force_kn = np.max(y) / 1000.0
+            peak_time_ms = x[np.argmax(y)]
+
+            # Get overall RFD from summary
+            rfd_overall_param = "rate of force development (kN/s)"
+            rfd_overall_row = summary.loc[summary.parameter == rfd_overall_param]
+            rfd_overall_text = ""
+            if not rfd_overall_row.empty and side in rfd_overall_row.columns:
+                try:
+                    rfd_overall = float(rfd_overall_row[side].iloc[0])
+                    rfd_overall_text = f" | RFD: {rfd_overall:.2f} kN/s"
+                except (IndexError, ValueError, TypeError):
+                    pass
+
+            peak_legend = f"<b>Peak: {peak_time_ms:.0f}ms | {peak_force_kn:.2f}kN{rfd_overall_text}</b>"
+            legend_lines.append(peak_legend)
+
             # Add legend as annotation in bottom-right corner of this subplot
             legend_text_html = "<br>".join(legend_lines)
 
@@ -173,92 +192,40 @@ def _get_force_figure(
                 borderpad=4,
             )
 
+        # Add peak marker (same size as time point markers)
         x_peak = x[np.argmax(y)]
         fig.add_trace(
             go.Scatter(
-                x=[x_peak, x_peak],
-                y=[0, np.max(y)],
-                name="peak",
-                line_dash="dash",
-                line_color="black",
-                opacity=0.5,
-                showlegend=False,
-            ),
-            row=1,
-            col=i + 1,
-        )
-
-        # Build peak annotation with consistent format
-        peak_force = np.max(y)
-        peak_force_kn = peak_force / 1000.0  # Convert to kN
-        note_parts = []
-
-        # Peak force with time (in kN)
-        if time_mode == 'absolute':
-            note_parts.append(f"Peak: {x_peak:0.0f}ms | {peak_force_kn:.2f}kN")
-        else:
-            note_parts.append(f"Peak: {peak_force_kn:.2f}kN")
-
-        extras = [
-            "estimated 1RM (kg)",
-            "rate of force development (kN/s)",
-        ]
-        for ext in extras:
-            est_row = summary.loc[summary.parameter == ext]
-            if est_row.empty:
-                continue
-            if side not in est_row.columns:
-                continue
-            # Extract the value directly using iloc
-            try:
-                est = float(est_row[side].iloc[0])
-            except (IndexError, ValueError, TypeError):
-                continue
-            key = (
-                ext.replace("estimated", "Est.")
-                .replace("rate of force development", "RFD (overall)")
-            )
-            note_parts.append(f"{key}: {est:0.1f}")
-        note = "<br>".join(note_parts)
-        if x_peak / np.max(x) < 0.40:
-            dx = 20
-            textposition = "top right"
-        elif x_peak / np.max(x) > 0.60:
-            dx = -20
-            textposition = "top left"
-        else:
-            dx = 0
-            textposition = "top center"
-        fig.add_trace(
-            row=1,
-            col=i + 1,
-            trace=go.Scatter(
                 x=[x_peak],
                 y=[np.max(y)],
-                dx=dx,
-                text=note,
-                mode="markers+text",
-                textposition=textposition,
-                marker=dict(size=4, color="black"),  # Smaller marker (was 12)
-                textfont=dict(size=10, color="black"),  # Same size as time point labels (was 12)
+                mode="markers",
+                marker=dict(
+                    size=12,  # Same size as time point markers
+                    color='black',
+                    symbol='circle',
+                    line=dict(width=2, color='white')
+                ),
                 showlegend=False,
-                name="force profile",
+                hovertemplate=f"Peak: {x_peak:.0f}ms | {np.max(y)/1000:.2f}kN<extra></extra>",
             ),
+            row=1,
+            col=i + 1,
         )
+
 
     # update force profiles figure layout
     yrange = f_data["value"].to_numpy().flatten()  # type: ignore
     yrange = np.array([np.min(yrange), np.max(yrange)])
-    yrange *= np.array([0.9, 1.3])
+    yrange *= np.array([0.95, 1.15])  # Reduced expansion (was 0.9, 1.3)
     yrange = yrange.tolist()
 
     # Configure x-axis based on time mode
     if time_mode == 'absolute':
-        xrange = f_data["time_ms"].to_numpy().flatten()  # type: ignore
-        xrange = [np.min(xrange), np.max(xrange)]
+        # Use max_time_ms as upper limit for X-axis
+        xrange = [0, max_time_ms]
         # Create ticks at key intervals for absolute time
-        xticks = [0, 500, 1000, 1500, 2000]
-        # Filter ticks to only those within the data range
+        xticks = [0, 500, 1000, 1500, 2000, 2500, 3000]
+        # Filter ticks to only those within the range
         xticks = [t for t in xticks if xrange[0] <= t <= xrange[1]]
         xlabel = "Time (ms)"
     else:
@@ -300,6 +267,7 @@ def _get_force_figure(
             showgrid=False,
             zeroline=False,
             showticklabels=True,
+            matches='y' if i > 0 else None,  # Share Y-axis across subplots
         )
 
     # plot muscle data
