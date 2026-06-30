@@ -8,7 +8,6 @@ import pandas as pd
 from ...exercises.strength import IsometricExercise
 from ...pipelines import get_default_processing_pipeline
 from ...records import TimeseriesRecord
-from ...signalprocessing import butterworth_filt
 from ...timeseries import EMGSignal, Signal1D
 from ..participant import Participant
 from ..test_protocol import TestProtocol
@@ -89,10 +88,9 @@ class IsometricTest(TestProtocol):
     Notes
     -----
     Processing Pipeline:
-    - Force signals: 1 Hz lowpass filter for smoothing
+    - Force signals: Gap filling only (no filtering to preserve raw force profile)
     - EMG signals: 20-450 Hz bandpass, RMS envelope
     - Gap filling with cubic spline interpolation
-    - Phase-corrected filtering to preserve peak timing
 
     Isometric testing measures maximum force production without joint movement,
     providing pure strength assessment independent of velocity and power factors.
@@ -249,17 +247,8 @@ class IsometricTest(TestProtocol):
     @property
     def processing_pipeline(self):
         def custom_processing_func(signal: Signal1D):
+            # Only fill missing values, do not filter
             signal.fillna(inplace=True)
-            fsamp = 1 / np.mean(np.diff(signal.index))
-            signal.apply(
-                butterworth_filt,
-                fcut=1,
-                fsamp=fsamp,
-                order=4,
-                ftype="lowpass",
-                phase_corrected=True,
-                inplace=True,
-            )
 
         pipeline = get_default_processing_pipeline()
         pipeline.add(Signal1D=[custom_processing_func])
@@ -287,6 +276,7 @@ class IsometricTest(TestProtocol):
         right_emg_filename: str | None = None,
         bilateral_emg_filename: str | None = None,
         max_time_s: int | None = None,
+        time_points: list[int] = [100, 200, 500, 1000],
         normative_data: pd.DataFrame = pd.DataFrame(),
         emg_normalization_references: TimeseriesRecord = TimeseriesRecord(),
         emg_normalization_function: Callable = np.mean,
@@ -312,6 +302,7 @@ class IsometricTest(TestProtocol):
                 side="left",
                 synchronize_signals=True,
                 max_time_s=max_time_s,
+                time_points=time_points,
                 **left,
             )
         else:
@@ -334,6 +325,7 @@ class IsometricTest(TestProtocol):
                 side="right",
                 synchronize_signals=True,
                 max_time_s=max_time_s,
+                time_points=time_points,
                 **right,
             )
         else:
@@ -356,6 +348,7 @@ class IsometricTest(TestProtocol):
                 side="bilateral",
                 synchronize_signals=True,
                 max_time_s=max_time_s,
+                time_points=time_points,
                 **bilateral,
             )
         else:

@@ -482,8 +482,7 @@ test = IsometricTest(participant=participant, left=left_ex, right=None, bilatera
 
 ```python
 # Force signal
-- Lowpass filter: 1 Hz cutoff, 4th order Butterworth
-- Phase-corrected (zero-lag)
+- Gap filling only (no filtering to preserve raw force profile)
 
 # EMG signals (if available)
 - Bandpass filter: 20-450 Hz
@@ -630,12 +629,16 @@ class IsometricTestResults(TestResults):
 - `symmetry (%)`: Left-right asymmetry percentage
 
 **Parameters include:**
-- `peak force (N)`: Maximum force
-- `force at 100 ms (N)`: Force at 100ms from onset
-- `force at 200 ms (N)`: Force at 200ms from onset
-- `force at 500 ms (N)`: Force at 500ms from onset
-- `force at 1000 ms (N)`: Force at 1000ms from onset
-- `rate of force development (kN/s)`: RFD
+- `peak force (kN)`: Maximum force
+- `force at 100 ms (kN)`: Force at 100ms from onset
+- `force at 200 ms (kN)`: Force at 200ms from onset
+- `force at 500 ms (kN)`: Force at 500ms from onset
+- `force at 1000 ms (kN)`: Force at 1000ms from onset
+- `RFD 0-100 ms (kN/s)`: Rate of force development from onset to 100ms
+- `RFD 0-200 ms (kN/s)`: Rate of force development from onset to 200ms
+- `RFD 0-500 ms (kN/s)`: Rate of force development from onset to 500ms
+- `RFD 0-1000 ms (kN/s)`: Rate of force development from onset to 1000ms
+- `rate of force development (kN/s)`: Overall RFD (peak method)
 - `time to peak force (ms)`: Time to reach peak force
 - `<muscle_name> (%)`: EMG amplitude (if normalized)
 - `<muscle_name> (uV)`: EMG amplitude (if not normalized)

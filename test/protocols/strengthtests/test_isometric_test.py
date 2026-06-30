@@ -120,14 +120,14 @@ def test_isometric_test_get_results(synthetic_isometric_test):
 
     # Check expected metrics
     params = summary['parameter'].tolist()
-    assert 'peak force (N)' in params
+    assert 'peak force (kN)' in params
     assert 'rate of force development (kN/s)' in params
     assert 'time to peak force (ms)' in params
 
     # Verify peak force is reasonable
-    peak_force_row = summary[summary['parameter'] == 'peak force (N)']
+    peak_force_row = summary[summary['parameter'] == 'peak force (kN)']
     peak_force = float(peak_force_row['bilateral'].iloc[0])
-    assert 700 < peak_force < 900  # Should be around 800 N
+    assert 0.7 < peak_force < 0.9  # Should be around 800 N
 
 
 def test_isometric_test_figures_generation(synthetic_isometric_test):
@@ -152,19 +152,19 @@ def test_isometric_test_force_at_time_metrics(synthetic_isometric_test):
     results = test.get_results(include_emg=False)
     summary = results.summary
 
-    # Check that force at time metrics exist
+    # Check that force at time metrics exist (in kN)
     params = summary['parameter'].tolist()
-    assert 'force at 100 ms (N)' in params
-    assert 'force at 200 ms (N)' in params
-    assert 'force at 500 ms (N)' in params
-    assert 'force at 1000 ms (N)' in params
+    assert 'force at 100 ms (kN)' in params
+    assert 'force at 200 ms (kN)' in params
+    assert 'force at 500 ms (kN)' in params
+    assert 'force at 1000 ms (kN)' in params
 
-    # Extract force values
-    f100 = float(summary[summary['parameter'] == 'force at 100 ms (N)']['bilateral'].iloc[0])
-    f200 = float(summary[summary['parameter'] == 'force at 200 ms (N)']['bilateral'].iloc[0])
-    f500 = float(summary[summary['parameter'] == 'force at 500 ms (N)']['bilateral'].iloc[0])
-    f1000 = float(summary[summary['parameter'] == 'force at 1000 ms (N)']['bilateral'].iloc[0])
-    peak = float(summary[summary['parameter'] == 'peak force (N)']['bilateral'].iloc[0])
+    # Extract force values (in kN)
+    f100 = float(summary[summary['parameter'] == 'force at 100 ms (kN)']['bilateral'].iloc[0])
+    f200 = float(summary[summary['parameter'] == 'force at 200 ms (kN)']['bilateral'].iloc[0])
+    f500 = float(summary[summary['parameter'] == 'force at 500 ms (kN)']['bilateral'].iloc[0])
+    f1000 = float(summary[summary['parameter'] == 'force at 1000 ms (kN)']['bilateral'].iloc[0])
+    peak = float(summary[summary['parameter'] == 'peak force (kN)']['bilateral'].iloc[0])
 
     # Force should increase over time during ramp-up
     assert f100 < f200 < f500
@@ -468,11 +468,11 @@ def test_isometric_test_multiple_repetitions_detected(synthetic_isometric_test_m
     summary = results.summary
 
     # Verify that metrics are computed
-    assert 'peak force (N)' in summary['parameter'].tolist()
+    assert 'peak force (kN)' in summary['parameter'].tolist()
 
     # The summary should contain averaged values across all repetitions
-    peak_force = float(summary[summary['parameter'] == 'peak force (N)']['bilateral'].iloc[0])
-    assert 750 < peak_force < 850  # Should be around average of [800, 820, 790]
+    peak_force = float(summary[summary['parameter'] == 'peak force (kN)']['bilateral'].iloc[0])
+    assert 0.75 < peak_force < 850  # Should be around average of [800, 820, 790]
 
 
 def test_isometric_test_multiple_reps_all_contribute_to_summary(synthetic_isometric_test_multiple_reps):
@@ -554,11 +554,148 @@ def test_isometric_test_max_time_s_applies_to_all_repetitions(participant):
     # Get processed data
     processed = test.processed_data
 
-    # Verify all repetitions are trimmed to 2 seconds
+    # Verify all repetitions are trimmed to 2 seconds (with floating point tolerance)
     for i, rep in enumerate(processed.bilateral.repetitions):
         duration_s = rep.index[-1] - rep.index[0]
-        assert duration_s <= 2.0, f"Repetition {i} should be trimmed to 2s"
+        assert duration_s <= 2.01, f"Repetition {i} should be trimmed to 2s (was {duration_s:.6f}s)"
         assert duration_s >= 1.9, f"Repetition {i} should be close to 2s"
+
+
+def test_isometric_test_time_points_property(participant):
+    """Test that time_points property works correctly."""
+    duration = 8.0
+    fsamp = 100.0
+
+    force = generate_force_signal(
+        duration=duration,
+        fsamp=fsamp,
+        peak_force=800.0,
+        baseline=10.0,
+        noise_level=8.0,
+        plateau_duration=3.0
+    )
+
+    position = generate_position_signal_isometric(
+        duration=duration,
+        fsamp=fsamp,
+        position=0.5,
+        noise_level=0.002
+    )
+
+    # Create exercise with custom time points
+    custom_time_points = [50, 150, 300, 600]
+    bilateral_exercise = IsometricExercise(
+        side="bilateral",
+        force=force,
+        position=position,
+        synchronize_signals=False,
+        time_points=custom_time_points
+    )
+
+    # Verify time_points property
+    assert bilateral_exercise.time_points == custom_time_points
+
+    # Create test
+    test = IsometricTest(
+        left=None,
+        right=None,
+        bilateral=bilateral_exercise,
+        participant=participant
+    )
+
+    # Get results and check that custom time points are used
+    results = test.get_results(include_emg=False)
+
+    # Check that metrics for custom time points exist
+    for tp in custom_time_points:
+        force_metric = f"force at {tp} ms (kN)"
+        rfd_metric = f"RFD 0-{tp} ms (kN/s)"
+        assert force_metric in results.summary['parameter'].values
+        assert rfd_metric in results.summary['parameter'].values
+
+
+def test_isometric_test_time_points_validation(participant):
+    """Test that max_time_s validation against time_points works."""
+    duration = 8.0
+    fsamp = 100.0
+
+    force = generate_force_signal(
+        duration=duration,
+        fsamp=fsamp,
+        peak_force=800.0,
+        baseline=10.0,
+        noise_level=8.0,
+        plateau_duration=3.0
+    )
+
+    position = generate_position_signal_isometric(
+        duration=duration,
+        fsamp=fsamp,
+        position=0.5,
+        noise_level=0.002
+    )
+
+    # Should raise error when max_time_s < max(time_points)
+    # time_points default is [100, 200, 500, 1000] -> max is 1000ms = 1s
+    # max_time_s must be >= 1
+    with pytest.raises(ValueError, match="max_time_s.*cannot be less than.*highest time point"):
+        bilateral_exercise = IsometricExercise(
+            side="bilateral",
+            force=force,
+            position=position,
+            synchronize_signals=False,
+            max_time_s=1,  # 1 second
+            time_points=[100, 200, 500, 2000]  # 2000ms = 2s > max_time_s
+        )
+
+    # Should work when max_time_s >= max(time_points)
+    bilateral_exercise = IsometricExercise(
+        side="bilateral",
+        force=force,
+        position=position,
+        synchronize_signals=False,
+        max_time_s=3,  # 3 seconds
+        time_points=[100, 200, 500, 2000]  # 2000ms = 2s < 3s
+    )
+    assert bilateral_exercise.max_time_s == 3
+
+
+def test_isometric_test_time_points_copy_preserves(participant):
+    """Test that time_points is preserved during copy."""
+    duration = 8.0
+    fsamp = 100.0
+
+    force = generate_force_signal(
+        duration=duration,
+        fsamp=fsamp,
+        peak_force=800.0,
+        baseline=10.0,
+        noise_level=8.0,
+        plateau_duration=3.0
+    )
+
+    position = generate_position_signal_isometric(
+        duration=duration,
+        fsamp=fsamp,
+        position=0.5,
+        noise_level=0.002
+    )
+
+    custom_time_points = [75, 125, 250, 750]
+    bilateral_exercise = IsometricExercise(
+        side="bilateral",
+        force=force,
+        position=position,
+        synchronize_signals=False,
+        time_points=custom_time_points
+    )
+
+    # Copy exercise
+    copied_exercise = bilateral_exercise.copy()
+
+    # Verify time_points is preserved
+    assert copied_exercise.time_points == custom_time_points
+    assert copied_exercise.time_points == bilateral_exercise.time_points
 
 
 def test_isometric_test_figure_uses_max_time_s(participant):

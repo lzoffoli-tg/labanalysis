@@ -128,6 +128,16 @@ class IsometricExercise(BiostrengthExercise):
 
         return reps
 
+    @property
+    def time_points(self):
+        """Return the time points (in ms) at which force is measured."""
+        return self._time_points
+
+    @property
+    def max_time_s(self):
+        """Return the maximum time duration (in seconds) for analysis."""
+        return self._max_time_s
+
     def __init__(
         self,
         side: Literal["bilateral", "left", "right"],
@@ -135,10 +145,20 @@ class IsometricExercise(BiostrengthExercise):
         position: Signal1D,
         synchronize_signals: bool = True,
         max_time_s: int | None = None,
+        time_points: list[int] = [100, 200, 500, 1000],
         **signals: EMGSignal,
     ):
         if max_time_s is not None and max_time_s < 1:
             raise ValueError("max_time_s must be >= 1 or None")
+
+        # Validate that max_time_s is not less than the highest time point
+        if max_time_s is not None and len(time_points) > 0:
+            max_time_point_s = max(time_points) / 1000.0  # Convert ms to seconds
+            if max_time_s < max_time_point_s:
+                raise ValueError(
+                    f"max_time_s ({max_time_s}s) cannot be less than the highest time point "
+                    f"({max(time_points)}ms = {max_time_point_s:.1f}s)"
+                )
 
         super().__init__(
             side=side,
@@ -148,11 +168,13 @@ class IsometricExercise(BiostrengthExercise):
             **signals,
         )
         self._max_time_s = max_time_s
+        self._time_points = time_points
 
     def copy(self):
         return IsometricExercise(
             side=self.side,  # type: ignore
             synchronize_signals=False,
             max_time_s=getattr(self, '_max_time_s', None),
+            time_points=getattr(self, '_time_points', [100, 200, 500, 1000]),
             **{i: v.copy() for i, v in self._data.items()},  # type: ignore
         )

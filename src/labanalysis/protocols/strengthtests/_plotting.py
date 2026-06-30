@@ -13,6 +13,7 @@ def _get_force_figure(
     summary: pd.DataFrame,
     include_emg: bool = True,
     time_mode: str = 'percentage',  # 'percentage' or 'absolute'
+    time_points: list[int] = [100, 200, 500, 1000],  # Time points for markers (ms)
 ):
 
     # generate the figure
@@ -96,39 +97,81 @@ def _get_force_figure(
         )
 
         # Add markers for specific time points (only in absolute mode)
-        if time_mode == 'absolute':
-            time_points = [100, 200, 500, 1000]
-            for tp in time_points:
-                # Get force at this time point from summary
-                param_name = f"force at {tp} ms (N)"
-                force_row = summary.loc[summary.parameter == param_name]
-                if not force_row.empty and side in force_row.columns:
-                    try:
-                        force_val = float(force_row[side].iloc[0])
-                        # Add marker on the curve
-                        fig.add_trace(
-                            go.Scatter(
-                                x=[tp],
-                                y=[force_val],
-                                mode="markers+text",
-                                text=f" {force_val:0.0f}N",  # Space before text for padding
-                                textposition="middle right",
-                                marker=dict(
-                                    size=6,
-                                    color=SIDE_COLORS[side],
-                                    symbol='circle',
-                                    opacity=0.6,
-                                    line=dict(width=1, color='white')
-                                ),
-                                textfont=dict(size=9, color=SIDE_COLORS[side]),
-                                showlegend=False,
-                                name=f"force @ {tp}ms",
+        if time_mode == 'absolute' and len(time_points) > 0:
+            # Define colors for markers (distinct colors, same across subplots)
+            marker_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f']
+
+            # Pre-calculate all marker positions
+            marker_data = []
+            legend_lines = []
+
+            for idx, tp in enumerate(time_points):
+                if tp <= x.max():
+                    force_val_n = float(np.interp(tp, x, y))
+                    force_val_kn = force_val_n / 1000.0  # Convert to kN
+
+                    # Get RFD from summary (now in kN/s)
+                    rfd_param = f"RFD 0-{tp} ms (kN/s)"
+                    rfd_row = summary.loc[summary.parameter == rfd_param]
+                    rfd_val = None
+                    if not rfd_row.empty and side in rfd_row.columns:
+                        try:
+                            rfd_val = float(rfd_row[side].iloc[0])
+                        except (IndexError, ValueError, TypeError):
+                            pass
+
+                    # Get color for this marker (consistent across subplots)
+                    color = marker_colors[idx % len(marker_colors)]
+
+                    # Add marker on the curve
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[tp],
+                            y=[force_val_n],  # Plot in N (original scale)
+                            mode="markers",
+                            marker=dict(
+                                size=12,  # Large markers
+                                color=color,
+                                symbol='circle',
+                                line=dict(width=2, color='white')
                             ),
-                            row=1,
-                            col=i + 1,
-                        )
-                    except (IndexError, ValueError, TypeError):
-                        continue
+                            showlegend=False,
+                            hovertemplate=f"{tp}ms: {force_val_kn:.2f}kN<br>RFD: {rfd_val:.2f} kN/s<extra></extra>" if rfd_val else f"{tp}ms: {force_val_kn:.2f}kN<extra></extra>",
+                        ),
+                        row=1,
+                        col=i + 1,
+                    )
+
+                    # Build legend text for this subplot (show in kN and kN/s)
+                    legend_text = f"● {tp}ms: {force_val_kn:.2f}kN"
+                    if rfd_val is not None:
+                        legend_text += f" | RFD: {rfd_val:.2f} kN/s"
+                    legend_lines.append(f'<span style="color:{color}">{legend_text}</span>')
+
+            # Add legend as annotation in bottom-right corner of this subplot
+            legend_text_html = "<br>".join(legend_lines)
+
+            # Determine subplot domain for positioning
+            # Each subplot has domain [col_start, col_end] in x-axis
+            col_width = 1.0 / ncols
+            x_domain_start = i * col_width
+            x_domain_end = (i + 1) * col_width
+
+            fig.add_annotation(
+                text=legend_text_html,
+                xref="paper",
+                yref="paper",
+                x=x_domain_end - 0.01,  # Bottom-right corner with small margin
+                y=0.05,  # Near bottom
+                xanchor="right",
+                yanchor="bottom",
+                showarrow=False,
+                font=dict(size=9, color="black"),
+                bgcolor="rgba(255, 255, 255, 0.8)",
+                bordercolor="gray",
+                borderwidth=1,
+                borderpad=4,
+            )
 
         x_peak = x[np.argmax(y)]
         fig.add_trace(
@@ -144,11 +187,21 @@ def _get_force_figure(
             row=1,
             col=i + 1,
         )
-        note = [f"{"Peak:"}{np.max(y):0.1f}N"]
+
+        # Build peak annotation with consistent format
+        peak_force = np.max(y)
+        peak_force_kn = peak_force / 1000.0  # Convert to kN
+        note_parts = []
+
+        # Peak force with time (in kN)
+        if time_mode == 'absolute':
+            note_parts.append(f"Peak: {x_peak:0.0f}ms | {peak_force_kn:.2f}kN")
+        else:
+            note_parts.append(f"Peak: {peak_force_kn:.2f}kN")
+
         extras = [
             "estimated 1RM (kg)",
             "rate of force development (kN/s)",
-            "time to peak force (ms)",
         ]
         for ext in extras:
             est_row = summary.loc[summary.parameter == ext]
@@ -163,11 +216,10 @@ def _get_force_figure(
                 continue
             key = (
                 ext.replace("estimated", "Est.")
-                .replace("rate of force development", "RFD")
-                .replace("time to peak force", "Time@F<sub>MAX</sub>")
+                .replace("rate of force development", "RFD (overall)")
             )
-            note += [f"{key}: {est:0.1f}"]
-        note = "<br>".join(note)
+            note_parts.append(f"{key}: {est:0.1f}")
+        note = "<br>".join(note_parts)
         if x_peak / np.max(x) < 0.40:
             dx = 20
             textposition = "top right"
@@ -187,8 +239,8 @@ def _get_force_figure(
                 text=note,
                 mode="markers+text",
                 textposition=textposition,
-                marker=dict(size=12, color="black"),
-                textfont=dict(size=12, color="black"),
+                marker=dict(size=4, color="black"),  # Smaller marker (was 12)
+                textfont=dict(size=10, color="black"),  # Same size as time point labels (was 12)
                 showlegend=False,
                 name="force profile",
             ),
@@ -231,9 +283,15 @@ def _get_force_figure(
             tickmode="array",
             range=[min(xticks), max(xticks)],
         )
+        # Generate y-axis ticks in kN
+        yticks_n = np.linspace(yrange[0], yrange[1], 6)
+        yticks_kn = [f"{yn/1000:.1f}" for yn in yticks_n]
+
         fig.update_yaxes(
-            title="Force (N)",
-            range=yrange,
+            title="Force (kN)",
+            range=yrange,  # Keep range in N for plotting
+            tickvals=yticks_n,
+            ticktext=yticks_kn,
             row=1,
             col=i + 1,
             showline=True,

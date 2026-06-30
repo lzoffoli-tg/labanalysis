@@ -131,6 +131,24 @@ class IsometricTestResults(TestResults):
         # Interpolate force at requested time
         return float(np.interp(time_ms, time, force))
 
+    def _get_rfd_at_interval_ms(self, exe: IsometricExercise, rep_index: int, time_ms: float):
+        """Get RFD (N/s) from onset to specific time point for a specific repetition."""
+        force_at_time = self._get_force_at_time_ms(exe, rep_index, time_ms)
+
+        # Get baseline force (at onset)
+        rep = exe.repetitions[rep_index]
+        baseline_force = float(rep.force.to_numpy().flatten()[0])
+
+        # RFD = (F_time - F_baseline) / (time_ms / 1000)
+        # Result in N/s
+        delta_force = force_at_time - baseline_force
+        delta_time_s = time_ms / 1000.0
+
+        if delta_time_s == 0:
+            return 0.0
+
+        return float(delta_force / delta_time_s)
+
     def _get_summary(self, test: "IsometricTest"):
         trials = [test.left, test.right, test.bilateral]
         sides = ["left", "right", "bilateral"]
@@ -165,19 +183,22 @@ class IsometricTestResults(TestResults):
                 new.loc["time to peak force (ms)", side] = (
                     self._get_time_to_peak_force_ms(trial, i)
                 )
-                new.loc["peak force (N)", side] = self._get_peak_force(trial, i)
-                new.loc["force at 100 ms (N)", side] = (
-                    self._get_force_at_time_ms(trial, i, 100)
-                )
-                new.loc["force at 200 ms (N)", side] = (
-                    self._get_force_at_time_ms(trial, i, 200)
-                )
-                new.loc["force at 500 ms (N)", side] = (
-                    self._get_force_at_time_ms(trial, i, 500)
-                )
-                new.loc["force at 1000 ms (N)", side] = (
-                    self._get_force_at_time_ms(trial, i, 1000)
-                )
+                # Peak force in kN
+                new.loc["peak force (kN)", side] = self._get_peak_force(trial, i) / 1000.0
+
+                # Get time points from exercise
+                time_points = trial.time_points
+
+                # Calculate force and RFD at each time point
+                for tp in time_points:
+                    # Force in kN (divide by 1000)
+                    new.loc[f"force at {tp} ms (kN)", side] = (
+                        self._get_force_at_time_ms(trial, i, tp) / 1000.0
+                    )
+                    # RFD in kN/s (divide by 1000)
+                    new.loc[f"RFD 0-{tp} ms (kN/s)", side] = (
+                        self._get_rfd_at_interval_ms(trial, i, tp) / 1000.0
+                    )
 
                 metrics = pd.concat([metrics, new])
         metrics.insert(0, "parameter", metrics.index)
@@ -243,12 +264,13 @@ class IsometricTestResults(TestResults):
             # If we can't find these columns, skip figure generation
             return {}
 
-        # Determine time limit for figure based on max_time_s from exercises
-        # Check if any exercise has max_time_s set
+        # Determine time limit and time points from exercises
         max_time_s = None
+        time_points = [100, 200, 500, 1000]  # default
         for exe in [test.left, test.right, test.bilateral]:
-            if exe is not None and hasattr(exe, '_max_time_s') and exe._max_time_s is not None:
-                max_time_s = exe._max_time_s
+            if exe is not None:
+                max_time_s = exe.max_time_s
+                time_points = exe.time_points
                 break
         # Default to 2000 ms if max_time_s is not set
         max_time_ms = max_time_s * 1000 if max_time_s is not None else 2000
@@ -289,6 +311,7 @@ class IsometricTestResults(TestResults):
                 self.summary,
                 include_emg=self.include_emg,
                 time_mode='absolute',  # Use absolute time mode
+                time_points=time_points,  # Pass time points to figure
             )
         }
 
