@@ -84,15 +84,15 @@ class LegExtensionREV(BiostrengthProduct):
         Note: External package uses default roll_position=11, internal used 18.
         We keep 18 as default for backward compatibility.
         """
-        # External package expects roll_position (default 11), we map our 18 default
+        # External package expects roller_position (default 11), we map our 18 default
         self._product = self._external_class(
-            time_s, motor_position_rad, motor_load_nm, roll_position=roll_position
+            time_s, motor_position_rad, motor_load_nm, roller_position=roll_position
         )
 
     @classmethod
     def from_txt_file(cls, file: str, roll_position: int = 18):
         """Read from file with roll_position parameter."""
-        external_instance = cls._external_class.from_txt(file, roll_position=roll_position)
+        external_instance = cls._external_class.from_txt(file, roller_position=roll_position)
         wrapper = cls.__new__(cls)
         wrapper._product = external_instance
         return wrapper
