@@ -176,7 +176,7 @@ class IsometricTestResults(TestResults):
 
                 # Get peak time and calculate RFD to peak (same way as other time points)
                 peak_time_ms = self._get_time_to_peak_force_ms(trial, i)
-                new.loc[f"RFD 0-{int(peak_time_ms)} ms (kN/s)", side] = (
+                new.loc["RFD peak (kN/s)", side] = (
                     self._get_rfd_at_interval_ms(trial, i, peak_time_ms) / 1000.0
                 )
 

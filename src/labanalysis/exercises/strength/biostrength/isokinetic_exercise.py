@@ -71,23 +71,17 @@ class IsokineticExercise(BiostrengthExercise):
         if abs(np.min(position)) > abs(np.max(position)):
             position *= -1
 
-        # get the velocity
-        velocity = winter_derivative1(position)
-        velocity = np.concatenate([[velocity[0]], velocity, [velocity[-1]]])
-        velocity = mean_filt(arr=velocity, order=301, offset=1)
-
         # get the batches where the position is within the 20-80% of the ROM and
         # positive velocity
         rom0 = np.min(position)
         rom1 = np.max(position)
         rom = (position - rom0) / (rom1 - rom0)
-        concentric_phase_condition = (velocity > 0) & (rom > 0.2) & (rom < 0.8)
-        batches = continuous_batches(concentric_phase_condition)
+        batches = continuous_batches(rom > 0.5)
         if len(batches) == 0:
             raise RuntimeError("No repetitions have been found")
 
         # get the 3 (or less) repetitions with the greater ROM
-        samples = np.argsort([np.max(position[i]) for i in batches])[::-1][:3]
+        samples = np.argsort([len(i) for i in batches])[::-1][:3]
         batches = [batches[i] for i in np.sort(samples)]
 
         # for each batch (i.e. candidate repetition):
@@ -97,10 +91,10 @@ class IsokineticExercise(BiostrengthExercise):
         #     velocity readings occurring after the last sample of the batch
         reps_idx: list[list[int]] = []
         for batch in batches:
-            start = np.where(velocity[: batch[0]] <= 0)[0]
-            start = 0 if len(start) == 0 else start[-1]
-            stop = np.where(velocity[batch[-1] :] <= 0)[0]
-            stop = len(velocity) if len(stop) == 0 else (stop[0] + batch[-1] + 1)
+            start = batch[0]
+            while start > 0 and rom[start] > rom[start - 1]:
+                start -= 1
+            stop = np.argmax(position[batch]) + batch[0]
             reps_idx += [list(range(start, stop, 1))]
         return reps_idx
 

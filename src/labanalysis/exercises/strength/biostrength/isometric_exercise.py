@@ -87,13 +87,13 @@ class IsometricExercise(BiostrengthExercise):
             # for each batch get the start of the repetition as the last point
             # before the start of the batch without having increments in force
             start = batch[0]
-            while start > 0 and arr[start - 1] < arr[start]:
+            while start > 0 and (arr[start - 1] < arr[start] or arr[start - 1] > np.max(arr) * 0.33):
                 start -= 1
 
             # for each batch get the end of the repetition as the first point
             # before the end of the batch without having decrements in force
             stop = batch[-1]
-            while stop < len(time) - 1 and arr[stop + 1] < arr[stop]:
+            while stop < len(time) - 1 and (arr[stop + 1] < arr[stop] or arr[stop + 1] > np.max(arr) * 0.33):
                 stop += 1
 
             # add the repetition index

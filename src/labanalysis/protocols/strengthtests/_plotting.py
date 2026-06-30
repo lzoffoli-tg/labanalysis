@@ -3,8 +3,8 @@
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
+from plotly.subplots import make_subplots
 from ...constants import RANK_4COLORS, SIDE_COLORS, MARKER_COLORS
 
 
@@ -42,7 +42,7 @@ def _get_force_figure(
         shared_xaxes=False,
         shared_yaxes=False,
         subplot_titles=titles,
-        horizontal_spacing=0.1,
+        horizontal_spacing=0.15,
     )
     fig.update_layout(
         template="plotly_white",
@@ -254,6 +254,7 @@ def _get_force_figure(
 
         # Add markers for specific time points (only in absolute mode)
         if time_mode == 'absolute' and len(time_points) > 0:
+
             # Process each side independently
             for i, side in enumerate(sides):
                 side_data = f_data.loc[f_data.side == side]
@@ -348,17 +349,14 @@ def _get_force_figure(
                 peak_time_ms = best_peak_time
 
                 # Get RFD for peak using the same approach as time points
-                rfd_peak_param = f"RFD 0-{int(peak_time_ms)} ms (kN/s)"
-                rfd_peak_row = summary.loc[summary.parameter == rfd_peak_param]
-                rfd_peak_text = ""
+                rfd_peak_row = summary.loc[summary.parameter == "RFD peak (kN/s)"]
                 if not rfd_peak_row.empty and side in rfd_peak_row.columns:
                     try:
                         rfd_peak = float(rfd_peak_row[side].iloc[0])
-                        rfd_peak_text = f" | RFD: {rfd_peak:.2f} kN/s"
                     except (IndexError, ValueError, TypeError):
                         pass
 
-                peak_legend = f"<b>Peak: {peak_time_ms:.0f}ms | {peak_force_kn:.2f}kN{rfd_peak_text}</b>"
+                peak_legend = f"● Peak: {peak_time_ms:.0f}ms | {peak_force_kn:.2f}kN | {rfd_peak:.2f}kN/s"
                 legend_lines.append(peak_legend)
 
                 # Add peak marker (same size as time point markers)
@@ -374,7 +372,7 @@ def _get_force_figure(
                             line=dict(width=2, color='white')
                         ),
                         showlegend=False,
-                        hovertemplate=f"Peak: {peak_time_ms:.0f}ms | {peak_force_kn:.2f}kN<extra></extra>",
+                        hovertemplate=f"Peak: {peak_time_ms:.0f}ms | {peak_force_kn:.2f}kN | {rfd_peak:.2f}kN/s<extra></extra>",
                     ),
                     row=1,
                     col=i + 1,
@@ -403,6 +401,7 @@ def _get_force_figure(
                     bordercolor="gray",
                     borderwidth=1,
                     borderpad=4,
+                    align="left",
             )
 
     # update force profiles figure layout
@@ -418,19 +417,14 @@ def _get_force_figure(
 
     # Configure x-axis based on time mode
     if time_mode == 'absolute':
-        # Use max_time_ms as upper limit for X-axis
         xrange = [0, max_time_ms]
-        # Create ticks at key intervals for absolute time
-        xticks = [0, 500, 1000, 1500, 2000, 2500, 3000]
-        # Filter ticks to only those within the range
-        xticks = [t for t in xticks if xrange[0] <= t <= xrange[1]]
         xlabel = "Time (ms)"
     else:
         xrange = f_data["time_%"].to_numpy().flatten()  # type: ignore
         xrange = [np.min(xrange), np.max(xrange)]
-        xticks = np.linspace(xrange[0], xrange[1], 5)
-        xticks = [int(round(i / 5) * 5) for i in xticks]
         xlabel = "Concentric Phase (%)"
+    xticks = np.linspace(xrange[0], xrange[1], 5)
+    xticks = [int(round(i / 5) * 5) for i in xticks]
 
     for i in range(len(sides)):
         fig.update_xaxes(
@@ -540,5 +534,3 @@ def _get_force_figure(
         )
 
     return fig
-
-
