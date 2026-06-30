@@ -482,7 +482,8 @@ test = IsometricTest(participant=participant, left=left_ex, right=None, bilatera
 
 ```python
 # Force signal
-- Gap filling only (no filtering to preserve raw force profile)
+- Lowpass filter: 3 Hz cutoff, 4th order Butterworth
+- Phase-corrected (zero-lag)
 
 # EMG signals (if available)
 - Bandpass filter: 20-450 Hz

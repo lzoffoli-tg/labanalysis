@@ -8,6 +8,7 @@ import pandas as pd
 from ...exercises.strength import IsometricExercise
 from ...pipelines import get_default_processing_pipeline
 from ...records import TimeseriesRecord
+from ...signalprocessing import butterworth_filt
 from ...timeseries import EMGSignal, Signal1D
 from ..participant import Participant
 from ..test_protocol import TestProtocol
@@ -88,9 +89,10 @@ class IsometricTest(TestProtocol):
     Notes
     -----
     Processing Pipeline:
-    - Force signals: Gap filling only (no filtering to preserve raw force profile)
+    - Force signals: 3 Hz lowpass filter (4th order Butterworth, phase-corrected)
     - EMG signals: 20-450 Hz bandpass, RMS envelope
     - Gap filling with cubic spline interpolation
+    - Phase-corrected filtering to preserve peak timing
 
     Isometric testing measures maximum force production without joint movement,
     providing pure strength assessment independent of velocity and power factors.
@@ -247,8 +249,19 @@ class IsometricTest(TestProtocol):
     @property
     def processing_pipeline(self):
         def custom_processing_func(signal: Signal1D):
-            # Only fill missing values, do not filter
+            # Fill missing values
             signal.fillna(inplace=True)
+            # Apply 3Hz lowpass filter to force signals
+            fsamp = 1 / np.mean(np.diff(signal.index))
+            signal.apply(
+                butterworth_filt,
+                fcut=3,
+                fsamp=fsamp,
+                order=4,
+                ftype="lowpass",
+                phase_corrected=True,
+                inplace=True,
+            )
 
         pipeline = get_default_processing_pipeline()
         pipeline.add(Signal1D=[custom_processing_func])
