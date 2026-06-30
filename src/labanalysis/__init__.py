@@ -11,7 +11,7 @@ Main modules:
 """
 
 # Version
-__version__ = "225"
+__version__ = "226"
 
 # Wildcard imports from all main submodules and subpackages
 from .equations import *

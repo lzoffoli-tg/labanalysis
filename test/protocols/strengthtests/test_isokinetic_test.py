@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from labanalysis.exercises.strength import IsokineticExercise
-from labanalysis.protocols import Participant, Isokinetic1RMTest
+from labanalysis.protocols import Isokinetic1RMTest, Participant
 from labanalysis.timeseries import Signal1D
 
 from .synthetic_data_generators import (
@@ -206,3 +206,118 @@ def test_isokinetic_test_analytics(synthetic_isokinetic_test):
     # Should have 3 repetitions
     repetitions = analytics['repetition'].unique()
     assert len(repetitions) >= 1  # At least one repetition detected
+
+
+def test_isokinetic_test_from_synthetic_biostrength_files_end_to_end(participant, tmp_path):
+    """
+    End-to-end integration test: create test from synthetic Biostrength files,
+    generate results, save, and load.
+
+    This test verifies the complete workflow used in real data analysis.
+    """
+    import tempfile
+
+    # Import the synthetic data generator from biostrength tests
+    import sys
+    from pathlib import Path
+    biostrength_test_path = Path(__file__).parent.parent.parent / "io" / "read"
+    sys.path.insert(0, str(biostrength_test_path))
+
+    try:
+        from test_biostrength import _generate_synthetic_biostrength_txt
+    finally:
+        sys.path.pop(0)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+
+        # Generate synthetic Biostrength files (left and right)
+        left_file = tmpdir / "legcurl_left.txt"
+        right_file = tmpdir / "legcurl_right.txt"
+
+        _generate_synthetic_biostrength_txt(
+            str(left_file),
+            n_repetitions=3,
+            rep_duration_s=6.5,
+            torque_peak_nm=30.0,
+            position_range_rad=(1.1, 7.5),
+            roller_position=11
+        )
+
+        _generate_synthetic_biostrength_txt(
+            str(right_file),
+            n_repetitions=3,
+            rep_duration_s=6.5,
+            torque_peak_nm=35.0,
+            position_range_rad=(1.1, 7.5),
+            roller_position=11
+        )
+
+        # Create test from files (mimics real workflow from analisi_dati.py)
+        test = Isokinetic1RMTest.from_files(
+            participant=participant,
+            product="LEG CURL",
+            left_biostrength_filename=str(left_file),
+            right_biostrength_filename=str(right_file),
+        )
+
+        # Verify test creation
+        assert test is not None
+        assert test.participant.fullname == participant.fullname
+        assert test.left is not None
+        assert test.right is not None
+        assert test.bilateral is None  # Bilateral not created when left/right provided
+
+        # Verify _rm1_coefs was loaded correctly
+        assert test.rm1_coefs is not None
+        assert 'beta0' in test.rm1_coefs
+        assert 'beta1' in test.rm1_coefs
+
+        # Generate results
+        results = test.get_results(include_emg=False, estimate_1rm=True)
+
+        assert results is not None
+        assert results.summary is not None
+        assert results.analytics is not None
+        assert results.figures is not None
+
+        # Verify summary has data for both sides
+        summary = results.summary
+        assert 'left' in summary.columns
+        assert 'right' in summary.columns
+
+        # Save test
+        test_save_path = tmp_path / "test.isokinetic1rmtest"
+        test.save(str(test_save_path), force_overwrite=True)
+        assert test_save_path.exists()
+
+        # Load test
+        loaded_test = Isokinetic1RMTest.load(str(test_save_path))
+        assert loaded_test is not None
+        assert loaded_test.participant.fullname == test.participant.fullname
+        assert loaded_test.left is not None
+        assert loaded_test.right is not None
+
+        # Save results
+        results_dir = tmp_path / "results"
+        results_dir.mkdir(exist_ok=True)
+        results.save_all(str(results_dir), force_overwrite=True)
+
+        # Verify results files were created
+        import os
+        created_files = list(os.listdir(results_dir))
+        assert len(created_files) > 0, f"No result files created in {results_dir}"
+
+        # Check for expected result files
+        assert (results_dir / 'summary.csv').exists(), "summary.csv not found"
+        assert (results_dir / 'analytics.csv').exists(), "analytics.csv not found"
+        assert (results_dir / 'figures').exists(), "figures directory not found"
+        assert (results_dir / 'figures').is_dir(), "figures should be a directory"
+
+        # Verify figures directory has content
+        figures_dir = results_dir / 'figures'
+        figure_files = list(os.listdir(figures_dir))
+        assert len(figure_files) > 0, f"No figures generated"
+        # Figures can be in various formats (SVG, HTML, PNG, PDF, etc.)
+        assert any(f.endswith(('.html', '.png', '.pdf', '.svg')) for f in figure_files), \
+            f"No figure files found. Found: {figure_files}"
