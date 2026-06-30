@@ -270,31 +270,30 @@ class IsometricTestResults(TestResults):
         max_time_ms = max_time_s * 1000 if max_time_s is not None else 2000
 
         # Process force data for each side and repetition
-        # Build tracks with absolute time (ms)
+        # Build tracks with absolute time (ms) - include ALL repetitions
         tracks_data = []
-        for side, rep_group in analytics.groupby('side'):
-            # Get the first repetition for this side
-            first_rep = rep_group[rep_group['repetition'] == 1]
-            if first_rep.empty:
+        for (side, rep_num), group in analytics.groupby(['side', 'repetition']):
+            if group.empty:
                 continue
 
             # Get time in ms and force
-            time_ms = (first_rep['time_s'].to_numpy() * 1000).flatten()
-            force = first_rep[force_col].to_numpy().flatten()
+            time_ms = (group['time_s'].to_numpy() * 1000).flatten()
+            force = group[force_col].to_numpy().flatten()
 
             # Limit to max_time_ms
             mask = time_ms <= max_time_ms
             time_ms = time_ms[mask]
             force = force[mask]
 
-            # Store in tracks_data
+            # Store in tracks_data with repetition number
             for t, val in zip(time_ms, force):
                 tracks_data.append({
                     "parameter": "force_amplitude",
                     "side": side,
                     "limb": side,
                     "time_ms": t,
-                    "value": val
+                    "value": val,
+                    "repetition": rep_num
                 })
 
         tracks = pd.DataFrame(tracks_data)

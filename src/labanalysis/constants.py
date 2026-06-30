@@ -42,3 +42,18 @@ SIDE_PATTERNS = {
     "left": "x",
     "right": "+",
 }
+
+# Marker colors for time points in strength tests
+# Chosen to be well-distinguishable from SIDE_COLORS (#B2126F magenta, #1664A8 blue, #B9372A red)
+MARKER_COLORS = [
+    '#2ecc71',  # Emerald green
+    '#f39c12',  # Orange
+    '#9b59b6',  # Purple
+    '#1abc9c',  # Turquoise
+    '#e74c3c',  # Bright red (different from side red #B9372A)
+    '#34495e',  # Dark blue-gray
+    '#f1c40f',  # Yellow
+    '#95a5a6',  # Light gray
+    '#16a085',  # Dark cyan
+    '#e67e22',  # Carrot orange
+]
