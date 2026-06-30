@@ -76,26 +76,93 @@ def _get_force_figure(
     # Determine time column based on mode
     time_col = "time_ms" if time_mode == 'absolute' else "time_%"
 
-    # Group by appropriate time column
-    group_cols = [time_col, "side", "limb"]
-    f_data = f_data.groupby(group_cols, as_index=False).max()
+    # For isokinetic (percentage mode), show all repetitions with color gradient
+    if time_mode == 'percentage' and 'repetition' in f_data.columns:
+        for i, side in enumerate(sides):
+            side_data = f_data.loc[f_data.side == side]
 
-    for i, side in enumerate(sides):
-        y = f_data.loc[f_data.side == side, "value"].to_numpy()  # type: ignore
-        y = y.astype(float).flatten()
-        x = f_data.loc[f_data.side == side, time_col].to_numpy()  # type: ignore
-        x = x.astype(float).flatten()
-        fig.add_trace(
-            go.Scatter(
-                x=x,
-                y=y,
-                name="force profile",
-                showlegend=False,
-                line_color=SIDE_COLORS[side],
-            ),
-            row=1,
-            col=i + 1,
-        )
+            # Get all repetitions for this side
+            repetitions = side_data['repetition'].unique()
+
+            # Calculate peak force for each repetition
+            rep_peaks = {}
+            for rep in repetitions:
+                rep_data = side_data.loc[side_data.repetition == rep]
+                rep_peaks[rep] = float(rep_data['value'].max())
+
+            # Sort repetitions by peak force for color gradient
+            sorted_reps = sorted(repetitions, key=lambda r: rep_peaks[r])
+
+            # Define color gradient (lighter to darker based on peak force)
+            base_color = SIDE_COLORS[side]
+
+            for idx, rep in enumerate(sorted_reps):
+                rep_data = side_data.loc[side_data.repetition == rep]
+                y = rep_data["value"].to_numpy().astype(float).flatten()
+                x = rep_data[time_col].to_numpy().astype(float).flatten()
+
+                # Calculate opacity (higher peak = more opaque)
+                opacity = 0.4 + 0.6 * (idx / max(1, len(sorted_reps) - 1))
+
+                fig.add_trace(
+                    go.Scatter(
+                        x=x,
+                        y=y,
+                        name=f"Rep {rep}",
+                        showlegend=False,
+                        line=dict(color=base_color, width=2),
+                        opacity=opacity,
+                    ),
+                    row=1,
+                    col=i + 1,
+                )
+
+                # Add peak marker and label for each repetition
+                peak_idx = np.argmax(y)
+                peak_force_kn = y[peak_idx] / 1000.0
+
+                fig.add_trace(
+                    go.Scatter(
+                        x=[x[peak_idx]],
+                        y=[y[peak_idx]],
+                        mode="markers+text",
+                        marker=dict(
+                            size=8,
+                            color=base_color,
+                            symbol='circle',
+                            line=dict(width=1, color='white'),
+                            opacity=opacity,
+                        ),
+                        text=f"{peak_force_kn:.2f}kN",
+                        textposition="top center",
+                        textfont=dict(size=9, color=base_color),
+                        showlegend=False,
+                        hovertemplate=f"Rep {rep}<br>Peak: {peak_force_kn:.2f}kN<extra></extra>",
+                    ),
+                    row=1,
+                    col=i + 1,
+                )
+    else:
+        # For isometric (absolute mode), use existing single-line approach
+        group_cols = [time_col, "side", "limb"]
+        f_data_grouped = f_data.groupby(group_cols, as_index=False).max()
+
+        for i, side in enumerate(sides):
+            y = f_data_grouped.loc[f_data_grouped.side == side, "value"].to_numpy()  # type: ignore
+            y = y.astype(float).flatten()
+            x = f_data_grouped.loc[f_data_grouped.side == side, time_col].to_numpy()  # type: ignore
+            x = x.astype(float).flatten()
+            fig.add_trace(
+                go.Scatter(
+                    x=x,
+                    y=y,
+                    name="force profile",
+                    showlegend=False,
+                    line_color=SIDE_COLORS[side],
+                ),
+                row=1,
+                col=i + 1,
+            )
 
         # Add markers for specific time points (only in absolute mode)
         if time_mode == 'absolute' and len(time_points) > 0:
@@ -149,22 +216,22 @@ def _get_force_figure(
                         legend_text += f" | RFD: {rfd_val:.2f} kN/s"
                     legend_lines.append(f'<span style="color:{color}">{legend_text}</span>')
 
-            # Add peak force to legend with RFD
+            # Add peak force to legend with RFD (calculated same way as other time points)
             peak_force_kn = np.max(y) / 1000.0
             peak_time_ms = x[np.argmax(y)]
 
-            # Get overall RFD from summary
-            rfd_overall_param = "rate of force development (kN/s)"
-            rfd_overall_row = summary.loc[summary.parameter == rfd_overall_param]
-            rfd_overall_text = ""
-            if not rfd_overall_row.empty and side in rfd_overall_row.columns:
+            # Get RFD for peak using the same approach as time points
+            rfd_peak_param = f"RFD 0-{int(peak_time_ms)} ms (kN/s)"
+            rfd_peak_row = summary.loc[summary.parameter == rfd_peak_param]
+            rfd_peak_text = ""
+            if not rfd_peak_row.empty and side in rfd_peak_row.columns:
                 try:
-                    rfd_overall = float(rfd_overall_row[side].iloc[0])
-                    rfd_overall_text = f" | RFD: {rfd_overall:.2f} kN/s"
+                    rfd_peak = float(rfd_peak_row[side].iloc[0])
+                    rfd_peak_text = f" | RFD: {rfd_peak:.2f} kN/s"
                 except (IndexError, ValueError, TypeError):
                     pass
 
-            peak_legend = f"<b>Peak: {peak_time_ms:.0f}ms | {peak_force_kn:.2f}kN{rfd_overall_text}</b>"
+            peak_legend = f"<b>Peak: {peak_time_ms:.0f}ms | {peak_force_kn:.2f}kN{rfd_peak_text}</b>"
             legend_lines.append(peak_legend)
 
             # Add legend as annotation in bottom-right corner of this subplot

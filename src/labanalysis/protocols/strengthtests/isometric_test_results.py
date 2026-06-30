@@ -7,7 +7,7 @@ import pandas as pd
 
 from ...exercises.strength import IsometricExercise
 
-from ...signalprocessing import cubicspline_interp, find_peaks
+from ...signalprocessing import cubicspline_interp
 from ..test_results import TestResults
 from ._plotting import _get_force_figure
 
@@ -101,15 +101,6 @@ class IsometricTestResults(TestResults):
         force = exe.repetitions[rep_index].force.to_numpy().flatten()
         return float(np.max(force))
 
-    def _get_rate_of_force_development_kns(self, exe: IsometricExercise, rep_index: int):
-        """Get RFD for a specific repetition."""
-        rep = exe.repetitions[rep_index]
-        force = rep.force.to_numpy().flatten()
-        time = np.array(rep.index)
-        peaks = find_peaks(force, height=float(np.max(force) * 0.8))
-        peak = np.argmax(force) if len(peaks) == 0 else peaks[0]
-        return (force[peak] - force[0]) / (time[peak] - time[0]) / 1000
-
     def _get_time_to_peak_force_ms(self, exe: IsometricExercise, rep_index: int):
         """Get time to peak force for a specific repetition."""
         rep = exe.repetitions[rep_index]
@@ -177,14 +168,17 @@ class IsometricTestResults(TestResults):
                         new.loc[ename, eside] = m.to_numpy().mean()
 
                 # Force metrics for this repetition
-                new.loc["rate of force development (kN/s)", side] = (
-                    self._get_rate_of_force_development_kns(trial, i)
-                )
                 new.loc["time to peak force (ms)", side] = (
                     self._get_time_to_peak_force_ms(trial, i)
                 )
                 # Peak force in kN
                 new.loc["peak force (kN)", side] = self._get_peak_force(trial, i) / 1000.0
+
+                # Get peak time and calculate RFD to peak (same way as other time points)
+                peak_time_ms = self._get_time_to_peak_force_ms(trial, i)
+                new.loc[f"RFD 0-{int(peak_time_ms)} ms (kN/s)", side] = (
+                    self._get_rfd_at_interval_ms(trial, i, peak_time_ms) / 1000.0
+                )
 
                 # Get time points from exercise
                 time_points = trial.time_points

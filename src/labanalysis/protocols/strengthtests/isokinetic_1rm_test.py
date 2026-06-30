@@ -7,8 +7,9 @@ import pandas as pd
 
 from ...records import TimeseriesRecord
 from ...exercises.strength import IsokineticExercise
-from ...timeseries import EMGSignal
-from ...pipelines import ProcessingPipeline, get_default_emgsignal_processing_func
+from ...timeseries import EMGSignal, Signal1D
+from ...pipelines import ProcessingPipeline, get_default_emgsignal_processing_func, get_default_processing_pipeline
+from ...signalprocessing import butterworth_filt
 from ...io.read.biostrength import PRODUCTS
 from ..participant import Participant
 from ..test_protocol import TestProtocol
@@ -402,13 +403,12 @@ class Isokinetic1RMTest(TestProtocol):
 
     @property
     def processing_pipeline(self):
-        """
         def custom_processing_func(signal: Signal1D):
             signal.fillna(inplace=True)
             fsamp = 1 / np.mean(np.diff(signal.index))
             signal.apply(
                 butterworth_filt,
-                fcut=1,
+                fcut=3,  # 3Hz lowpass filter (same as isometric)
                 fsamp=fsamp,
                 order=4,
                 ftype="lowpass",
@@ -419,8 +419,6 @@ class Isokinetic1RMTest(TestProtocol):
         pipeline = get_default_processing_pipeline()
         pipeline.add(Signal1D=[custom_processing_func])
         return pipeline
-        """
-        return ProcessingPipeline(EMGSignal=[get_default_emgsignal_processing_func])
 
 
 __all__ = ["Isokinetic1RMTest"]

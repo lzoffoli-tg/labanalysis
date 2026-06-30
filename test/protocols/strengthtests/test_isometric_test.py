@@ -121,7 +121,8 @@ def test_isometric_test_get_results(synthetic_isometric_test):
     # Check expected metrics
     params = summary['parameter'].tolist()
     assert 'peak force (kN)' in params
-    assert 'rate of force development (kN/s)' in params
+    # Check that there's at least one RFD parameter (now calculated per time point)
+    assert any('RFD 0-' in p and 'ms (kN/s)' in p for p in params)
     assert 'time to peak force (ms)' in params
 
     # Verify peak force is reasonable
