@@ -10,36 +10,40 @@ class TestRepeatedJumps:
 
     def test_module_imports(self):
         """Test module can be imported."""
-        from labanalysis.exercises.repeated_jumps import RepeatedJumps
+        from labanalysis.exercises.jumps.repeated_jumps import RepeatedJumps
+
         assert RepeatedJumps is not None
 
     def test_repeated_jumps_inheritance(self):
         """Test RepeatedJumps inherits from WholeBody."""
-        from labanalysis.exercises.repeated_jumps import RepeatedJumps
+        from labanalysis.exercises.jumps.repeated_jumps import RepeatedJumps
         from labanalysis.records.body import WholeBody
 
         assert issubclass(RepeatedJumps, WholeBody)
 
     def test_repeated_jumps_has_bodymass_property(self):
         """Test RepeatedJumps has bodymass_kg property."""
-        from labanalysis.exercises.repeated_jumps import RepeatedJumps
+        from labanalysis.exercises.jumps.repeated_jumps import RepeatedJumps
 
-        assert hasattr(RepeatedJumps, 'bodymass_kg')
-        assert isinstance(getattr(RepeatedJumps, 'bodymass_kg'), property)
+        assert hasattr(RepeatedJumps, "bodymass_kg")
+        assert isinstance(getattr(RepeatedJumps, "bodymass_kg"), property)
 
     def test_repeated_jumps_has_jumps_property(self):
         """Test RepeatedJumps has jumps property."""
-        from labanalysis.exercises.repeated_jumps import RepeatedJumps
+        from labanalysis.exercises.jumps.repeated_jumps import RepeatedJumps
 
-        assert hasattr(RepeatedJumps, 'jumps')
+        assert hasattr(RepeatedJumps, "jumps")
 
     def test_repeated_jumps_docstring_exists(self):
         """Test RepeatedJumps has comprehensive docstring."""
-        from labanalysis.exercises.repeated_jumps import RepeatedJumps
+        from labanalysis.exercises.jumps.repeated_jumps import RepeatedJumps
 
         assert RepeatedJumps.__doc__ is not None
         assert len(RepeatedJumps.__doc__) > 100
-        assert 'fatigue' in RepeatedJumps.__doc__.lower() or 'endurance' in RepeatedJumps.__doc__.lower()
+        assert (
+            "fatigue" in RepeatedJumps.__doc__.lower()
+            or "endurance" in RepeatedJumps.__doc__.lower()
+        )
 
 
 @pytest.mark.integration
@@ -49,7 +53,7 @@ class TestRepeatedJumpsLocIloc:
     @pytest.fixture
     def repeatedjumps(self):
         """Create a minimal RepeatedJumps for testing."""
-        from labanalysis.exercises.repeated_jumps import RepeatedJumps
+        from labanalysis.exercises.jumps.repeated_jumps import RepeatedJumps
         from labanalysis.records import ForcePlatform
         from labanalysis.timeseries import Signal3D, Point3D
 
@@ -61,14 +65,16 @@ class TestRepeatedJumpsLocIloc:
 
         # Simple sinusoidal force pattern simulating multiple jumps
         force_data = np.zeros((n_samples, 3))
-        force_data[:, 1] = 400 + 300 * np.abs(np.sin(2 * np.pi * 2 * index))  # Vertical force oscillating
+        force_data[:, 1] = 400 + 300 * np.abs(
+            np.sin(2 * np.pi * 2 * index)
+        )  # Vertical force oscillating
 
         origin_data = np.random.randn(n_samples, 3) * 0.01  # Small COP movement
         torque_data = np.random.randn(n_samples, 3) * 5.0
 
-        origin = Point3D(origin_data, index, unit='m')
-        force = Signal3D(force_data, index, unit='N', vertical_axis='Y')
-        torque = Signal3D(torque_data, index, unit='Nm')
+        origin = Point3D(origin_data, index, unit="m")
+        force = Signal3D(force_data, index, unit="N", vertical_axis="Y")
+        torque = Signal3D(torque_data, index, unit="Nm")
 
         fp_left = ForcePlatform(origin=origin, force=force, torque=torque)
 
@@ -77,7 +83,7 @@ class TestRepeatedJumpsLocIloc:
             left_foot_ground_reaction_force=fp_left,
             exclude_jumps=[],
             straight_legs=True,
-            free_hands=False
+            free_hands=False,
         )
 
     def test_loc_preserves_all_attributes(self, repeatedjumps):
@@ -104,7 +110,9 @@ class TestRepeatedJumpsLocIloc:
 
     def test_loc_setter_preserves_type(self, repeatedjumps):
         """Test loc[] setter works without breaking type."""
-        repeatedjumps.loc[repeatedjumps.index[50], 'left_foot_ground_reaction_force'] = 99.0
+        repeatedjumps.loc[
+            repeatedjumps.index[50], "left_foot_ground_reaction_force"
+        ] = 99.0
         assert isinstance(repeatedjumps, type(repeatedjumps))
         assert repeatedjumps.bodymass_kg == 75.0
 

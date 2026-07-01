@@ -1,27 +1,23 @@
-"""Prone posture exercise module."""
+"""Upright posture exercise module."""
 
-from ..records.body import WholeBody
-from ..records import ForcePlatform
-from ..timeseries import Signal1D, Signal3D, EMGSignal, Point3D
+from ...records.body import WholeBody
+from ...records import ForcePlatform
+from ...timeseries import Signal1D, Signal3D, EMGSignal, Point3D
 
 
-class PronePosture(WholeBody):
+class UprightPosture(WholeBody):
     """
-    Represents a prone (plank) posture stance for core stability analysis.
+    Represents an upright posture stance for balance and stability analysis.
 
-    This class extends WholeBody for analyzing prone/plank positions, typically
-    used in core stability and endurance tests.
+    This class extends WholeBody for analyzing upright standing postures, typically
+    used in balance tests and postural stability assessments.
 
     Parameters
     ----------
-    left_foot_ground_reaction_force : ForcePlatform
-        Force platform data for left foot contact (required).
-    right_foot_ground_reaction_force : ForcePlatform
-        Force platform data for right foot contact (required).
-    left_hand_ground_reaction_force : ForcePlatform
-        Force platform data for left hand contact (required).
-    right_hand_ground_reaction_force : ForcePlatform
-        Force platform data for right hand contact (required).
+    left_foot_ground_reaction_force : ForcePlatform, optional
+        Force platform data for left foot contact.
+    right_foot_ground_reaction_force : ForcePlatform, optional
+        Force platform data for right foot contact.
     left_acromion : Point3D, optional
         Left acromion marker (shoulder tip).
     right_acromion : Point3D, optional
@@ -32,20 +28,40 @@ class PronePosture(WholeBody):
     Notes
     -----
     This class inherits all 42 anatomical markers and force platforms from WholeBody.
-    All four force platforms (both feet and both hands) are required for prone posture analysis.
+    At least one foot force platform (left or right) must be provided.
 
     See Also
     --------
     WholeBody : Parent class with biomechanical body model.
-    UprightPosture : Represents an upright standing posture.
+    PronePosture : Represents a prone (plank) posture stance.
     """
+
+    @property
+    def side(self):
+        """
+        Returns which side(s) have force data.
+
+        Returns
+        -------
+        str
+            "bilateral", "left", or "right".
+        """
+        left_foot = self.get("left_foot_ground_reaction_force")
+        right_foot = self.get("right_foot_ground_reaction_force")
+        if left_foot is not None and right_foot is not None:
+            return "bilateral"
+        if left_foot is not None:
+            return "left"
+        if right_foot is not None:
+            return "right"
+        raise ValueError("both left_foot and right_foot are None")
 
     def __init__(
         self,
-        left_foot_ground_reaction_force: ForcePlatform,
-        right_foot_ground_reaction_force: ForcePlatform,
-        left_hand_ground_reaction_force: ForcePlatform,
-        right_hand_ground_reaction_force: ForcePlatform,
+        left_hand_ground_reaction_force: ForcePlatform | None = None,
+        right_hand_ground_reaction_force: ForcePlatform | None = None,
+        left_foot_ground_reaction_force: ForcePlatform | None = None,
+        right_foot_ground_reaction_force: ForcePlatform | None = None,
         left_heel: Point3D | None = None,
         right_heel: Point3D | None = None,
         left_toe: Point3D | None = None,
@@ -93,23 +109,13 @@ class PronePosture(WholeBody):
         head_right: Point3D | None = None,
         **signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
     ):
-        # Validate required force platforms
-        for name, force in [
-            ("left_foot_ground_reaction_force", left_foot_ground_reaction_force),
-            ("right_foot_ground_reaction_force", right_foot_ground_reaction_force),
-            ("left_hand_ground_reaction_force", left_hand_ground_reaction_force),
-            ("right_hand_ground_reaction_force", right_hand_ground_reaction_force),
-        ]:
-            if not isinstance(force, ForcePlatform):
-                raise ValueError(f"{name} must be a ForcePlatform instance")
-
         all_signals = {
             **signals,
             **dict(
-                left_foot_ground_reaction_force=left_foot_ground_reaction_force,
-                right_foot_ground_reaction_force=right_foot_ground_reaction_force,
                 left_hand_ground_reaction_force=left_hand_ground_reaction_force,
                 right_hand_ground_reaction_force=right_hand_ground_reaction_force,
+                left_foot_ground_reaction_force=left_foot_ground_reaction_force,
+                right_foot_ground_reaction_force=right_foot_ground_reaction_force,
                 left_heel=left_heel,
                 right_heel=right_heel,
                 left_toe=left_toe,
@@ -157,16 +163,25 @@ class PronePosture(WholeBody):
                 head_right=head_right,
             ),
         }
+        # Check that at least one foot force platform is provided
+        if (
+            left_foot_ground_reaction_force is None
+            and right_foot_ground_reaction_force is None
+        ):
+            raise ValueError(
+                "at least one of 'left_foot_ground_reaction_force' or "
+                "'right_foot_ground_reaction_force' must be provided."
+            )
         super().__init__(**{i: v for i, v in all_signals.items() if v is not None})
 
     @classmethod
     def from_tdf(
         cls,
         file: str,
-        left_foot_ground_reaction_force: str = "left_foot",
-        right_foot_ground_reaction_force: str = "right_foot",
-        left_hand_ground_reaction_force: str = "left_hand",
-        right_hand_ground_reaction_force: str = "right_hand",
+        left_hand_ground_reaction_force: str | None = None,
+        right_hand_ground_reaction_force: str | None = None,
+        left_foot_ground_reaction_force: str | None = "left_foot",
+        right_foot_ground_reaction_force: str | None = "right_foot",
         left_heel: str | None = None,
         right_heel: str | None = None,
         left_toe: str | None = None,
@@ -206,10 +221,15 @@ class PronePosture(WholeBody):
         s2: str | None = None,
         l2: str | None = None,
         c7: str | None = None,
+        t5: str | None = None,
         sc: str | None = None,
+        head_anterior: str | None = None,
+        head_posterior: str | None = None,
+        head_left: str | None = None,
+        head_right: str | None = None,
     ):
         """
-        Create a PronePosture object from a TDF file.
+        Create an UprightPosture object from a TDF file.
 
         Parameters
         ----------
@@ -219,19 +239,23 @@ class PronePosture(WholeBody):
             Label for left foot force platform signal in TDF file.
         right_foot_ground_reaction_force : str, optional
             Label for right foot force platform signal in TDF file.
-        left_hand_ground_reaction_force : str, optional
-            Label for left hand force platform signal in TDF file.
-        right_hand_ground_reaction_force : str, optional
-            Label for right hand force platform signal in TDF file.
         **kwargs
             Additional marker label mappings passed to WholeBody.from_tdf().
             See WholeBody.from_tdf() for complete list of anatomical markers.
 
         Returns
         -------
-        PronePosture
+        UprightPosture
             Instance with loaded marker trajectories and computed properties.
         """
+        if (
+            left_foot_ground_reaction_force is None
+            and right_foot_ground_reaction_force is None
+        ):
+            raise ValueError(
+                "at least one of left_foot_ground_reaction_force or "
+                "right_foot_ground_reaction_force must be provided."
+            )
         record = WholeBody.from_tdf(
             file,
             left_hand_ground_reaction_force=left_hand_ground_reaction_force,
@@ -277,21 +301,17 @@ class PronePosture(WholeBody):
             s2=s2,
             l2=l2,
             c7=c7,
+            t5=t5,
             sc=sc,
+            head_anterior=head_anterior,
+            head_posterior=head_posterior,
+            head_left=head_left,
+            head_right=head_right,
         )
-        labels = {
-            "left_foot_ground_reaction_force": left_foot_ground_reaction_force,
-            "right_foot_ground_reaction_force": right_foot_ground_reaction_force,
-            "left_hand_ground_reaction_force": left_hand_ground_reaction_force,
-            "right_hand_ground_reaction_force": right_hand_ground_reaction_force,
-        }
-        for key in labels.keys():
-            if record.get(key) is None:
-                raise ValueError(f"{key} not found within the provided file.")
         return cls(**record._data)
 
     def copy(self):
-        return PronePosture(**self._data)
+        return UprightPosture(**self._data)
 
 
-__all__ = ["PronePosture"]
+__all__ = ["UprightPosture"]

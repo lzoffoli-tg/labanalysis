@@ -1,12 +1,10 @@
 """Drop jump exercise module."""
 
-import numpy as np
-
-from ..constants import MINIMUM_CONTACT_FORCE_N
-from ..signalprocessing import continuous_batches
-from ..records.body import WholeBody
-from ..records import ForcePlatform
-from ..timeseries import Signal1D, Signal3D, EMGSignal, Point3D
+from ...constants import MINIMUM_CONTACT_FORCE_N
+from ...signalprocessing import continuous_batches
+from ...records.body import WholeBody
+from ...records import ForcePlatform
+from ...timeseries import Signal1D, Signal3D, EMGSignal, Point3D
 from .single_jump import SingleJump
 
 
@@ -131,67 +129,22 @@ class DropJump(SingleJump):
     def landing_phase(self):
         """
         Returns the landing phase of the drop jump.
-
-        Procedure
-        ---------
-            1. get the batch with grf lower than 30N occurring before the contact phase.
         """
+        grf = self.resultant_force
+        if grf is None:
+            return None
+        vgrf = grf["force"][self.vertical_axis]
+        flight_phase = self.flight_phase
+        if flight_phase is None:
+            return None
 
-        # # get the time samples corresponding to the start and end of each
-        # batch
-        start = float(round(self.index[0], 3))
-        contact_time_start = float(round(self.contact_phase.index[0], 3))
-        stop = float(
-            np.round(self.index[np.where(self.index < contact_time_start)[0][-1]], 3)
-        )
+        mask = vgrf.to_numpy().flatten() > MINIMUM_CONTACT_FORCE_N
+        mask &= vrgf.index > flight_phase.index[-1]
+        batch = continuous_batches(mask)
+        if len(batch) == 0:
+            return None
 
-        # return the landing phase
-        signals = {k: v.copy().loc[start:stop, :] for k, v in self.items()}
-        return WholeBody(**signals)
-
-    @property
-    def flight_phase(self):
-        """
-        Returns the flight phase of the jump.
-
-        Returns
-        -------
-        TimeseriesRecord
-            Data for the flight phase.
-
-        Procedure
-        ---------
-            1. get the longest batch with grf lower than 30N.
-            2. define 'flight_start' as the first local minima occurring after
-            the start of the detected batch.
-            3. define 'flight_end' as the last local minima occurring before the
-            end of the detected batch.
-        """
-
-        # get vertical force
-        vgrf = self.resultant_force.copy()
-        grfy = vgrf.force.copy()[self.vertical_axis].to_numpy().flatten()
-        grft = self.index
-
-        # get contact phases
-        contact_batches = continuous_batches(grfy > MINIMUM_CONTACT_FORCE_N)
-
-        # if the jump starts with a contact phase (i.e. the box is on the
-        # force platforms) ignore the first contact
-        if contact_batches[0][0] == 0:
-            contact_batches = contact_batches[1:]
-
-        # ensure that a minimum of 2 contact phases
-        if len(contact_batches) < 2:
-            raise RuntimeError("No flight phase found.")
-
-        # get the second flight phase
-        start = float(round(grft[contact_batches[0][-1] + 1], 3))
-        stop = float(round(grft[contact_batches[1][0] - 1], 3))
-
-        # return the landing phase
-        signals = {k: v.copy().loc[start:stop, :] for k, v in self.items()}
-        return WholeBody(**signals)
+        return WholeBody(**{k: v.copy().iloc[batch, :] for k, v in self.items()})
 
     def __init__(
         self,
@@ -329,11 +282,11 @@ class DropJump(SingleJump):
         file: str,
         box_height_cm: float,
         bodymass_kg: float | int,
+        left_foot_ground_reaction_force: str | None,
+        right_foot_ground_reaction_force: str | None,
         free_hands: bool = False,
         left_hand_ground_reaction_force: str | None = None,
         right_hand_ground_reaction_force: str | None = None,
-        left_foot_ground_reaction_force: str | None = "left_foot",
-        right_foot_ground_reaction_force: str | None = "right_foot",
         left_heel: str | None = None,
         right_heel: str | None = None,
         left_toe: str | None = None,
@@ -381,11 +334,6 @@ class DropJump(SingleJump):
         head_right: str | None = None,
     ):
         """Create a DropJump object from a TDF file."""
-        if left_foot_ground_reaction_force is None and right_foot_ground_reaction_force is None:
-            raise ValueError(
-                "at least one of left_foot_ground_reaction_force or "
-                "right_foot_ground_reaction_force must be provided."
-            )
         record = WholeBody.from_tdf(
             file,
             left_hand_ground_reaction_force=left_hand_ground_reaction_force,
@@ -457,8 +405,9 @@ class DropJump(SingleJump):
         Notes
         -----
         This method follows the same pattern as EMGSignal and TimeseriesRecord,
-        explicitly passing custom non-signal attributes (box_height_cm, bodymass_kg,
-        free_hands) to the constructor while copying all signal data.
+        explicitly passing custom non-signal attributes
+        (box_height_cm, bodymass_kg, free_hands) to the constructor while
+        copying all signal data.
         """
         return DropJump(
             box_height_cm=self.box_height_cm,
@@ -466,6 +415,14 @@ class DropJump(SingleJump):
             free_hands=self.free_hands,
             **{i: v.copy() for i, v in self.items()},
         )
+
+    @property
+    def reactive_strength_index(self):
+        jump_height = self.jump_height
+        contact_time = self.contact_time
+        if jump_height is None or contact_time is None:
+            return None
+        return jump_height / contact_time
 
 
 __all__ = ["DropJump"]

@@ -1,207 +1,290 @@
-"""Repeated jumps exercise module."""
+"""Change of direction exercise module."""
 
 import numpy as np
 
-from ..constants import MINIMUM_CONTACT_FORCE_N, MINIMUM_FLIGHT_TIME_S
-from ..signalprocessing import continuous_batches, fillna, butterworth_filt
-from ..records.body import WholeBody
-from ..records import ForcePlatform
-from ..timeseries import Signal1D, Signal3D, EMGSignal, Point3D
-from .single_jump import SingleJump
+from ...timeseries import EMGSignal, Signal1D, Signal3D, Point3D
+from ...records import ForcePlatform
+from ...records.body import WholeBody
+
+__all__ = ["ChangeOfDirectionExercise"]
 
 
-class RepeatedJumps(WholeBody):
+#! CLASSES
+
+
+class ChangeOfDirectionExercise(WholeBody):
     """
-    Repeated jumps exercise for fatigue assessment and endurance evaluation.
+    Change of direction movement for agility and deceleration-acceleration analysis.
 
-    RepeatedJumps analyzes continuous jumping sequences to assess neuromuscular
-    fatigue, mechanical power decline, and coordination degradation over multiple
-    jump repetitions. The class automatically detects individual jumps from
-    continuous data and tracks performance changes across the sequence.
+    ChangeOfDirectionExercise analyzes single-leg ground contacts during directional
+    changes in agility tests (e.g., shuttle runs, 505 test, Illinois test). The class
+    identifies loading (deceleration) and propulsion (acceleration) phases, tracks
+    center of mass velocity changes, and computes agility-specific performance metrics.
 
-    The exercise is used for:
-    - Anaerobic fatigue profiling
-    - Jump endurance assessment
-    - Training load monitoring
-    - Return-to-play testing
-    - Coordination stability evaluation
+    The exercise captures the neuromuscular and biomechanical demands of decelerating,
+    redirecting momentum, and explosively accelerating in a new direction - critical
+    capabilities for field and court sports.
 
     Parameters
     ----------
     bodymass_kg : float
         Participant's body mass in kilograms.
-    straight_legs : bool, optional
-        Whether jumps performed with straight legs (true) or knee flexion allowed
-        (false). Affects jump mechanics and fatigue patterns. Default is False.
-    free_hands : bool, optional
-        Whether arm swing is allowed (true) or hands on hips (false).
-        Default is False.
-    excluded_jumps : list of int, optional
-        Indices of jumps to exclude from analysis (e.g., failed attempts).
-        Default is empty list.
     left_foot_ground_reaction_force : ForcePlatform, optional
         Force platform data for left foot. Default is None.
     right_foot_ground_reaction_force : ForcePlatform, optional
         Force platform data for right foot. Default is None.
     left_hand_ground_reaction_force : ForcePlatform, optional
-        Force platform for left hand (for prone jump variations). Default is None.
+        Force platform for left hand (rarely used). Default is None.
     right_hand_ground_reaction_force : ForcePlatform, optional
-        Force platform for right hand (for prone jump variations). Default is None.
-    **markers : Point3D
-        Biomechanical markers for full-body kinematics (same as WholeBody).
+        Force platform for right hand (rarely used). Default is None.
+    s2 : Point3D, optional
+        S2 sacral marker for pelvis/COM tracking. Critical for detecting
+        velocity reversal (inversion time). Default is None.
+    left_acromion : Point3D, optional
+        Left acromion (shoulder) marker. Default is None.
+    right_acromion : Point3D, optional
+        Right acromion (shoulder) marker. Default is None.
+    **signals : Signal1D, Signal3D, EMGSignal, Point3D, ForcePlatform
+        Additional biomechanical signals (markers, EMG, etc.).
 
     Attributes
     ----------
     bodymass_kg : float
-        Participant's body mass.
-    straight_legs : bool
-        Whether straight-leg jumps protocol.
-    free_hands : bool
-        Whether arm swing allowed.
-    excluded_jumps : list of int
-        Indices of excluded jumps.
-    jumps : list of SingleJump
-        Individual jump objects extracted from continuous data.
-    fatigue_index : float
-        Performance decline percentage: 100 * (best - worst) / best.
+        Participant body mass.
+    side : str
+        Which foot contacted platform ("left", "right", or "bilateral").
+    contact_phase : TimeseriesRecord
+        Data segment during full ground contact.
+    loading_phase : TimeseriesRecord
+        Data segment during deceleration (entry to direction change).
+    propulsion_phase : TimeseriesRecord
+        Data segment during acceleration (exit from direction change).
+    inversion_time : float
+        Time instant when COM velocity reverses direction (s).
+    contact_time : float
+        Total ground contact duration (s).
+    loading_time : float
+        Deceleration phase duration (s).
+    propulsion_time : float
+        Acceleration phase duration (s).
+    maximum_velocity : float
+        Peak COM velocity during movement (m/s).
 
     Properties
     ----------
-    bodymass_kg : float
-        Participant body mass in kg.
-    straight_legs : bool
-        Straight-leg jump protocol flag.
-    free_hands : bool
-        Free arm swing flag.
-    excluded_jumps : list of int
-        Excluded jump indices.
-    jumps : list of SingleJump
-        Detected individual jumps (excluding specified indices).
+    side : str
+        Execution side based on force platform contact.
+    contact_phase : TimeseriesRecord
+        Full ground contact segment.
+    loading_phase : TimeseriesRecord
+        Deceleration phase segment.
+    propulsion_phase : TimeseriesRecord
+        Acceleration phase segment.
+    inversion_time : float
+        Velocity reversal time point.
+    contact_time : float
+        Ground contact duration.
+    loading_time : float
+        Loading phase duration.
+    propulsion_time : float
+        Propulsion phase duration.
+    maximum_velocity : float
+        Peak velocity magnitude.
 
     Methods
     -------
     copy()
-        Return independent copy of repeated jumps.
+        Return independent copy of the exercise.
     from_tdf(file, bodymass_kg, ...)
-        Load repeated jumps from BTS TDF file.
-    set_bodymass_kg(bodymass_kg)
-        Set participant body mass.
-    set_straight_legs(straight)
-        Set straight-leg protocol flag.
-    set_free_hands(free)
-        Set free arm swing flag.
-    set_excluded_jumps(jumps)
-        Set indices of jumps to exclude from analysis.
+        Load change of direction from BTS TDF file.
 
     Notes
     -----
-    Jump Detection:
-    Individual jumps automatically detected from continuous force data using:
-    - Contact detection: Vertical force > 30N threshold
-    - Flight detection: Minimum flight time > 50ms
-    - Separation: Adjacent jumps split at force minima
+    Phase Detection:
+    - Contact phase: Continuous ground contact (force > 30N)
+    - Loading phase: Contact start to inversion time (deceleration)
+    - Propulsion phase: Inversion time to contact end (acceleration)
+    - Inversion time: Detected from S2 marker velocity reversal
 
-    Performance Metrics (per jump):
-    - Jump height (cm): Calculated from flight time
-    - Contact time (ms): Ground contact duration
-    - Flight time (ms): Aerial phase duration
-    - Reactive strength index: height / contact_time
-    - Peak power (W): Maximum mechanical power output
+    Performance Metrics:
+    - Contact time: Shorter indicates better agility (typically 0.3-0.8s)
+    - Loading/propulsion ratio: Balanced ratio (~1:1) indicates efficient technique
+    - Peak force: Higher forces during propulsion indicate explosive capability
+    - Velocity loss: Difference between entry and exit velocities
 
-    Fatigue Analysis:
-    - Track jump height decline over sequence
-    - Monitor contact time increase (fatigue sign)
-    - Calculate fatigue index: (max - min) / max * 100
-    - Identify drop-off point (>10% decline threshold)
+    Applications:
+    - 505 agility test (180° turn)
+    - Illinois agility test (multiple direction changes)
+    - Pro-agility shuttle (180° shuttle)
+    - Custom agility protocols
+    - Return-to-sport testing after lower limb injury
 
-    Protocol Variations:
-    - Straight-leg jumps: Emphasize ankle plantarflexors, minimize knee contribution
-    - Bent-knee jumps: Allow full lower-limb coordination
-    - Hands-on-hips: Isolate lower limb contribution
-    - Free arm swing: Maximize jump performance
+    Requirements:
+    - At least one foot force platform (left OR right)
+    - S2 sacral marker for velocity reversal detection
+    - Markers for full WholeBody analysis (optional but recommended)
 
     Examples
     --------
     >>> import labanalysis as laban
     >>>
-    >>> # Load 15-second repeated jump test
-    >>> rj = laban.RepeatedJumps.from_tdf(
-    ...     file="repeated_jumps_15s.tdf",
+    >>> # Load 180° shuttle turn
+    >>> cod = laban.ChangeOfDirectionExercise.from_tdf(
+    ...     file="shuttle_left.tdf",
     ...     bodymass_kg=75.0,
-    ...     straight_legs=False,
-    ...     free_hands=False,
-    ...     left_foot_ground_reaction_force="left_fp"
+    ...     left_foot_ground_reaction_force="left_fp",
+    ...     right_foot_ground_reaction_force="right_fp"
     ... )
     >>>
-    >>> # Access individual jumps
-    >>> print(f"Total jumps: {len(rj.jumps)}")
-    >>> for i, jump in enumerate(rj.jumps, 1):
-    ...     print(f"Jump {i}: {jump.jump_height:.1f} cm, CT: {jump.contact_time*1000:.0f} ms")
+    >>> # Key agility metrics
+    >>> print(f"Side: {cod.side}")
+    >>> print(f"Contact time: {cod.contact_time:.3f} s")
+    >>> print(f"Loading time: {cod.loading_time*1000:.0f} ms ({cod.loading_time/cod.contact_time*100:.0f}%)")
+    >>> print(f"Propulsion time: {cod.propulsion_time*1000:.0f} ms ({cod.propulsion_time/cod.contact_time*100:.0f}%)")
+    >>> print(f"Max velocity: {cod.maximum_velocity:.2f} m/s")
     >>>
-    >>> # Fatigue analysis
-    >>> heights = [j.jump_height for j in rj.jumps]
-    >>> fatigue_index = (max(heights) - min(heights)) / max(heights) * 100
-    >>> print(f"Fatigue index: {fatigue_index:.1f}%")
-    >>>
-    >>> # Exclude failed jump (e.g., jump 5)
-    >>> rj.set_excluded_jumps([4])  # 0-indexed
-    >>> print(f"Valid jumps: {len(rj.jumps)}")
+    >>> # Technique analysis
+    >>> load_prop_ratio = cod.loading_time / cod.propulsion_time
+    >>> print(f"Loading/Propulsion ratio: {load_prop_ratio:.2f}")
+    >>> if load_prop_ratio > 1.2:
+    ...     print("Consider working on explosive propulsion")
+    ... elif load_prop_ratio < 0.8:
+    ...     print("Consider working on deceleration control")
 
     See Also
     --------
-    SingleJump : Base class for single jump analysis.
-    DropJump : Drop jump for plyometric assessment.
-    JumpTest : Complete jump testing protocol.
-    WholeBody : Full-body biomechanical model.
+    WholeBody : Parent class with full biomechanical model.
+    ShuttleTest : Complete shuttle test protocol with multiple direction changes.
     """
 
+    _inversion_time: float | None = None
+
     @property
-    def bodymass_kg(self):
+    def side(self):
         """
-        Returns the subject's body mass in kilograms.
+        Returns which side(s) have force data.
 
         Returns
         -------
-        float
-            Body mass in kg.
+        str
+            "bilateral", "left", or "right".
         """
-        return self._bodymass_kg
-
-    def set_bodymass_kg(self, bodymass_kg: float):
-        if not isinstance(bodymass_kg, (float, int)) or bodymass_kg <= 0:
-            raise ValueError("bodymass_kg must be a float or int > 0.")
-        self._bodymass_kg = bodymass_kg
-
-    @property
-    def excluded_jumps(self):
-        return self._excluded_jumps
-
-    def set_excluded_jumps(self, jumps: list[int]):
-        if not isinstance(jumps, list) or not all([isinstance(i, int) for i in jumps]):
-            raise ValueError("jumps must be a list of int")
-        self._excluded_jumps = jumps
+        left_foot = self.get("left_foot_ground_reaction_force")
+        right_foot = self.get("right_foot_ground_reaction_force")
+        if left_foot is not None and right_foot is not None:
+            return "bilateral"
+        if left_foot is not None:
+            return "left"
+        if right_foot is not None:
+            return "right"
+        raise ValueError("both left_foot and right_foot are None")
 
     @property
-    def straight_legs(self):
-        return self._straight_legs
+    def contact_phase(self):
+        """
+        Returns the concentric phase of the jump.
 
-    def set_straight_legs(self, straight: bool):
-        if not isinstance(straight, bool):
-            raise ValueError("straight must be True or False.")
-        self._straight_legs = straight
+        Returns
+        -------
+        TimeseriesRecord
+            Data for the concentric phase.
+
+        Procedure
+        ---------
+            1. get the longest countinuous batch with positive acceleration
+            of S2 occurring before con_end.
+            2. define 'con_start' as the last local minima in the vertical grf
+            occurring before the beginning of the batch defined in 2.
+            3. define 'con_end' as the end of the concentric phase as the time
+            instant immediately before the flight phase. Please look at the
+            concentric_phase documentation to have a detailed view about how
+            it is detected.
+        """
+        # get the longest batch with grf lower than 30N
+        rf = self.resultant_force.strip()
+        start = rf.index[0]
+        stop = rf.index[-1]
+
+        signals = {k: v.copy().loc[start:stop, :] for k, v in self.items()}
+        return WholeBody(**signals)  # type: ignore
 
     @property
-    def free_hands(self):
-        return self._free_hands
+    def contact_time(self):
+        """
+        Return the contact time in seconds
+        """
+        index = self.contact_phase.index
+        return float(index[-1] - index[0])
 
-    def set_free_hands(self, free: bool):
-        if not isinstance(free, bool):
-            raise ValueError("free must be True or False.")
-        self._free_hands = free
+    @property
+    def velocity(self):
+        """
+        Return the movement velocity of s2 marker.
+        """
+        if not any([i == "s2" for i in self.points3d.keys()]):
+            data = []
+            index = []
+        else:
+            s2 = self.s2.copy()
+            data = s2.to_numpy()
+            index = s2.index
+            data = np.gradient(data, index, axis=0)
+        return Signal3D(
+            data=data,
+            index=index,
+            vertical_axis=self.vertical_axis,
+            anteroposterior_axis=self.anteroposterior_axis,
+            unit="m/s",
+        )
+
+    @property
+    def inversion_time(self):
+        "time instant of the end of the loading phase"
+        if self._inversion_time is None:
+            s2 = self.s2.copy()
+            s2z = s2[self.anteroposterior_axis].to_numpy().flatten()
+            self._inversion_time = s2.index[np.argmax(s2z)]
+        return self._inversion_time
+
+    @property
+    def loading_phase(self):
+        """
+        Return loading phase of the step
+        """
+        loading_phase = self.contact_phase[self.index[0] : self.inversion_time]
+        if not isinstance(loading_phase, WholeBody):
+            raise RuntimeError("Loading phase should be a WholeBody instance")
+        return loading_phase
+
+    @property
+    def loading_time(self):
+        """
+        Return the loading phase duration in seconds.
+        """
+        idx_loading_phase = self.loading_phase.index
+        return float(idx_loading_phase[-1] - idx_loading_phase[0])
+
+    @property
+    def propulsion_phase(self):
+        """
+        Return propulsion phase of the step
+        """
+        contact_phase = self.contact_phase
+        propulsion_phase = contact_phase[self.inversion_time : contact_phase.index[-1]]
+        if not isinstance(propulsion_phase, WholeBody):
+            raise RuntimeError("Propulsion phase should be a WholeBody instance")
+        return propulsion_phase
+
+    @property
+    def propulsion_time(self):
+        """
+        Return the propulsion phase duration in seconds.
+        """
+        idx_propulsion_phase = self.propulsion_phase.index
+        return float(idx_propulsion_phase[-1] - idx_propulsion_phase[0])
 
     def __init__(
         self,
-        bodymass_kg: float,
         left_hand_ground_reaction_force: ForcePlatform | None = None,
         right_hand_ground_reaction_force: ForcePlatform | None = None,
         left_foot_ground_reaction_force: ForcePlatform | None = None,
@@ -251,12 +334,8 @@ class RepeatedJumps(WholeBody):
         head_posterior: Point3D | None = None,
         head_left: Point3D | None = None,
         head_right: Point3D | None = None,
-        exclude_jumps: list[int] = [0, -1],
-        straight_legs: bool = False,
-        free_hands: bool = False,
         **signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
     ):
-        """Initialize a RepeatedJumps object."""
         all_signals = {
             **signals,
             **dict(
@@ -311,22 +390,20 @@ class RepeatedJumps(WholeBody):
                 head_right=head_right,
             ),
         }
-        if left_foot_ground_reaction_force is None and right_foot_ground_reaction_force is None:
+        if (
+            left_foot_ground_reaction_force is None
+            and right_foot_ground_reaction_force is None
+        ):
             raise ValueError(
                 "at least one of 'left_foot_ground_reaction_force' or "
                 "'right_foot_ground_reaction_force' must be ForcePlatform instances."
             )
         super().__init__(**{i: v for i, v in all_signals.items() if v is not None})
-        self.set_bodymass_kg(bodymass_kg)
-        self.set_excluded_jumps(exclude_jumps)
-        self.set_straight_legs(straight_legs)
-        self.set_free_hands(free_hands)
 
     @classmethod
     def from_tdf(
         cls,
         file: str,
-        bodymass_kg: float | int,
         left_hand_ground_reaction_force: str | None = None,
         right_hand_ground_reaction_force: str | None = None,
         left_foot_ground_reaction_force: str | None = "left_foot",
@@ -367,7 +444,7 @@ class RepeatedJumps(WholeBody):
         left_wrist_lateral: str | None = None,
         right_wrist_medial: str | None = None,
         right_wrist_lateral: str | None = None,
-        s2: str | None = None,
+        s2: str | None = "s2",
         l2: str | None = None,
         c7: str | None = None,
         t5: str | None = None,
@@ -376,12 +453,12 @@ class RepeatedJumps(WholeBody):
         head_posterior: str | None = None,
         head_left: str | None = None,
         head_right: str | None = None,
-        exclude_jumps: list[int] = [],
-        straight_legs: bool = False,
-        free_hands: bool = False,
     ):
-        """Create a RepeatedJumps object from a TDF file."""
-        if left_foot_ground_reaction_force is None and right_foot_ground_reaction_force is None:
+        """Create a ChangeOfDirectionExercise object from a TDF file."""
+        if (
+            left_foot_ground_reaction_force is None
+            and right_foot_ground_reaction_force is None
+        ):
             raise ValueError(
                 "at least one of left_foot_ground_reaction_force or "
                 "right_foot_ground_reaction_force must be provided."
@@ -438,111 +515,9 @@ class RepeatedJumps(WholeBody):
             head_left=head_left,
             head_right=head_right,
         )
-        return cls(
-            bodymass_kg=bodymass_kg,
-            exclude_jumps=exclude_jumps,
-            straight_legs=straight_legs,
-            free_hands=free_hands,
-            **record._data,
-        )
-
-    def _get_constructor_args(self):
-        """
-        Return custom constructor arguments for loc/iloc slicing.
-
-        Returns dict with custom attributes needed to reconstruct RepeatedJumps
-        after slicing operations.
-        """
-        return {
-            'bodymass_kg': self.bodymass_kg,
-            'free_hands': self.free_hands,
-            'exclude_jumps': self.excluded_jumps,
-            'straight_legs': self.straight_legs,
-        }
+        return cls(**record._data)  # type: ignore
 
     def copy(self):
-        return RepeatedJumps(
-            bodymass_kg=self.bodymass_kg,
-            free_hands=self.free_hands,
-            exclude_jumps=self.excluded_jumps,
-            straight_legs=self.straight_legs,
-            **{i: v.copy() for i, v in self.items()},
+        return ChangeOfDirectionExercise(
+            **{i: v.copy() for i, v in self.items()},  # type: ignore
         )
-
-    @property
-    def jumps(self):
-        vgrf = self.resultant_force.copy()
-        time = vgrf.index
-        vgrf = vgrf.force[self.vertical_axis].to_numpy().flatten()
-        vgrf = fillna(arr=vgrf, value=0).flatten()
-        fsamp = float(1 / np.mean(np.diff(time)))
-        vgrf = butterworth_filt(
-            arr=vgrf,
-            fsamp=fsamp,
-            fcut=50.0,
-            order=4,
-            ftype="lowpass",
-            phase_corrected=True,
-        )
-
-        # get the batches with grf lower than 30N (i.e flight phases)
-        flight_batches = continuous_batches(vgrf <= float(MINIMUM_CONTACT_FORCE_N))
-
-        # remove those batches resulting in too short flight phases
-        # (i.e. ~0.2s flight time)
-        fsamp = 1 / np.mean(np.diff(time))
-        min_samples = int(round(MINIMUM_FLIGHT_TIME_S * fsamp))
-        flight_batches = [i for i in flight_batches if len(i) >= min_samples]
-
-        # ensure that the first jump does not start with a flight
-        if flight_batches[0][0] == 0:
-            flight_batches = flight_batches[1:]
-
-        # ensure that the last jump does not end in flight
-        if flight_batches[-1][-1] == len(vgrf) - 1:
-            flight_batches = flight_batches[:-1]
-
-        # get the contact peaks
-        contact_peaks = []
-        for b0, b1 in zip(flight_batches[:-1], flight_batches[1:]):
-            contact_peaks.append(np.argmax(vgrf[b0[-1] : b1[0]]) + b0[-1])
-        contact_peaks.append(
-            np.argmax(vgrf[flight_batches[-1][-1] :]) + flight_batches[-1][-1]
-        )
-
-        # get the contact starts
-        contact_starts = []
-        contact_batches = continuous_batches(vgrf > float(MINIMUM_CONTACT_FORCE_N))
-        for i, batch in enumerate(flight_batches):
-            pre = [c for c in contact_batches if c[-1] <= batch[0]]
-            if len(pre) == 0:
-                raise RuntimeError("no contact phase found")
-            pre = pre[-1]
-            contact_starts.append(pre[0])
-
-        # separate each jump
-        jumps: list[SingleJump] = []
-        for i, (pre, post) in enumerate(zip(contact_starts, contact_peaks)):
-            start = float(time[pre])
-            stop = float(time[post])
-            jumps.append(
-                SingleJump(
-                    bodymass_kg=self.bodymass_kg,
-                    straight_legs=self.straight_legs,
-                    free_hands=self.free_hands,
-                    **{i: v.copy().loc[start:stop, :] for i, v in self.items()},
-                )
-            )
-
-        # exclude unnecessary jumps
-        sanitized_indices = [
-            i + (0 if i >= 0 else len(jumps)) for i in self.excluded_jumps
-        ]
-        sanitized_indices = sorted(set(sanitized_indices), reverse=True)
-        for i in sanitized_indices:
-            jumps.pop(i)
-
-        return jumps
-
-
-__all__ = ["RepeatedJumps"]
