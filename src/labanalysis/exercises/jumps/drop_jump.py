@@ -139,7 +139,7 @@ class DropJump(SingleJump):
             return None
 
         mask = vgrf.to_numpy().flatten() > MINIMUM_CONTACT_FORCE_N
-        mask &= vrgf.index > flight_phase.index[-1]
+        mask &= vgrf.index > flight_phase.index[-1]
         batch = continuous_batches(mask)
         if len(batch) == 0:
             return None
@@ -279,7 +279,7 @@ class DropJump(SingleJump):
     @classmethod
     def from_tdf(
         cls,
-        file: str,
+        filename: str,
         box_height_cm: float,
         bodymass_kg: float | int,
         left_foot_ground_reaction_force: str | None,
@@ -335,7 +335,7 @@ class DropJump(SingleJump):
     ):
         """Create a DropJump object from a TDF file."""
         record = WholeBody.from_tdf(
-            file,
+            filename,
             left_hand_ground_reaction_force=left_hand_ground_reaction_force,
             right_hand_ground_reaction_force=right_hand_ground_reaction_force,
             left_foot_ground_reaction_force=left_foot_ground_reaction_force,
@@ -390,7 +390,7 @@ class DropJump(SingleJump):
             box_height_cm=box_height_cm,
             bodymass_kg=bodymass_kg,
             free_hands=free_hands,
-            **record._data,
+            **{i: v for i, v in record.items()},  # type: ignore
         )
 
     def copy(self):
@@ -413,7 +413,7 @@ class DropJump(SingleJump):
             box_height_cm=self.box_height_cm,
             bodymass_kg=self.bodymass_kg,
             free_hands=self.free_hands,
-            **{i: v.copy() for i, v in self.items()},
+            **{i: v.copy() for i, v in self.items()},  # type: ignore
         )
 
     @property

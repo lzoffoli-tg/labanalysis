@@ -6,17 +6,16 @@ from typing import Any, Callable, Literal
 import numpy as np
 import pandas as pd
 
-from ...constants import G, MINIMUM_CONTACT_FORCE_N
-from ...timeseries import EMGSignal, Point3D
-from ...records import ForcePlatform, TimeseriesRecord
+from ...constants import MINIMUM_CONTACT_FORCE_N, G
 from ...exercises import DropJump, RepeatedJumps, SingleJump
 from ...pipelines import get_default_processing_pipeline
-from ...signalprocessing import butterworth_filt, fillna
+from ...records import ForcePlatform, TimeseriesRecord
 from ...referenceframes import ReferenceFrame
+from ...signalprocessing import butterworth_filt, fillna, rms_filt
+from ...timeseries import EMGSignal, Point3D
+from ..normativedata import jumps_normative_values
 from ..participant import Participant
 from ..test_protocol import TestProtocol
-from ..test_results import TestResults
-from ..normativedata import jumps_normative_values
 from .jump_test_results import JumpTestResults
 
 
@@ -406,7 +405,7 @@ class JumpTest(TestProtocol):
         for file, fh in zip(squat_jump_files, squat_jump_free_hands):
             sjs.append(
                 SingleJump.from_tdf(
-                    file=file,
+                    filename=file,
                     bodymass_kg=bodymass,
                     free_hands=fh,
                     left_foot_ground_reaction_force=left_foot_ground_reaction_force,
@@ -420,7 +419,7 @@ class JumpTest(TestProtocol):
         ):
             cmjs.append(
                 SingleJump.from_tdf(
-                    file=file,
+                    filename=file,
                     bodymass_kg=bodymass,
                     free_hands=fh,
                     left_foot_ground_reaction_force=left_foot_ground_reaction_force,
@@ -434,7 +433,7 @@ class JumpTest(TestProtocol):
         ):
             djs.append(
                 DropJump.from_tdf(
-                    file=file,
+                    filename=file,
                     bodymass_kg=bodymass,
                     free_hands=fh,
                     box_height_cm=height,
@@ -535,7 +534,7 @@ class JumpTest(TestProtocol):
             if index is None:
                 raise RuntimeError("strip failed")
             index = index.index
-            exe = exe.loc[index[0]:index[-1], :]
+            exe = exe.loc[index[0] : index[-1], :]
             if not isinstance(exe, TimeseriesRecord):
                 raise RuntimeError("jump resizing failed.")
 

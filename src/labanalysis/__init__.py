@@ -10,10 +10,6 @@ Main modules:
 - equations: Metabolic and strength prediction equations
 """
 
-# Version
-__version__ = "228"
-
-# Wildcard imports from all main submodules and subpackages
 from .equations import *
 from .exercises import *
 from .io import *
@@ -28,11 +24,3 @@ from .utils import *
 from .signalprocessing import *
 from .constants import *
 from .messages import *
-
-# Common usage:
-# import labanalysis as la
-# body = la.WholeBody(...)
-# signal = la.Signal1D(...)
-# rf = la.ReferenceFrame(...)
-# participant = la.Participant(...)
-# jump = la.SingleJump.from_tdf(...)
