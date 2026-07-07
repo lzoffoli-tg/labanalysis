@@ -8,6 +8,8 @@ from ....signalprocessing import *
 from ....timeseries import EMGSignal, Signal1D
 from .biostrength_exercise import BiostrengthExercise
 
+__all__ = ["IsokineticExercise"]
+
 
 class IsokineticExercise(BiostrengthExercise):
     """

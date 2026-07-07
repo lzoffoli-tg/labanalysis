@@ -1,13 +1,6 @@
 """Biostrength strength tests module."""
 
-from .biostrength_repetition import BiostrengthRepetition
-from .biostrength_exercise import BiostrengthExercise
-from .isokinetic_exercise import IsokineticExercise
-from .isometric_exercise import IsometricExercise
-
-__all__ = [
-    "BiostrengthRepetition",
-    "BiostrengthExercise",
-    "IsokineticExercise",
-    "IsometricExercise",
-]
+from .biostrength_repetition import *
+from .biostrength_exercise import *
+from .isokinetic_exercise import *
+from .isometric_exercise import *

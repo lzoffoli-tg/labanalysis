@@ -1,13 +1,9 @@
 """Submaximal VO2max test implementation."""
 
-from typing import Any, Callable, Literal
-
-import numpy as np
 import pandas as pd
 
-from ...equations import Bike, Run
-from ...records import MetabolicRecord, TimeseriesRecord
 from ...pipelines import get_default_processing_pipeline
+from ...records.metabolicrecord import MetabolicRecord
 from ..participant import Participant
 from ..test_protocol import TestProtocol
 from .submaximal_vo2max_test_results import SubmaximalVO2MaxTestResults

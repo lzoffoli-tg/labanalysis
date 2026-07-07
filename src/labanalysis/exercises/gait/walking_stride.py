@@ -3,21 +3,17 @@
 from typing import Literal
 
 import numpy as np
-import pandas as pd
-import plotly.express.colors as plotly_colors
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
 from ...constants import *
-from ...signalprocessing import *
-from ...timeseries import Signal1D, Signal3D, EMGSignal, Point3D
 from ...records.body import WholeBody
 from ...records.forceplatform import ForcePlatform
 from ...records.timeseriesrecord import TimeseriesRecord
+from ...signalprocessing import *
+from ...timeseries import EMGSignal, Point3D, Signal1D, Signal3D
+from .gait_cycle import GaitCycle
 
-from ._base import GaitObject
-from ._cycle import GaitCycle
-from ._exercise import GaitExercise
+__all__ = ["WalkingStride"]
+
 
 class WalkingStride(GaitCycle):
     """
@@ -503,44 +499,44 @@ class WalkingStride(GaitCycle):
         **extra_signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
     ):
         """
-        Initialize a WalkingStride instance.
+            Initialize a WalkingStride instance.
 
-        Parameters
-        ----------
-        side : {'left', 'right'}
-            The side of the cycle.
-        algorithm : {'kinematics', 'kinetics'}
-            The cycle detection algorithm.
-        left_heel : Point3D or None, optional
-            Marker data for the left heel.
-        right_heel : Point3D or None, optional
-            Marker data for the right heel.
-        left_toe : Point3D or None, optional
-            Marker data for the left toe.
-        right_toe : Point3D or None, optional
-            Marker data for the right toe.
-        left_first_metatarsal_head : Point3D or None
-        Left first metatarsal head marker.
-    left_fifth_metatarsal_head : Point3D or None
-        Left fifth metatarsal head marker.
-    right_first_metatarsal_head : Point3D or None
-        Right first metatarsal head marker.
-    right_fifth_metatarsal_head : Point3D or None, optional
-            Marker data for the left metatarsal head.
-        right_metatarsal_head : Point3D or None, optional
-            Marker data for the right metatarsal head.
-        ground_reaction_force : ForcePlatform or None, optional
-            Ground reaction force data.
-        ground_reaction_force_threshold : float or int, optional
-            Minimum ground reaction force for contact detection.
-        height_threshold : float or int, optional
-            Maximum vertical height for contact detection.
-        vertical_axis : {'X', 'Y', 'Z'}, optional
-            The vertical axis.
-        antpos_axis : {'X', 'Y', 'Z'}, optional
-            The anterior-posterior axis.
-        **extra_signals : Signal1D, Signal3D, EMGSignal, Point3D, ForcePlatform
-            Additional signals to include.
+            Parameters
+            ----------
+            side : {'left', 'right'}
+                The side of the cycle.
+            algorithm : {'kinematics', 'kinetics'}
+                The cycle detection algorithm.
+            left_heel : Point3D or None, optional
+                Marker data for the left heel.
+            right_heel : Point3D or None, optional
+                Marker data for the right heel.
+            left_toe : Point3D or None, optional
+                Marker data for the left toe.
+            right_toe : Point3D or None, optional
+                Marker data for the right toe.
+            left_first_metatarsal_head : Point3D or None
+            Left first metatarsal head marker.
+        left_fifth_metatarsal_head : Point3D or None
+            Left fifth metatarsal head marker.
+        right_first_metatarsal_head : Point3D or None
+            Right first metatarsal head marker.
+        right_fifth_metatarsal_head : Point3D or None, optional
+                Marker data for the left metatarsal head.
+            right_metatarsal_head : Point3D or None, optional
+                Marker data for the right metatarsal head.
+            ground_reaction_force : ForcePlatform or None, optional
+                Ground reaction force data.
+            ground_reaction_force_threshold : float or int, optional
+                Minimum ground reaction force for contact detection.
+            height_threshold : float or int, optional
+                Maximum vertical height for contact detection.
+            vertical_axis : {'X', 'Y', 'Z'}, optional
+                The vertical axis.
+            antpos_axis : {'X', 'Y', 'Z'}, optional
+                The anterior-posterior axis.
+            **extra_signals : Signal1D, Signal3D, EMGSignal, Point3D, ForcePlatform
+                Additional signals to include.
         """
         super().__init__(
             side=side,
@@ -598,7 +594,3 @@ class WalkingStride(GaitCycle):
             head_right=head_right,
             **extra_signals,
         )
-
-
-
-

@@ -133,7 +133,7 @@ class DropJump(SingleJump):
         grf = self.resultant_force
         if grf is None:
             return None
-        vgrf = grf["force"][self.vertical_axis]
+        vgrf = grf.force[self.vertical_axis]
         flight_phase = self.flight_phase
         if flight_phase is None:
             return None

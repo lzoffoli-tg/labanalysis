@@ -7,6 +7,11 @@ import pandas as pd
 import plotly.colors as p_colors
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import sympy
+
+from ...equations.cardio.bike import Bike
+
+from ...equations.cardio.run import Run
 
 from ...signalprocessing import mean_filt
 from ..test_results import TestResults
@@ -131,7 +136,7 @@ class SubmaximalVO2MaxTestResults(TestResults):
         # exercise intensity and predict endurance performance.
         # J Appl Physiol 125: 672–674, 2018.
         # https://www.doi.org/10.1152/japplphysiol.00940.2017.
-        idx = np.where(rq>0.832)[0]
+        idx = np.where(rq > 0.832)[0]
         vo2_perc = (2 * rq[idx] - 1.663999) ** 0.5 + 0.301
         from_rq = max(vo2[idx] / vo2_perc)
 
@@ -183,7 +188,7 @@ class SubmaximalVO2MaxTestResults(TestResults):
         if test.metabolic_record.hr.is_empty():
             vt_hr = np.nan
             vt_hrp = np.nan
-        else:   
+        else:
             vt_hr = float(hr[vt_idx])
             vt_hrp = vt_hr / self._get_hrmax(test) * 100
         running_speed = float(Run().predict_speed(vo2=vt_vo2, grade=0)[0])
@@ -196,8 +201,8 @@ class SubmaximalVO2MaxTestResults(TestResults):
         return {
             ("VO2", "ml/kg/min"): round(vt_vo2, 1),
             ("VO2", "%VO2max"): round(vt_vo2p, 1),
-            ("HR", "bpm"): '-' if hr.size == 0 else round(vt_hr, 1),
-            ("HR", "%HRmax"): '-' if hr.size == 0 else round(vt_hrp, 1),
+            ("HR", "bpm"): "-" if hr.size == 0 else round(vt_hr, 1),
+            ("HR", "%HRmax"): "-" if hr.size == 0 else round(vt_hrp, 1),
             ("Running Speed", "km/h"): round(running_speed, 1),
             ("Cycling Power", "W"): round(cycling_power, 1),
         }
@@ -226,8 +231,8 @@ class SubmaximalVO2MaxTestResults(TestResults):
         return {
             ("VO2", "ml/kg/min"): round(float(vo2[idx]), 1),
             ("VO2", "%VO2max"): round(float(vo2p[idx]), 1),
-            ("HR", "bpm"): '-' if hr.size == 0 else round(float(hr[idx]), 1),
-            ("HR", "%HRmax"): '-' if hr.size == 0 else round(float(hrp[idx]), 1),
+            ("HR", "bpm"): "-" if hr.size == 0 else round(float(hr[idx]), 1),
+            ("HR", "%HRmax"): "-" if hr.size == 0 else round(float(hrp[idx]), 1),
             ("Running Speed", "km/h"): round(running_speed, 1),
             ("Cycling Power", "W"): round(cycling_power, 1),
         }
@@ -284,6 +289,8 @@ class SubmaximalVO2MaxTestResults(TestResults):
 
         # get the data
         tracks = self.analytics
+        if tracks is None:
+            return None
         time_val = (tracks.index.to_numpy() / 60).round(1)
         time_lbl = "Time (min)"
         vo2_val = tracks[("VO2", "ml/kg/min")].to_numpy().flatten()

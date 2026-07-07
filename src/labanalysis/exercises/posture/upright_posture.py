@@ -1,8 +1,8 @@
 """Upright posture exercise module."""
 
-from ...records.body import WholeBody
 from ...records import ForcePlatform
-from ...timeseries import Signal1D, Signal3D, EMGSignal, Point3D
+from ...records.body import WholeBody
+from ...timeseries import EMGSignal, Point3D, Signal1D, Signal3D
 
 
 class UprightPosture(WholeBody):
@@ -172,7 +172,7 @@ class UprightPosture(WholeBody):
                 "at least one of 'left_foot_ground_reaction_force' or "
                 "'right_foot_ground_reaction_force' must be provided."
             )
-        super().__init__(**{i: v for i, v in all_signals.items() if v is not None})
+        super().__init__(**{i: v for i, v in all_signals.items() if v is not None})  # type: ignore
 
     @classmethod
     def from_tdf(
@@ -308,10 +308,11 @@ class UprightPosture(WholeBody):
             head_left=head_left,
             head_right=head_right,
         )
-        return cls(**record._data)
+        return cls(**record._data)  # type: ignore
 
     def copy(self):
-        return UprightPosture(**self._data)
+        """return a copy of the instance"""
+        return UprightPosture(**self._data)  # type: ignore
 
 
 __all__ = ["UprightPosture"]

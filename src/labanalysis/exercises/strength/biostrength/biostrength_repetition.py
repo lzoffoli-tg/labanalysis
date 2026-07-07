@@ -5,8 +5,10 @@ from typing import Literal
 import numpy as np
 import pandas as pd
 
-from ....timeseries import EMGSignal, Signal1D
 from ....records.timeseriesrecord import TimeseriesRecord
+from ....timeseries import EMGSignal, Signal1D
+
+__all__ = ["BiostrengthRepetition"]
 
 
 class BiostrengthRepetition(TimeseriesRecord):

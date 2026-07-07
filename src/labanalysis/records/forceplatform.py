@@ -3,7 +3,7 @@
 import numpy as np
 
 from ..timeseries import Point3D, Signal3D
-from ._base import Record
+from .record import Record
 
 
 class ForcePlatform(Record):
@@ -41,16 +41,19 @@ class ForcePlatform(Record):
 
     @property
     def vertical_axis(self):
+        """return the label defining the vertical axis."""
         origin: Point3D = self["origin"]  # type: ignore
         return origin.vertical_axis
 
     @property
     def anteroposterior_axis(self):
+        """return the label defining the anteroposterior axis."""
         origin: Point3D = self["origin"]  # type: ignore
         return origin.anteroposterior_axis
 
     @property
     def lateral_axis(self):
+        """return the label defining the lateral axis."""
         origin: Point3D = self["origin"]  # type: ignore
         return origin.lateral_axis
 
@@ -113,10 +116,25 @@ class ForcePlatform(Record):
 
     @property
     def free_moment(self):
+        """ "return the free moment of the Force Platform"""
         k = np.cross(self.origin.to_numpy(), self.force.to_numpy())
         return self.torque + k
 
     def update_moments(self, inplace: bool = True):
+        """
+        update the moments
+
+        Parameters
+        ----------
+        inplace: bool (default=True)
+            if True, the change is applied directly to the object. If False
+            a modified copy is returned.
+
+        Return
+        ------
+        obj: ForcePlatform | None
+            the obejct with the change applied if inplace=False.
+        """
         if not isinstance(inplace, bool):
             raise ValueError("inplace must be True or False")
         if inplace:
@@ -127,11 +145,30 @@ class ForcePlatform(Record):
             return out
 
     def copy(self):
+        """return a copy of the object"""
         return ForcePlatform(
             origin=self.origin.copy(),  # type: ignore
             force=self.force.copy(),  # type: ignore
             torque=self.torque.copy(),  # type: ignore
         )
+
+    @property
+    def origin(self):
+        """return the coordinated of the force platform CoP"""
+        out: Point3D = self["origin"]  # type: ignore
+        return out
+
+    @property
+    def force(self):
+        """return the force attribute of the object"""
+        out: Signal3D = self["force"]  # type: ignore
+        return out
+
+    @property
+    def torque(self):
+        """return the torque attribute of the object"""
+        out: Signal3D = self["torque"]  # type: ignore
+        return out
 
 
 __all__ = ["ForcePlatform"]

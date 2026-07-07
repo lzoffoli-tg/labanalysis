@@ -1,10 +1,12 @@
 """FreeWeightExercise module."""
 
+from ....records.forceplatform import ForcePlatform
 from ....records.timeseriesrecord import TimeseriesRecord
 from ....timeseries import EMGSignal, Point3D, Signal1D, Signal3D
-from ....records.forceplatform import ForcePlatform
 from .default_freeweight_object import DefaultFreeWeightObject
 from .freeweight_repetition import FreeWeightRepetition
+
+__all__ = ["FreeWeightExercise"]
 
 
 class FreeWeightExercise(DefaultFreeWeightObject):
@@ -153,7 +155,7 @@ class FreeWeightExercise(DefaultFreeWeightObject):
             c7=c7,
             sc=sc,
             l2=l2,
-            **extra_signals,
+            **extra_signals,  # type: ignore
         )
 
     @classmethod
@@ -294,7 +296,7 @@ class FreeWeightExercise(DefaultFreeWeightObject):
                 left_hand_ground_reaction_force,
                 right_hand_ground_reaction_force,
             ]:
-                if not isinstance(val, FP):
+                if not isinstance(val, ForcePlatform):
                     msg = f"{inp} has to be a ForcePlatform instance."
                     raise ValueError(msg)
             else:
@@ -312,7 +314,7 @@ class FreeWeightExercise(DefaultFreeWeightObject):
     def repetitions(self):
         """return a list of FreeWeightRepetition instances"""
         repetitions: list[FreeWeightRepetition] = []
-
+        raise NotImplementedError
         # TODO: Define repetition separation logic
 
         return repetitions

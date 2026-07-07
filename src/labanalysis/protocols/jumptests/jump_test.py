@@ -6,9 +6,9 @@ from typing import Any, Callable, Literal
 import numpy as np
 import pandas as pd
 
-from ...constants import MINIMUM_CONTACT_FORCE_N, G
+from ...constants import MINIMUM_CONTACT_FORCE_N
 from ...exercises import DropJump, RepeatedJumps, SingleJump
-from ...pipelines import get_default_processing_pipeline
+from ...pipelines._base import ProcessingPipeline
 from ...records import ForcePlatform, TimeseriesRecord
 from ...referenceframes import ReferenceFrame
 from ...signalprocessing import butterworth_filt, fillna, rms_filt
@@ -259,8 +259,6 @@ class JumpTest(TestProtocol):
         cls,
         participant: Participant,
         normative_data: pd.DataFrame = jumps_normative_values,
-        left_foot_ground_reaction_force: str = "left_foot",
-        right_foot_ground_reaction_force: str = "right_foot",
         emg_normalization_references: (
             TimeseriesRecord | str | Literal["self"]
         ) = TimeseriesRecord(),
@@ -281,6 +279,56 @@ class JumpTest(TestProtocol):
         exclude_repeated_jumps: list[list[int]] | None = None,
         repeated_jumps_straight_leg: list[bool] | None = None,
         repeated_jumps_free_hands: list[bool] | None = None,
+        # marker/forces labels
+        left_foot_ground_reaction_force: str | None = None,
+        right_foot_ground_reaction_force: str | None = None,
+        left_hand_ground_reaction_force: str | None = None,
+        right_hand_ground_reaction_force: str | None = None,
+        left_heel: str | None = None,
+        right_heel: str | None = None,
+        left_toe: str | None = None,
+        right_toe: str | None = None,
+        left_first_metatarsal_head: str | None = None,
+        left_fifth_metatarsal_head: str | None = None,
+        right_first_metatarsal_head: str | None = None,
+        right_fifth_metatarsal_head: str | None = None,
+        left_ankle_medial: str | None = None,
+        left_ankle_lateral: str | None = None,
+        right_ankle_medial: str | None = None,
+        right_ankle_lateral: str | None = None,
+        left_knee_medial: str | None = None,
+        left_knee_lateral: str | None = None,
+        right_knee_medial: str | None = None,
+        right_knee_lateral: str | None = None,
+        right_trochanter: str | None = None,
+        left_trochanter: str | None = None,
+        left_asis: str | None = None,
+        right_asis: str | None = None,
+        left_psis: str | None = None,
+        right_psis: str | None = None,
+        left_shoulder_anterior: str | None = None,
+        left_shoulder_posterior: str | None = None,
+        left_acromion: str | None = None,
+        right_shoulder_anterior: str | None = None,
+        right_shoulder_posterior: str | None = None,
+        right_acromion: str | None = None,
+        left_elbow_medial: str | None = None,
+        left_elbow_lateral: str | None = None,
+        right_elbow_medial: str | None = None,
+        right_elbow_lateral: str | None = None,
+        left_wrist_medial: str | None = None,
+        left_wrist_lateral: str | None = None,
+        right_wrist_medial: str | None = None,
+        right_wrist_lateral: str | None = None,
+        s2: str | None = None,
+        l2: str | None = None,
+        c7: str | None = None,
+        t5: str | None = None,
+        sc: str | None = None,
+        head_anterior: str | None = None,
+        head_posterior: str | None = None,
+        head_left: str | None = None,
+        head_right: str | None = None,
     ):
 
         # check the inputs
@@ -400,6 +448,13 @@ class JumpTest(TestProtocol):
             msg += "representing the height of each single drop jump."
             raise ValueError(msg)
 
+        if not isinstance(s2, str):
+            raise ValueError("s2 must be a str object")
+        if not isinstance(left_foot_ground_reaction_force, str):
+            raise ValueError("left_foot_ground_reaction_force must be a str object")
+        if not isinstance(right_foot_ground_reaction_force, str):
+            raise ValueError("right_foot_ground_reaction_force must be a str object")
+
         # read the files
         sjs = []
         for file, fh in zip(squat_jump_files, squat_jump_free_hands):
@@ -408,8 +463,55 @@ class JumpTest(TestProtocol):
                     filename=file,
                     bodymass_kg=bodymass,
                     free_hands=fh,
+                    left_hand_ground_reaction_force=left_hand_ground_reaction_force,
+                    right_hand_ground_reaction_force=right_hand_ground_reaction_force,
                     left_foot_ground_reaction_force=left_foot_ground_reaction_force,
                     right_foot_ground_reaction_force=right_foot_ground_reaction_force,
+                    left_heel=left_heel,
+                    right_heel=right_heel,
+                    left_toe=left_toe,
+                    right_toe=right_toe,
+                    left_first_metatarsal_head=left_first_metatarsal_head,
+                    left_fifth_metatarsal_head=left_fifth_metatarsal_head,
+                    right_first_metatarsal_head=right_first_metatarsal_head,
+                    right_fifth_metatarsal_head=right_fifth_metatarsal_head,
+                    left_ankle_medial=left_ankle_medial,
+                    left_ankle_lateral=left_ankle_lateral,
+                    right_ankle_medial=right_ankle_medial,
+                    right_ankle_lateral=right_ankle_lateral,
+                    left_knee_medial=left_knee_medial,
+                    left_knee_lateral=left_knee_lateral,
+                    right_knee_medial=right_knee_medial,
+                    right_knee_lateral=right_knee_lateral,
+                    left_trochanter=left_trochanter,
+                    right_trochanter=right_trochanter,
+                    left_asis=left_asis,
+                    right_asis=right_asis,
+                    left_psis=left_psis,
+                    right_psis=right_psis,
+                    left_shoulder_anterior=left_shoulder_anterior,
+                    left_shoulder_posterior=left_shoulder_posterior,
+                    left_acromion=left_acromion,
+                    right_shoulder_anterior=right_shoulder_anterior,
+                    right_shoulder_posterior=right_shoulder_posterior,
+                    right_acromion=right_acromion,
+                    left_elbow_medial=left_elbow_medial,
+                    left_elbow_lateral=left_elbow_lateral,
+                    right_elbow_medial=right_elbow_medial,
+                    right_elbow_lateral=right_elbow_lateral,
+                    left_wrist_medial=left_wrist_medial,
+                    left_wrist_lateral=left_wrist_lateral,
+                    right_wrist_medial=right_wrist_medial,
+                    right_wrist_lateral=right_wrist_lateral,
+                    s2=s2,
+                    l2=l2,
+                    c7=c7,
+                    t5=t5,
+                    sc=sc,
+                    head_anterior=head_anterior,
+                    head_posterior=head_posterior,
+                    head_left=head_left,
+                    head_right=head_right,
                 )
             )
 
@@ -422,8 +524,55 @@ class JumpTest(TestProtocol):
                     filename=file,
                     bodymass_kg=bodymass,
                     free_hands=fh,
+                    left_hand_ground_reaction_force=left_hand_ground_reaction_force,
+                    right_hand_ground_reaction_force=right_hand_ground_reaction_force,
                     left_foot_ground_reaction_force=left_foot_ground_reaction_force,
                     right_foot_ground_reaction_force=right_foot_ground_reaction_force,
+                    left_heel=left_heel,
+                    right_heel=right_heel,
+                    left_toe=left_toe,
+                    right_toe=right_toe,
+                    left_first_metatarsal_head=left_first_metatarsal_head,
+                    left_fifth_metatarsal_head=left_fifth_metatarsal_head,
+                    right_first_metatarsal_head=right_first_metatarsal_head,
+                    right_fifth_metatarsal_head=right_fifth_metatarsal_head,
+                    left_ankle_medial=left_ankle_medial,
+                    left_ankle_lateral=left_ankle_lateral,
+                    right_ankle_medial=right_ankle_medial,
+                    right_ankle_lateral=right_ankle_lateral,
+                    left_knee_medial=left_knee_medial,
+                    left_knee_lateral=left_knee_lateral,
+                    right_knee_medial=right_knee_medial,
+                    right_knee_lateral=right_knee_lateral,
+                    left_trochanter=left_trochanter,
+                    right_trochanter=right_trochanter,
+                    left_asis=left_asis,
+                    right_asis=right_asis,
+                    left_psis=left_psis,
+                    right_psis=right_psis,
+                    left_shoulder_anterior=left_shoulder_anterior,
+                    left_shoulder_posterior=left_shoulder_posterior,
+                    left_acromion=left_acromion,
+                    right_shoulder_anterior=right_shoulder_anterior,
+                    right_shoulder_posterior=right_shoulder_posterior,
+                    right_acromion=right_acromion,
+                    left_elbow_medial=left_elbow_medial,
+                    left_elbow_lateral=left_elbow_lateral,
+                    right_elbow_medial=right_elbow_medial,
+                    right_elbow_lateral=right_elbow_lateral,
+                    left_wrist_medial=left_wrist_medial,
+                    left_wrist_lateral=left_wrist_lateral,
+                    right_wrist_medial=right_wrist_medial,
+                    right_wrist_lateral=right_wrist_lateral,
+                    s2=s2,
+                    l2=l2,
+                    c7=c7,
+                    t5=t5,
+                    sc=sc,
+                    head_anterior=head_anterior,
+                    head_posterior=head_posterior,
+                    head_left=head_left,
+                    head_right=head_right,
                 )
             )
 
@@ -437,8 +586,55 @@ class JumpTest(TestProtocol):
                     bodymass_kg=bodymass,
                     free_hands=fh,
                     box_height_cm=height,
+                    left_hand_ground_reaction_force=left_hand_ground_reaction_force,
+                    right_hand_ground_reaction_force=right_hand_ground_reaction_force,
                     left_foot_ground_reaction_force=left_foot_ground_reaction_force,
                     right_foot_ground_reaction_force=right_foot_ground_reaction_force,
+                    left_heel=left_heel,
+                    right_heel=right_heel,
+                    left_toe=left_toe,
+                    right_toe=right_toe,
+                    left_first_metatarsal_head=left_first_metatarsal_head,
+                    left_fifth_metatarsal_head=left_fifth_metatarsal_head,
+                    right_first_metatarsal_head=right_first_metatarsal_head,
+                    right_fifth_metatarsal_head=right_fifth_metatarsal_head,
+                    left_ankle_medial=left_ankle_medial,
+                    left_ankle_lateral=left_ankle_lateral,
+                    right_ankle_medial=right_ankle_medial,
+                    right_ankle_lateral=right_ankle_lateral,
+                    left_knee_medial=left_knee_medial,
+                    left_knee_lateral=left_knee_lateral,
+                    right_knee_medial=right_knee_medial,
+                    right_knee_lateral=right_knee_lateral,
+                    left_trochanter=left_trochanter,
+                    right_trochanter=right_trochanter,
+                    left_asis=left_asis,
+                    right_asis=right_asis,
+                    left_psis=left_psis,
+                    right_psis=right_psis,
+                    left_shoulder_anterior=left_shoulder_anterior,
+                    left_shoulder_posterior=left_shoulder_posterior,
+                    left_acromion=left_acromion,
+                    right_shoulder_anterior=right_shoulder_anterior,
+                    right_shoulder_posterior=right_shoulder_posterior,
+                    right_acromion=right_acromion,
+                    left_elbow_medial=left_elbow_medial,
+                    left_elbow_lateral=left_elbow_lateral,
+                    right_elbow_medial=right_elbow_medial,
+                    right_elbow_lateral=right_elbow_lateral,
+                    left_wrist_medial=left_wrist_medial,
+                    left_wrist_lateral=left_wrist_lateral,
+                    right_wrist_medial=right_wrist_medial,
+                    right_wrist_lateral=right_wrist_lateral,
+                    s2=s2,
+                    l2=l2,
+                    c7=c7,
+                    t5=t5,
+                    sc=sc,
+                    head_anterior=head_anterior,
+                    head_posterior=head_posterior,
+                    head_left=head_left,
+                    head_right=head_right,
                 )
             )
 
@@ -453,10 +649,57 @@ class JumpTest(TestProtocol):
                 file=file,
                 bodymass_kg=bodymass,
                 free_hands=fh,
-                left_foot_ground_reaction_force=left_foot_ground_reaction_force,
-                right_foot_ground_reaction_force=right_foot_ground_reaction_force,
                 exclude_jumps=exclude,
                 straight_legs=straight,
+                left_hand_ground_reaction_force=left_hand_ground_reaction_force,
+                right_hand_ground_reaction_force=right_hand_ground_reaction_force,
+                left_foot_ground_reaction_force=left_foot_ground_reaction_force,
+                right_foot_ground_reaction_force=right_foot_ground_reaction_force,
+                left_heel=left_heel,
+                right_heel=right_heel,
+                left_toe=left_toe,
+                right_toe=right_toe,
+                left_first_metatarsal_head=left_first_metatarsal_head,
+                left_fifth_metatarsal_head=left_fifth_metatarsal_head,
+                right_first_metatarsal_head=right_first_metatarsal_head,
+                right_fifth_metatarsal_head=right_fifth_metatarsal_head,
+                left_ankle_medial=left_ankle_medial,
+                left_ankle_lateral=left_ankle_lateral,
+                right_ankle_medial=right_ankle_medial,
+                right_ankle_lateral=right_ankle_lateral,
+                left_knee_medial=left_knee_medial,
+                left_knee_lateral=left_knee_lateral,
+                right_knee_medial=right_knee_medial,
+                right_knee_lateral=right_knee_lateral,
+                left_trochanter=left_trochanter,
+                right_trochanter=right_trochanter,
+                left_asis=left_asis,
+                right_asis=right_asis,
+                left_psis=left_psis,
+                right_psis=right_psis,
+                left_shoulder_anterior=left_shoulder_anterior,
+                left_shoulder_posterior=left_shoulder_posterior,
+                left_acromion=left_acromion,
+                right_shoulder_anterior=right_shoulder_anterior,
+                right_shoulder_posterior=right_shoulder_posterior,
+                right_acromion=right_acromion,
+                left_elbow_medial=left_elbow_medial,
+                left_elbow_lateral=left_elbow_lateral,
+                right_elbow_medial=right_elbow_medial,
+                right_elbow_lateral=right_elbow_lateral,
+                left_wrist_medial=left_wrist_medial,
+                left_wrist_lateral=left_wrist_lateral,
+                right_wrist_medial=right_wrist_medial,
+                right_wrist_lateral=right_wrist_lateral,
+                s2=s2,
+                l2=l2,
+                c7=c7,
+                t5=t5,
+                sc=sc,
+                head_anterior=head_anterior,
+                head_posterior=head_posterior,
+                head_left=head_left,
+                head_right=head_right,
             ).jumps
 
         return cls(
@@ -520,25 +763,23 @@ class JumpTest(TestProtocol):
 
         return exe
 
-    def _process_jump(self, jump: SingleJump | DropJump):
+    def _process_jump(self, jump: SingleJump | DropJump | RepeatedJumps):
         exe = jump.copy()
 
         # trim the data to the jump duration
         if not isinstance(jump, DropJump):
-            grf = TimeseriesRecord()
-            if jump.side in ["right", "bilateral"]:
-                grf["right"] = jump.right_foot_ground_reaction_force
-            if jump.side in ["left", "bilateral"]:
-                grf["left"] = jump.left_foot_ground_reaction_force
-            index = grf.strip()
+            index = exe.resultant_force.strip(independent=False)
             if index is None:
                 raise RuntimeError("strip failed")
             index = index.index
-            exe = exe.loc[index[0] : index[-1], :]
+            for key in exe.keys():
+                idx = (exe[key].index >= index[0]) & (exe[key].index <= index[-1])  # type: ignore
+                exe[key] = exe[key].loc[idx, :]  # type: ignore
             if not isinstance(exe, TimeseriesRecord):
                 raise RuntimeError("jump resizing failed.")
 
-        exe = self._process_record(exe)
+        exe = exe.strip()
+        exe = self._process_record(exe)  # type: ignore
 
         # align the reference frame
         if exe.side not in ["right", "left"]:
@@ -602,7 +843,7 @@ class JumpTest(TestProtocol):
             fp.force[:, :] = fillna(fp.force.to_numpy(), value=0, inplace=False)
 
             # fill position nans via cubic spline
-            fp.origin[:, :] = fillna(fp.origin.to_numpy(), inplace=False)
+            fp.origin[:, :] = fillna(fp.origin.to_numpy(), mice=True, inplace=False)
 
             # lowpass filter both origin and force
             fsamp = float(1 / np.mean(np.diff(fp.index)))
@@ -651,10 +892,24 @@ class JumpTest(TestProtocol):
                 axis=0,
             )
 
-        pipeline = get_default_processing_pipeline()
-        pipeline.add(
+        def point3d_processing_func(obj: Point3D):
+            obj.fillna(mice=True, inplace=True)
+            fsamp = 1 / np.mean(np.diff(obj.index))
+            obj.apply(
+                butterworth_filt,
+                fcut=6,
+                fsamp=fsamp,
+                order=4,
+                ftype="lowpass",
+                phase_corrected=True,
+                inplace=True,
+                axis=0,
+            )
+
+        pipeline = ProcessingPipeline(
             ForcePlatform=[forceplatform_processing_func],
             EMGSignal=[emgsignal_processing_func],
+            Point3D=[point3d_processing_func],
         )
         return pipeline
 

@@ -157,8 +157,6 @@ class ChangeOfDirectionExercise(WholeBody):
     ShuttleTest : Complete shuttle test protocol with multiple direction changes.
     """
 
-    _inversion_time: float | None = None
-
     @property
     def side(self):
         """
@@ -202,6 +200,8 @@ class ChangeOfDirectionExercise(WholeBody):
         """
         # get the longest batch with grf lower than 30N
         rf = self.resultant_force.strip()
+        if rf is None:
+            return WholeBody()
         start = rf.index[0]
         stop = rf.index[-1]
 
@@ -222,29 +222,27 @@ class ChangeOfDirectionExercise(WholeBody):
         Return the movement velocity of s2 marker.
         """
         if not any([i == "s2" for i in self.points3d.keys()]):
-            data = []
-            index = []
-        else:
-            s2 = self.s2.copy()
-            data = s2.to_numpy()
-            index = s2.index
-            data = np.gradient(data, index, axis=0)
+            return None
+        s2 = self["s2"].copy()  # type: ignore
+        data = s2.to_numpy()
+        index = s2.index
+        data = np.gradient(data, index, axis=0)
         return Signal3D(
             data=data,
             index=index,
-            vertical_axis=self.vertical_axis,
-            anteroposterior_axis=self.anteroposterior_axis,
+            vertical_axis=self.vertical_axis,  # type: ignore
+            anteroposterior_axis=self.anteroposterior_axis,  # type: ignore
             unit="m/s",
         )
 
     @property
     def inversion_time(self):
         "time instant of the end of the loading phase"
-        if self._inversion_time is None:
-            s2 = self.s2.copy()
-            s2z = s2[self.anteroposterior_axis].to_numpy().flatten()
-            self._inversion_time = s2.index[np.argmax(s2z)]
-        return self._inversion_time
+        s2: Point3D = self["s2"]  # type: ignore
+        if s2 is None:
+            return None
+        s2z = s2.copy()[self.anteroposterior_axis].to_numpy().flatten()
+        return float(s2.index[np.argmax(s2z)])
 
     @property
     def loading_phase(self):
@@ -398,7 +396,7 @@ class ChangeOfDirectionExercise(WholeBody):
                 "at least one of 'left_foot_ground_reaction_force' or "
                 "'right_foot_ground_reaction_force' must be ForcePlatform instances."
             )
-        super().__init__(**{i: v for i, v in all_signals.items() if v is not None})
+        super().__init__(**{i: v for i, v in all_signals.items() if v is not None})  # type: ignore
 
     @classmethod
     def from_tdf(

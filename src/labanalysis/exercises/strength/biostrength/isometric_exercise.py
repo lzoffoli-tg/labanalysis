@@ -8,6 +8,8 @@ from ....signalprocessing import continuous_batches
 from ....timeseries import EMGSignal, Signal1D
 from .biostrength_exercise import BiostrengthExercise
 
+__all__ = ["IsometricExercise"]
+
 
 class IsometricExercise(BiostrengthExercise):
     """
@@ -87,13 +89,17 @@ class IsometricExercise(BiostrengthExercise):
             # for each batch get the start of the repetition as the last point
             # before the start of the batch without having increments in force
             start = batch[0]
-            while start > 0 and (arr[start - 1] < arr[start] or arr[start - 1] > np.max(arr) * 0.33):
+            while start > 0 and (
+                arr[start - 1] < arr[start] or arr[start - 1] > np.max(arr) * 0.33
+            ):
                 start -= 1
 
             # for each batch get the end of the repetition as the first point
             # before the end of the batch without having decrements in force
             stop = batch[-1]
-            while stop < len(time) - 1 and (arr[stop + 1] < arr[stop] or arr[stop + 1] > np.max(arr) * 0.33):
+            while stop < len(time) - 1 and (
+                arr[stop + 1] < arr[stop] or arr[stop + 1] > np.max(arr) * 0.33
+            ):
                 stop += 1
 
             # add the repetition index
@@ -116,7 +122,7 @@ class IsometricExercise(BiostrengthExercise):
         reps = super().repetitions
 
         # Apply max_time_s trimming if set
-        if hasattr(self, '_max_time_s') and self._max_time_s is not None:
+        if hasattr(self, "_max_time_s") and self._max_time_s is not None:
             trimmed_reps = []
             for rep in reps:
                 rep_start_time = float(rep.index[0])
@@ -174,7 +180,7 @@ class IsometricExercise(BiostrengthExercise):
         return IsometricExercise(
             side=self.side,  # type: ignore
             synchronize_signals=False,
-            max_time_s=getattr(self, '_max_time_s', None),
-            time_points=getattr(self, '_time_points', [100, 200, 500, 1000]),
+            max_time_s=getattr(self, "_max_time_s", None),
+            time_points=getattr(self, "_time_points", [100, 200, 500, 1000]),
             **{i: v.copy() for i, v in self._data.items()},  # type: ignore
         )

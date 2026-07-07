@@ -149,6 +149,7 @@ class Isokinetic1RMTestResults(TestResults):
         include_force_balance: bool = True,
     ):
         from .isokinetic_1rm_test import Isokinetic1RMTest
+
         self._summary = pd.DataFrame()
         self._analytics = pd.DataFrame()
         self._figures = {}
@@ -229,18 +230,21 @@ class Isokinetic1RMTestResults(TestResults):
         return pd.concat(analytics, ignore_index=True)
 
     def _get_figures(self, test: "Isokinetic1RMTest"):
+        out: dict[str, go.Figure] = {}
 
         # force data
         tracks = self.analytics
+        if tracks is None:
+            return out
 
         # Find actual force and position column names
         available_cols = tracks.columns.tolist()
         force_col = None
         position_col = None
         for col in available_cols:
-            if 'force' in col.lower():
+            if "force" in col.lower():
                 force_col = col
-            if 'position' in col.lower():
+            if "position" in col.lower():
                 position_col = col
 
         if force_col is None or position_col is None:
@@ -282,13 +286,11 @@ class Isokinetic1RMTestResults(TestResults):
                 value_name="value",
             )
             # Map column names to standard names for plotting
-            df['parameter'] = df['parameter'].replace({
-                force_col: 'force_amplitude'
-            })
+            df["parameter"] = df["parameter"].replace({force_col: "force_amplitude"})
             df.insert(
                 0,
                 "side",
-                side,
+                str(side),
             )
             df.insert(
                 0,
@@ -298,18 +300,17 @@ class Isokinetic1RMTestResults(TestResults):
             df.insert(
                 0,
                 "repetition",
-                rep,
+                rep,  # type: ignore
             )
             dfs.append(df)
         dfr = pd.concat(dfs, ignore_index=True)
 
-        out: dict[str, go.Figure] = {}
         for i, v in dfr.groupby("limb"):
             out[i] = _get_force_figure(
                 v,
                 self.summary,
                 self.include_emg,
-                time_mode='percentage',
+                time_mode="percentage",
             )
 
         return out

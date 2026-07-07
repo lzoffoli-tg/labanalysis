@@ -7,6 +7,8 @@ from ....timeseries import EMGSignal, Point3D, Signal1D, Signal3D
 from ....records.forceplatform import ForcePlatform
 from ....records.body import WholeBody
 
+__all__ = ["DefaultFreeWeightObject"]
+
 
 class DefaultFreeWeightObject(WholeBody):
     """
@@ -193,7 +195,7 @@ class DefaultFreeWeightObject(WholeBody):
                 head_right=head_right,
             ),
         }
-        super().__init__(**{i: v for i, v in signals.items() if v is not None})
+        super().__init__(**{i: v for i, v in signals.items() if v is not None})  # type: ignore
 
         self.set_total_load_kg(total_load_kg)
 
@@ -280,8 +282,8 @@ class DefaultFreeWeightObject(WholeBody):
             index=self.index,
             unit=position.unit + "/s",
             columns=position.columns,
-            vertical_axis=position.vertical_axis,
-            anteroposterior_axis=position.anteroposterior_axis,
+            vertical_axis=position.vertical_axis,  # type: ignore
+            anteroposterior_axis=position.anteroposterior_axis,  # type: ignore
         )
 
     @property
@@ -311,8 +313,8 @@ class DefaultFreeWeightObject(WholeBody):
             index=self.index,
             unit=position.unit + "/s**2",
             columns=position.columns,
-            vertical_axis=position.vertical_axis,
-            anteroposterior_axis=position.anteroposterior_axis,
+            vertical_axis=position.vertical_axis,  # type: ignore
+            anteroposterior_axis=position.anteroposterior_axis,  # type: ignore
         )
 
     @property

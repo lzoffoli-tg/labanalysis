@@ -4,12 +4,15 @@ from typing import Literal
 
 import numpy as np
 
-from ....constants import G
 from labanalysis.io.read.biostrength import PRODUCTS as BIOSTRENGTH_PRODUCTS_MAP
+
+from ....constants import G
+from ....records.timeseriesrecord import TimeseriesRecord
 from ....signalprocessing import *
 from ....timeseries import EMGSignal, Signal1D
-from ....records.timeseriesrecord import TimeseriesRecord
 from .biostrength_repetition import BiostrengthRepetition
+
+__all__ = ["BiostrengthExercise"]
 
 
 class BiostrengthExercise(TimeseriesRecord):

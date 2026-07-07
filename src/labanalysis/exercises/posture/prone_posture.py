@@ -156,7 +156,7 @@ class PronePosture(WholeBody):
                 head_right=head_right,
             ),
         }
-        super().__init__(**{i: v for i, v in all_signals.items() if v is not None})
+        super().__init__(**{i: v for i, v in all_signals.items() if v is not None})  # type: ignore
 
     @classmethod
     def from_tdf(
@@ -287,10 +287,11 @@ class PronePosture(WholeBody):
         for key in labels.keys():
             if record.get(key) is None:
                 raise ValueError(f"{key} not found within the provided file.")
-        return cls(**record._data)
+        return cls(**record._data)  # type: ignore
 
     def copy(self):
-        return PronePosture(**self._data)
+        """return a copy of the instance"""
+        return PronePosture(**self._data)  # type: ignore
 
 
 __all__ = ["PronePosture"]

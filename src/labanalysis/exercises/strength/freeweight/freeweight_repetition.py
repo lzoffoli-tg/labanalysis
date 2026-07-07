@@ -3,11 +3,13 @@
 import numpy as np
 import pandas as pd
 
+from ....records.forceplatform import ForcePlatform
 from ....signalprocessing import find_peaks
 from ....timeseries import EMGSignal, Point3D, Signal1D, Signal3D
-from ....records.forceplatform import ForcePlatform
 from .default_freeweight_object import DefaultFreeWeightObject
 from .repetition_phase import RepetitionPhase
+
+__all__ = ["FreeWeightRepetition"]
 
 
 class FreeWeightRepetition(DefaultFreeWeightObject):

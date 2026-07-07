@@ -6,7 +6,7 @@ import pandas as pd
 from ..io.read.btsbioengineering import read_tdf
 from ..signalprocessing import fillna as sp_fillna
 from ..timeseries import Timeseries, Signal1D, Signal3D, EMGSignal, Point3D
-from ._base import Record
+from .record import Record
 from .forceplatform import ForcePlatform
 from .metabolicrecord import MetabolicRecord
 
@@ -255,7 +255,6 @@ class TimeseriesRecord(Record):
         return TimeseriesRecord(
             **{k: v for k, v in self.items() if type(v) == cls},
         )
-
 
     def __setitem__(self, key, value):
         if not isinstance(key, str):

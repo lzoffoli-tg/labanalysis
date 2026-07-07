@@ -16,9 +16,9 @@ from ..timeseries import EMGSignal
 @runtime_checkable
 class TestResults(Protocol):
 
-    _summary: pd.DataFrame
-    _analytics: pd.DataFrame
-    _figures: dict[str, go.Figure | dict[str, go.Figure]]
+    _summary: pd.DataFrame | dict[str, pd.DataFrame] | None
+    _analytics: pd.DataFrame | None
+    _figures: dict[str, go.Figure | dict[str, go.Figure]] | None
     _include_emg: bool
 
     @property
@@ -73,9 +73,12 @@ class TestResults(Protocol):
                 msg += f"{type(obj)}."
                 raise ValueError(msg)
 
-        save(join(path, "summary"), self.summary)
-        save(join(path, "analytics"), self.analytics)
-        save(join(path, "figures"), self.figures)
+        if self.summary is not None:
+            save(join(path, "summary"), self.summary)
+        if self.analytics is not None:
+            save(join(path, "analytics"), self.analytics)
+        if self.figures is not None:
+            save(join(path, "figures"), self.figures)
 
     def __init__(self, test: Any, include_emg: bool):
         if not isinstance(include_emg, bool):
@@ -170,10 +173,11 @@ class TestResults(Protocol):
         import copy as copy_module
 
         new_instance = object.__new__(self.__class__)
-        new_instance._summary = self._summary.copy() if hasattr(self, '_summary') else pd.DataFrame()
-        new_instance._analytics = self._analytics.copy() if hasattr(self, '_analytics') else pd.DataFrame()
-        new_instance._figures = copy_module.deepcopy(self._figures) if hasattr(self, '_figures') else {}
-        new_instance._include_emg = self._include_emg if hasattr(self, '_include_emg') else False
+        for i in ["_summary", "_analytics", "_figures", "_include_emg"]:
+            if self.__dict__.get(i) is None:
+                new_instance.__dict__[i] = None
+            else:
+                new_instance.__dict__[i] = copy_module.deepcopy(self.__dict__[i])
 
         return new_instance
 

@@ -1,12 +1,14 @@
 """Plank balance test results implementation."""
 
-from ...records import TimeseriesRecord
-from ...records import ForcePlatform
 from typing import TYPE_CHECKING
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
+from ...constants import G
+from ...modelling.ols.geometry import Ellipse
+from ...records import ForcePlatform, TimeseriesRecord
 from ..test_results import TestResults
 from ._plotting import _get_sway_figure
 
@@ -18,6 +20,7 @@ class PlankBalanceTestResults(TestResults):
 
     def __init__(self, test: "PlankBalanceTest", include_emg: bool):
         from .plank_balance_test import PlankBalanceTest
+
         if not isinstance(test, PlankBalanceTest):
             raise ValueError("'test' must be a PlankBalanceTest instance.")
         super().__init__(test, include_emg)

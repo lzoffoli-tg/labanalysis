@@ -3,10 +3,10 @@
 import numpy as np
 
 from ...constants import MINIMUM_CONTACT_FORCE_N, MINIMUM_FLIGHT_TIME_S
-from ...signalprocessing import continuous_batches, fillna, butterworth_filt
-from ...records.body import WholeBody
 from ...records import ForcePlatform
-from ...timeseries import Signal1D, Signal3D, EMGSignal, Point3D
+from ...records.body import WholeBody
+from ...signalprocessing import butterworth_filt, continuous_batches, fillna
+from ...timeseries import EMGSignal, Point3D, Signal1D, Signal3D
 from .single_jump import SingleJump
 
 
@@ -168,33 +168,40 @@ class RepeatedJumps(WholeBody):
         return self._bodymass_kg
 
     def set_bodymass_kg(self, bodymass_kg: float):
+        """set the subject's body mass in kilograms."""
         if not isinstance(bodymass_kg, (float, int)) or bodymass_kg <= 0:
             raise ValueError("bodymass_kg must be a float or int > 0.")
         self._bodymass_kg = bodymass_kg
 
     @property
     def excluded_jumps(self):
+        """Return the list of excluded jumps."""
         return self._excluded_jumps
 
     def set_excluded_jumps(self, jumps: list[int]):
+        """Set the list of excluded jumps."""
         if not isinstance(jumps, list) or not all([isinstance(i, int) for i in jumps]):
             raise ValueError("jumps must be a list of int")
         self._excluded_jumps = jumps
 
     @property
     def straight_legs(self):
+        """Return the straight legs flag."""
         return self._straight_legs
 
     def set_straight_legs(self, straight: bool):
+        """Set the straight legs flag."""
         if not isinstance(straight, bool):
             raise ValueError("straight must be True or False.")
         self._straight_legs = straight
 
     @property
     def free_hands(self):
+        """Return the free hands flag."""
         return self._free_hands
 
     def set_free_hands(self, free: bool):
+        """Set the free hands flag."""
         if not isinstance(free, bool):
             raise ValueError("free must be True or False.")
         self._free_hands = free
@@ -449,7 +456,7 @@ class RepeatedJumps(WholeBody):
             exclude_jumps=exclude_jumps,
             straight_legs=straight_legs,
             free_hands=free_hands,
-            **record._data,
+            **record._data,  # type: ignore
         )
 
     def _get_constructor_args(self):
@@ -467,20 +474,21 @@ class RepeatedJumps(WholeBody):
         }
 
     def copy(self):
+        """create a copy of this RepeatedJumps instance"""
         return RepeatedJumps(
             bodymass_kg=self.bodymass_kg,
             free_hands=self.free_hands,
             exclude_jumps=self.excluded_jumps,
             straight_legs=self.straight_legs,
-            **{i: v.copy() for i, v in self.items()},
+            **{i: v.copy() for i, v in self.items()},  # type: ignore
         )
 
     @property
     def jumps(self):
+        """return the list of individual jumps"""
         vgrf = self.resultant_force.copy()
         time = vgrf.index
-        vgrf = vgrf.force[self.vertical_axis].to_numpy().flatten()
-        vgrf = fillna(arr=vgrf, value=0).flatten()
+        vgrf = vgrf.force[self.vertical_axis].fillna(value=0).to_numpy().flatten()
         fsamp = float(1 / np.mean(np.diff(time)))
         vgrf = butterworth_filt(
             arr=vgrf,

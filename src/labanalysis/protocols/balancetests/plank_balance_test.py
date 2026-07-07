@@ -5,13 +5,16 @@ from typing import Any, Callable, Literal
 import numpy as np
 import pandas as pd
 
-from ...records import ForcePlatform, TimeseriesRecord
 from ...exercises import PronePosture
 from ...pipelines import get_default_processing_pipeline
+from ...records import ForcePlatform, TimeseriesRecord
 from ...referenceframes import ReferenceFrame
+from ...timeseries.emgsignal import EMGSignal
+from ...timeseries.point3d import Point3D
 from ..normativedata import plankbalance_normative_values
 from ..participant import Participant
 from ..test_protocol import TestProtocol
+from .plank_balance_test_results import PlankBalanceTestResults
 
 
 class PlankBalanceTest(TestProtocol):
@@ -305,8 +308,7 @@ class PlankBalanceTest(TestProtocol):
         ap = np.cross(ml, vt)
         origin = (rf + lf + rh + lh) / 4
         ref_frame = ReferenceFrame(origin, ml, vt, ap)
-        exe = exe.apply(ref_frame, inplace=False
-        )
+        exe = exe.apply(ref_frame, inplace=False)
         if exe is None:
             raise ValueError("reference frame alignment returned None")
 

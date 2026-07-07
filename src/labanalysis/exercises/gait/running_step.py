@@ -1,16 +1,21 @@
 """Running step (gait cycle) module."""
 
 from typing import Literal
-
+import warnings
 import numpy as np
 
-from ...constants import DEFAULT_MINIMUM_CONTACT_GRF_N, DEFAULT_MINIMUM_HEIGHT_PERCENTAGE
+from ...constants import (
+    DEFAULT_MINIMUM_CONTACT_GRF_N,
+    DEFAULT_MINIMUM_HEIGHT_PERCENTAGE,
+)
 from ...timeseries import Signal1D, Signal3D, EMGSignal, Point3D
 from ...records.forceplatform import ForcePlatform
 from ...records.timeseriesrecord import TimeseriesRecord
 from ...records.body import WholeBody
 
-from ._cycle import GaitCycle
+from .gait_cycle import GaitCycle
+
+__all__ = ["RunningStep"]
 
 
 class RunningStep(GaitCycle):
@@ -135,7 +140,7 @@ class RunningStep(GaitCycle):
         return out
 
     @property
-    def flight_time_s(self):
+    def flight_time(self):
         """
         Get the flight time in seconds.
 
@@ -147,7 +152,7 @@ class RunningStep(GaitCycle):
         return self.footstrike_s - self.init_s
 
     @property
-    def loadingresponse_time_s(self):
+    def loadingresponse_time(self):
         """
         Get the loading response time in seconds.
 
@@ -159,7 +164,7 @@ class RunningStep(GaitCycle):
         return self.midstance_s - self.footstrike_s
 
     @property
-    def propulsion_time_s(self):
+    def propulsion_time(self):
         """
         Get the propulsion time in seconds.
 
@@ -171,7 +176,7 @@ class RunningStep(GaitCycle):
         return self.end_s - self.midstance_s
 
     @property
-    def contact_time_s(self):
+    def contact_time(self):
         """
         Get the contact time in seconds.
 
@@ -200,20 +205,22 @@ class RunningStep(GaitCycle):
         res = phase.resultant_force
         if res is None:
             return None
-
-        ap_force = res.force[self.anteroposterior_axis].to_numpy().flatten()
+        try:
+            norm: ForcePlatform = self.pelvis.apply(res)  # type: ignore
+        except Exception:
+            warnings.warn(
+                "Error occurred while applying pelvis transformation."
+                + "\nData are provided under the global reference frame orientation."
+            )
+            norm: ForcePlatform = res
+        ap_force = norm.force[self.anteroposterior_axis].to_numpy().flatten()
 
         # Braking = negative values (backward direction)
         braking = ap_force[ap_force < 0]
         if len(braking) == 0:
             return None
 
-        peak_value = np.abs(np.min(braking))
-        return Signal1D(
-            data=np.array([peak_value]),
-            index=np.array([self.init_s]),
-            unit="N"
-        )
+        return float(np.abs(np.min(braking)))
 
     @property
     def peak_propulsion_force(self):
@@ -233,20 +240,22 @@ class RunningStep(GaitCycle):
         res = phase.resultant_force
         if res is None:
             return None
-
-        ap_force = res.force[self.anteroposterior_axis].to_numpy().flatten()
+        try:
+            norm: ForcePlatform = self.pelvis.apply(res)  # type: ignore
+        except Exception:
+            warnings.warn(
+                "Error occurred while applying pelvis transformation."
+                + "\nData are provided under the global reference frame orientation."
+            )
+            norm: ForcePlatform = res
+        ap_force = norm.force[self.anteroposterior_axis].to_numpy().flatten()
 
         # Propulsion = positive values (forward direction)
         propulsion = ap_force[ap_force > 0]
         if len(propulsion) == 0:
             return None
 
-        peak_value = np.max(propulsion)
-        return Signal1D(
-            data=np.array([peak_value]),
-            index=np.array([self.init_s]),
-            unit="N"
-        )
+        return float(np.max(propulsion))
 
     @property
     def vertical_oscillation(self):
@@ -263,18 +272,12 @@ class RunningStep(GaitCycle):
             Vertical oscillation in meters or millimeters (depending on marker
             unit), or None if pelvis_center is not available.
         """
-        pelvis = self.pelvis_center
+        pelvis = self.pelvis
         if pelvis is None:
             return None
-
-        vertical_data = pelvis[self.vertical_axis].to_numpy().flatten()
-        oscillation = np.max(vertical_data) - np.min(vertical_data)
-
-        return Signal1D(
-            data=np.array([oscillation]),
-            index=np.array([self.init_s]),
-            unit=pelvis.unit
-        )
+        com = pelvis.center
+        vertical_data = com[self.vertical_axis].to_numpy().flatten()
+        return float(np.max(vertical_data) - np.min(vertical_data))
 
     @property
     def peak_trunk_lateral_flexion(self):
@@ -291,18 +294,12 @@ class RunningStep(GaitCycle):
             Peak trunk lateral flexion in degrees, or None if
             trunk_lateralflexion_local is not available.
         """
-        trunk_lat = self.trunk_lateralflexion_local
-        if trunk_lat is None:
+        trunk = self.trunk
+        if trunk is None:
             return None
-
+        trunk_lat = trunk.lateralflexion
         angles = trunk_lat.to_numpy().flatten()
-        peak_value = np.max(np.abs(angles))
-
-        return Signal1D(
-            data=np.array([peak_value]),
-            index=np.array([self.init_s]),
-            unit="deg"
-        )
+        return float(np.max(np.abs(angles)))
 
     @property
     def peak_pelvis_lateral_tilt(self):
@@ -319,18 +316,11 @@ class RunningStep(GaitCycle):
             Peak pelvis lateral tilt in degrees, or None if
             pelvis_lateral_tilt_global is not available.
         """
-        pelvis_tilt = self.pelvis_lateral_tilt_global
-        if pelvis_tilt is None:
+        pelvis = self.pelvis
+        if pelvis is None:
             return None
-
-        angles = pelvis_tilt.to_numpy().flatten()
-        peak_value = np.max(np.abs(angles))
-
-        return Signal1D(
-            data=np.array([peak_value]),
-            index=np.array([self.init_s]),
-            unit="deg"
-        )
+        angles = pelvis.frontal_plane_tilt.to_numpy().flatten()
+        return float(np.max(np.abs(angles)))
 
     @property
     def peak_trunk_rotation(self):
@@ -346,18 +336,31 @@ class RunningStep(GaitCycle):
             Peak trunk rotation in degrees, or None if
             trunk_rotation is not available.
         """
-        trunk_rot = self.trunk_rotation
-        if trunk_rot is None:
+        trunk = self.trunk
+        if trunk is None:
             return None
+        angles = trunk.rotation.to_numpy().flatten()
+        return float(np.max(np.abs(angles)))
 
-        angles = trunk_rot.to_numpy().flatten()
-        peak_value = np.max(np.abs(angles))
+    @property
+    def peak_pelvis_rotation(self):
+        """
+        Get the peak pelvis rotation during the cycle.
 
-        return Signal1D(
-            data=np.array([peak_value]),
-            index=np.array([self.init_s]),
-            unit="deg"
-        )
+        Peak pelvis rotation is the maximum absolute value of pelvis
+        rotation angle during the running step.
+
+        Returns
+        -------
+        Signal1D or None
+            Peak pelvis rotation in degrees, or None if
+            pelvis_rotation is not available.
+        """
+        pelvis = self.pelvis
+        if pelvis is None:
+            return None
+        angles = pelvis.transverse_plane_tilt.to_numpy().flatten()
+        return float(np.max(np.abs(angles)))
 
     def _footstrike_kinetics(self):
         """

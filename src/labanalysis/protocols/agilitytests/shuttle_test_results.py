@@ -8,12 +8,13 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from ...constants import RANK_5COLORS, SIDE_COLORS
-from ...exercises import ChangeOfDirectionExercise
 from ...utils import hex_to_rgba
 from ..test_results import TestResults
 
 if TYPE_CHECKING:
     from .shuttle_test import ShuttleTest
+
+__all__ = ["ShuttleTestResults"]
 
 
 class ShuttleTestResults(TestResults):
@@ -101,9 +102,11 @@ class ShuttleTestResults(TestResults):
             out["Loading Time (%)"].append(100 * loading_time / (contact_time))
             out["Propulsion Time (s)"].append(propulsion_time)
             out["Propulsion Time (%)"].append(100 * propulsion_time / contact_time)
-            out["Max Velocity (m/s)"].append(
-                float(exercise.velocity[exercise.anteroposterior_axis].max())
-            )
+            vel = exercise.velocity
+            if vel is not None:
+                out["Max Velocity (m/s)"].append(
+                    float(vel[exercise.anteroposterior_axis].max())
+                )
             side = exercise.side
             out["side"].append(side if side == "bilateral" else "unilateral")
             out["n"].append(cont[side])

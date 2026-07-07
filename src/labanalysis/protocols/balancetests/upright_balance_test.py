@@ -5,13 +5,16 @@ from typing import Any, Callable, Literal
 import numpy as np
 import pandas as pd
 
-from ...records import ForcePlatform, TimeseriesRecord
 from ...exercises import UprightPosture
 from ...pipelines import get_default_processing_pipeline
+from ...records import ForcePlatform, TimeseriesRecord
 from ...referenceframes import ReferenceFrame
+from ...timeseries.emgsignal import EMGSignal
+from ...timeseries.point3d import Point3D
 from ..normativedata import uprightbalance_normative_values
 from ..participant import Participant
 from ..test_protocol import TestProtocol
+from .upright_balance_test_results import UprightBalanceTestResults
 
 
 class UprightBalanceTest(TestProtocol):

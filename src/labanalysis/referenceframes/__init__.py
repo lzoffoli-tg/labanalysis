@@ -1,5 +1,5 @@
 """Reference frame transformations module."""
 
-from ._base import *
+from .referenceframes import *
 
 __all__ = ["ReferenceFrame"]

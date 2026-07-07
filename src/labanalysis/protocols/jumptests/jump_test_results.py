@@ -1,5 +1,6 @@
 """Jump test results implementation."""
 
+import os
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -86,70 +87,10 @@ class JumpTestResults(TestResults):
 
     def __init__(self, test: "JumpTest", include_emg: bool):
         from .jump_test import JumpTest
+
         if not isinstance(test, JumpTest):
             raise ValueError("'test' must be an JumpTest instance.")
         super().__init__(test, include_emg)
-
-    def _get_jump_contact_time_ms(self, jump: SingleJump | DropJump):
-        contact = jump.contact_phase
-        if contact is None:
-            return 0
-        try:
-            time = contact.index
-            if len(time) == 0:
-                return 0
-            return int(round((time[-1] - time[0]) * 1000))
-        except (ValueError, AttributeError):
-            return 0
-
-    def _get_jump_flight_time_ms(self, jump: SingleJump | DropJump):
-        flight = jump.flight_phase
-        if flight is None:
-            return 0
-        try:
-            time = flight.index
-            if len(time) == 0:
-                return 0
-            return int(round((time[-1] - time[0]) * 1000))
-        except (ValueError, AttributeError):
-            return 0
-
-    def _get_takeoff_velocity_ms(
-        self,
-        jump: SingleJump | DropJump,
-        bodyweight: float,
-    ):
-
-        # get the ground reaction force during the concentric phase
-        con = jump.contact_phase.resultant_force
-        if con is None:
-            return np.nan
-        grf = con.copy().force[jump.vertical_axis].to_numpy().flatten()
-        grfy = fillna(arr=grf, value=0).flatten()  # type: ignore
-        grft = con.index
-
-        # get the output velocity
-        net_grf = grfy - bodyweight * G
-        return float(np.trapezoid(net_grf / bodyweight, grft))
-
-    def _get_elevation_cm(
-        self,
-        jump: SingleJump | DropJump,
-        bodyweight: float,
-    ):
-
-        # from flight time
-        flight_time = jump.flight_phase.index
-        flight_time = flight_time[-1] - flight_time[0]
-        elevation_from_time = (flight_time**2) * G / 8 * 100
-
-        # from force impulse
-        elevation_from_velocity = (
-            (self._get_takeoff_velocity_ms(jump, bodyweight) ** 2) / (2 * G) * 100
-        )
-
-        # return the lower of the two
-        return float(min(elevation_from_time, elevation_from_velocity))
 
     def _get_muscle_activation_ratio(
         self,
@@ -318,24 +259,35 @@ class JumpTestResults(TestResults):
                 wgt = test.participant.weight
                 if wgt is None:
                     raise ValueError("participant's weight cannot be None.")
-                ctime = self._get_jump_contact_time_ms(jump)
-                ftime = self._get_jump_flight_time_ms(jump)
-                tov = self._get_takeoff_velocity_ms(jump, wgt)
-                elevation = self._get_elevation_cm(jump, wgt)
+                ctime = jump.contact_time
+                if ctime is not None:
+                    ctime = int(round(1000 * ctime))
+                ftime = jump.flight_time
+                if ftime is not None:
+                    ftime = int(round(1000 * ftime))
+                tov = jump.takeoff_velocity
+                if tov is not None:
+                    tov = float(round(tov, 2))
+                elevation = jump.jump_height
+                if elevation is not None:
+                    elevation = float(round(elevation * 100, 1))
                 for side in sides:
                     out.loc["takeoff velocity (m/s)", side] = tov
                     out.loc["elevation (cm)", side] = elevation
                     out.loc["flight time (ms)", side] = ftime
                     out.loc["contact time (ms)", side] = ctime
-                    out.loc["flight-to-contact ratio", side] = float(
-                        round(ftime / ctime, 2)
-                    )
+                    if ftime is not None and ctime is not None:
+                        out.loc["flight-to-contact ratio", side] = float(
+                            round(ftime / ctime, 2)
+                        )
 
                 # Calculate RSI for drop jumps
                 if isinstance(jump, DropJump):
-                    rsi = (elevation / (ctime / 1000)) if ctime > 0 else 0.0
+                    rsi = jump.reactive_strength_index
+                    if rsi:
+                        rsi = float(round(rsi, 1))
                     for side in sides:
-                        out.loc["reactive strength index", side] = float(rsi)
+                        out.loc["reactive strength index", side] = rsi
 
                 # Add jump number and side
                 jump_num = sides_counter[jump.side]
@@ -356,21 +308,31 @@ class JumpTestResults(TestResults):
         summary_parts = []
 
         if test.squat_jumps:
-            sj_summary = _get_jumps_summary_table(test.squat_jumps, "squat jump")
+            sj_summary = _get_jumps_summary_table(
+                test.squat_jumps,
+                "squat jump",
+            )
             summary_parts.append(sj_summary)
 
         if test.counter_movement_jumps:
             cmj_summary = _get_jumps_summary_table(
-                test.counter_movement_jumps, "counter movement jump"
+                test.counter_movement_jumps,
+                "counter movement jump",
             )
             summary_parts.append(cmj_summary)
 
         if test.drop_jumps:
-            dj_summary = _get_jumps_summary_table(test.drop_jumps, "drop jump")
+            dj_summary = _get_jumps_summary_table(
+                test.drop_jumps,  # type: ignore
+                "drop jump",
+            )
             summary_parts.append(dj_summary)
 
         if test.repeated_jumps:
-            rj_summary = _get_jumps_summary_table(test.repeated_jumps, "repeated jump")
+            rj_summary = _get_jumps_summary_table(
+                test.repeated_jumps,
+                "repeated jump",
+            )
             summary_parts.append(rj_summary)
 
         # Concatenate all summaries
@@ -402,43 +364,40 @@ class JumpTestResults(TestResults):
 
         for jumps, jump_name in jump_types:
             for jump_idx, jump in enumerate(jumps, start=1):
-                # Get contact phase data
-                contact = jump.contact_phase
 
-                # Skip if no contact phase
-                if contact is None:
-                    continue
+                # Get jump dataframe
+                cf = jump.contact_phase
+                ff = jump.flight_phase
+                if cf is not None and ff is not None:
+                    if not self.include_emg:
+                        emg_keys = list(cf.emgsignals.keys())
+                        if emg_keys:
+                            cf.drop(emg_keys, inplace=True)
+                            ff.drop(emg_keys, inplace=True)
+                    cf = cf.to_dataframe()
+                    ff = ff.to_dataframe()
+                    cf.insert(0, "phase", "contact")
+                    ff.insert(0, "phase", "flight")
+                    df = pd.concat([cf, ff], axis=0)
+                    df.insert(1, "time_s", df.index)
 
-                contact = contact.copy()
+                    # Add metadata columns
+                    df.insert(0, "side", jump.side)
+                    df.insert(0, "jump", jump_idx)
+                    df.insert(0, "type", jump_name)
 
-                # Remove EMG if not requested
-                if not self.include_emg:
-                    emg_keys = list(contact.emgsignals.keys())
-                    if emg_keys:
-                        contact.drop(emg_keys, inplace=True)
+                    # reset index
+                    df.reset_index(inplace=True, drop=True)
 
-                # Convert to DataFrame
-                df = contact.to_dataframe()
-
-                # Add time column relative to start
-                time = df.index - df.index.min()
-                df.insert(0, "time_s", time)
-
-                # Add metadata columns
-                df.insert(0, "side", jump.side)
-                df.insert(0, "jump", jump_idx)
-                df.insert(0, "type", jump_name)
-
-                analytics_parts.append(df)
+                    # append
+                    analytics_parts.append(df)
 
         if analytics_parts:
             return pd.concat(analytics_parts, ignore_index=True)
         else:
             return pd.DataFrame()
 
-    def _get_figures(
-        self, test: "JumpTest"
-    ) -> dict[str, go.Figure | dict[str, go.Figure]]:
+    def _get_figures(self, test: "JumpTest"):
         """
         Generate interactive Plotly figures for jump test visualization.
 
@@ -463,21 +422,25 @@ class JumpTestResults(TestResults):
 
         # Extract elevation data from summary
         summary = self.summary
-        if summary is not None and not summary.empty:
+        if isinstance(summary, pd.DataFrame):
             # Create a simple bar chart for elevation
             fig = go.Figure()
 
             # Group by jump type
-            for jump_type in summary['type'].unique():
-                type_data = summary[summary['type'] == jump_type]
-                if 'elevation (cm)' in type_data.columns:
-                    elevations = type_data['elevation (cm)'].dropna()
+            for jump_type in summary["type"].unique():
+                type_data = summary[summary["type"] == jump_type]
+                if "elevation (cm)" in type_data.columns:
+                    elevations = type_data["elevation (cm)"].dropna()
                     if len(elevations) > 0:
-                        fig.add_trace(go.Bar(
-                            name=jump_type,
-                            x=[f"{jump_type} {i+1}" for i in range(len(elevations))],
-                            y=elevations.values,
-                        ))
+                        fig.add_trace(
+                            go.Bar(
+                                name=jump_type,
+                                x=[
+                                    f"{jump_type} {i+1}" for i in range(len(elevations))
+                                ],
+                                y=elevations.values,
+                            )
+                        )
 
             fig.update_layout(
                 title="Jump Height (Elevation)",
@@ -485,53 +448,53 @@ class JumpTestResults(TestResults):
                 yaxis_title="Elevation (cm)",
                 showlegend=True,
             )
-            figures['elevation'] = fig
+            figures["elevation"] = fig
 
         # Create force-time figure
         analytics = self.analytics
-        if analytics is not None and not analytics.empty:
+        if isinstance(analytics, pd.DataFrame):
             # Find force columns
-            force_cols = [c for c in analytics.columns if 'force' in c.lower()]
+            force_cols = [c for c in analytics.columns if "force" in c.lower()]
 
-            if force_cols and 'time_s' in analytics.columns:
+            if force_cols and "time_s" in analytics.columns:
                 fig = make_subplots(
-                    rows=1, cols=1,
-                    subplot_titles=["Ground Reaction Forces"]
+                    rows=1, cols=1, subplot_titles=["Ground Reaction Forces"]
                 )
 
                 # Plot each jump
-                for _, group in analytics.groupby(['type', 'jump', 'side']):
-                    jump_type = group['type'].iloc[0]
-                    jump_num = group['jump'].iloc[0]
-                    side = group['side'].iloc[0]
+                for _, group in analytics.groupby(["type", "jump", "side"]):
+                    jump_type = group["type"].iloc[0]
+                    jump_num = group["jump"].iloc[0]
+                    side = group["side"].iloc[0]
 
                     # Use first force column found
                     force_col = force_cols[0]
 
                     fig.add_trace(
                         go.Scatter(
-                            x=group['time_s'],
+                            x=group["time_s"],
                             y=group[force_col],
-                            mode='lines',
+                            mode="lines",
                             name=f"{jump_type} #{jump_num} ({side})",
                         ),
-                        row=1, col=1
+                        row=1,
+                        col=1,
                     )
 
                 fig.update_xaxes(title_text="Time (s)", row=1, col=1)
                 fig.update_yaxes(title_text="Force (N)", row=1, col=1)
                 fig.update_layout(height=500, showlegend=True)
 
-                figures['ground_reaction_forces'] = fig
+                figures["ground_reaction_forces"] = fig
 
         # Create kinematics figure (angles + force background)
         kinematics_fig = self._get_kinematics_figure(all_jumps)
         if kinematics_fig is not None:
-            figures['kinematics'] = kinematics_fig
+            figures["kinematics"] = kinematics_fig
 
         return figures
 
-    def _normalize_to_101_points(self, signal):
+    def _interpolate_to_101_points(self, signal):
         """
         Normalize a timeseries signal to 101 points (0-100%) using cubic spline interpolation.
 
@@ -545,20 +508,11 @@ class JumpTestResults(TestResults):
         np.ndarray
             Normalized signal with 101 points.
         """
-        if signal is None:
-            return np.full(101, np.nan)
-
-        data = signal.to_numpy().flatten() if hasattr(signal, 'to_numpy') else np.array(signal).flatten()
-
-        if len(data) == 0:
-            return np.full(101, np.nan)
-
-        if len(data) < 4:
-            # Not enough points for cubic spline, use linear interpolation
-            old_x = np.linspace(0, 100, len(data))
-            new_x = np.linspace(0, 100, 101)
-            normalized = np.interp(new_x, old_x, data)
-            return normalized
+        data = (
+            signal.to_numpy().flatten()
+            if hasattr(signal, "to_numpy")
+            else np.array(signal).flatten()
+        )
 
         # Use cubic spline interpolation for smoother results
         # cubicspline_interp with nsamp generates evenly spaced points
@@ -566,7 +520,7 @@ class JumpTestResults(TestResults):
 
         return normalized
 
-    def _get_kinematics_figure(self, jumps: list) -> go.Figure | None:
+    def _get_kinematics_figure(self, jumps: list[SingleJump | DropJump]):
         """
         Generate kinematics figure with joint angles and force background.
 
@@ -609,78 +563,80 @@ class JumpTestResults(TestResults):
                 continue
 
             # Get vertical force for left and right
-            left_fp = contact.get('left_foot_ground_reaction_force')
-            right_fp = contact.get('right_foot_ground_reaction_force')
+            left_fp = contact.left_foot_ground_reaction_force
+            right_fp = contact.right_foot_ground_reaction_force
 
             if left_fp is not None:
-                try:
-                    left_force = left_fp.force[contact.vertical_axis]
-                    left_forces.append(self._normalize_to_101_points(left_force))
-                except (AttributeError, KeyError):
-                    pass
+                left_force = left_fp.force[contact.vertical_axis]
+                left_forces.append(self._interpolate_to_101_points(left_force))
 
             if right_fp is not None:
-                try:
-                    right_force = right_fp.force[contact.vertical_axis]
-                    right_forces.append(self._normalize_to_101_points(right_force))
-                except (AttributeError, KeyError):
-                    pass
+                right_force = right_fp.force[contact.vertical_axis]
+                right_forces.append(self._interpolate_to_101_points(right_force))
 
             # Get angles
-            try:
-                left_hip = contact.left_hip_flexionextension
-                if left_hip is not None:
-                    left_hip_angles.append(self._normalize_to_101_points(left_hip))
-            except AttributeError:
-                pass
+            left_hip = contact.left_hip
+            if left_hip is not None:
+                left_hip_angles.append(
+                    self._interpolate_to_101_points(left_hip.flexionextension)
+                )
 
-            try:
-                right_hip = contact.right_hip_flexionextension
-                if right_hip is not None:
-                    right_hip_angles.append(self._normalize_to_101_points(right_hip))
-            except AttributeError:
-                pass
+            right_hip = contact.right_hip
+            if right_hip is not None:
+                right_hip_angles.append(
+                    self._interpolate_to_101_points(right_hip.flexionextension)
+                )
 
-            try:
-                left_knee = contact.left_knee_flexionextension
-                if left_knee is not None:
-                    left_knee_angles.append(self._normalize_to_101_points(left_knee))
-            except AttributeError:
-                pass
+            left_knee = contact.left_knee
+            if left_knee is not None:
+                left_knee_angles.append(
+                    self._interpolate_to_101_points(left_knee.flexionextension)
+                )
 
-            try:
-                right_knee = contact.right_knee_flexionextension
-                if right_knee is not None:
-                    right_knee_angles.append(self._normalize_to_101_points(right_knee))
-            except AttributeError:
-                pass
+            right_knee = contact.right_knee
+            if right_knee is not None:
+                right_knee_angles.append(
+                    self._interpolate_to_101_points(right_knee.flexionextension)
+                )
 
-            try:
-                left_ankle = contact.left_ankle_flexionextension
-                if left_ankle is not None:
-                    left_ankle_angles.append(self._normalize_to_101_points(left_ankle))
-            except AttributeError:
-                pass
+            left_ankle = contact.left_ankle
+            if left_ankle is not None:
+                left_ankle_angles.append(
+                    self._interpolate_to_101_points(left_ankle.flexionextension)
+                )
 
-            try:
-                right_ankle = contact.right_ankle_flexionextension
-                if right_ankle is not None:
-                    right_ankle_angles.append(self._normalize_to_101_points(right_ankle))
-            except AttributeError:
-                pass
+            right_ankle = contact.right_ankle
+            if right_ankle is not None:
+                right_ankle_angles.append(
+                    self._interpolate_to_101_points(right_ankle.flexionextension)
+                )
 
         # Check if we have any data
-        if not any([left_forces, right_forces, left_hip_angles, right_hip_angles,
-                    left_knee_angles, right_knee_angles, left_ankle_angles, right_ankle_angles]):
+        if not any(
+            [
+                left_forces,
+                right_forces,
+                left_hip_angles,
+                right_hip_angles,
+                left_knee_angles,
+                right_knee_angles,
+                left_ankle_angles,
+                right_ankle_angles,
+            ]
+        ):
             return None
 
         # Create subplots: 3 rows (hip, knee, ankle), 2 columns (left, right)
         fig = make_subplots(
-            rows=3, cols=2,
+            rows=3,
+            cols=2,
             subplot_titles=[
-                'Left Hip Flexion/Extension', 'Right Hip Flexion/Extension',
-                'Left Knee Flexion/Extension', 'Right Knee Flexion/Extension',
-                'Left Ankle Flexion/Extension', 'Right Ankle Flexion/Extension'
+                "Left Hip Flexion/Extension",
+                "Right Hip Flexion/Extension",
+                "Left Knee Flexion/Extension",
+                "Right Knee Flexion/Extension",
+                "Left Ankle Flexion/Extension",
+                "Right Ankle Flexion/Extension",
             ],
             specs=[
                 [{"secondary_y": True}, {"secondary_y": True}],
@@ -688,7 +644,7 @@ class JumpTestResults(TestResults):
                 [{"secondary_y": True}, {"secondary_y": True}],
             ],
             vertical_spacing=0.1,
-            horizontal_spacing=0.08
+            horizontal_spacing=0.08,
         )
 
         x_norm = np.linspace(0, 100, 101)
@@ -701,12 +657,14 @@ class JumpTestResults(TestResults):
                     go.Scatter(
                         x=x_norm,
                         y=mean_angle,
-                        mode='lines',
-                        name=f'{name} Angle',
-                        line=dict(width=2.5, color='blue'),
+                        mode="lines",
+                        name=f"{name} Angle",
+                        line=dict(width=2.5, color="blue"),
                         showlegend=False,
                     ),
-                    row=row, col=col, secondary_y=False
+                    row=row,
+                    col=col,
+                    secondary_y=False,
                 )
 
         def add_force_traces(forces_list, row, col, name):
@@ -716,40 +674,46 @@ class JumpTestResults(TestResults):
                     go.Scatter(
                         x=x_norm,
                         y=mean_force,
-                        mode='lines',
-                        name=f'{name} Force',
-                        line=dict(width=1.5, color='gray'),
+                        mode="lines",
+                        name=f"{name} Force",
+                        line=dict(width=1.5, color="gray"),
                         opacity=0.3,
                         showlegend=False,
                     ),
-                    row=row, col=col, secondary_y=True
+                    row=row,
+                    col=col,
+                    secondary_y=True,
                 )
 
         # Row 1: Hip
-        add_angle_traces(left_hip_angles, 1, 1, 'Left Hip')
-        add_force_traces(left_forces, 1, 1, 'Left')
-        add_angle_traces(right_hip_angles, 1, 2, 'Right Hip')
-        add_force_traces(right_forces, 1, 2, 'Right')
+        add_angle_traces(left_hip_angles, 1, 1, "Left Hip")
+        add_force_traces(left_forces, 1, 1, "Left")
+        add_angle_traces(right_hip_angles, 1, 2, "Right Hip")
+        add_force_traces(right_forces, 1, 2, "Right")
 
         # Row 2: Knee
-        add_angle_traces(left_knee_angles, 2, 1, 'Left Knee')
-        add_force_traces(left_forces, 2, 1, 'Left')
-        add_angle_traces(right_knee_angles, 2, 2, 'Right Knee')
-        add_force_traces(right_forces, 2, 2, 'Right')
+        add_angle_traces(left_knee_angles, 2, 1, "Left Knee")
+        add_force_traces(left_forces, 2, 1, "Left")
+        add_angle_traces(right_knee_angles, 2, 2, "Right Knee")
+        add_force_traces(right_forces, 2, 2, "Right")
 
         # Row 3: Ankle
-        add_angle_traces(left_ankle_angles, 3, 1, 'Left Ankle')
-        add_force_traces(left_forces, 3, 1, 'Left')
-        add_angle_traces(right_ankle_angles, 3, 2, 'Right Ankle')
-        add_force_traces(right_forces, 3, 2, 'Right')
+        add_angle_traces(left_ankle_angles, 3, 1, "Left Ankle")
+        add_force_traces(left_forces, 3, 1, "Left")
+        add_angle_traces(right_ankle_angles, 3, 2, "Right Ankle")
+        add_force_traces(right_forces, 3, 2, "Right")
 
         # Update axes labels
         for row in range(1, 4):
             for col in range(1, 3):
                 # Primary y-axis (angles)
-                fig.update_yaxes(title_text="Angle (°)", row=row, col=col, secondary_y=False)
+                fig.update_yaxes(
+                    title_text="Angle (°)", row=row, col=col, secondary_y=False
+                )
                 # Secondary y-axis (force)
-                fig.update_yaxes(title_text="Force (N)", row=row, col=col, secondary_y=True)
+                fig.update_yaxes(
+                    title_text="Force (N)", row=row, col=col, secondary_y=True
+                )
                 # X-axis
                 if row == 3:  # Only bottom row
                     fig.update_xaxes(title_text="Contact Phase (%)", row=row, col=col)

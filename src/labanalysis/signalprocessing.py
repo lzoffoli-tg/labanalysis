@@ -55,6 +55,7 @@ to_reference_frame
 
 #! IMPORTS
 
+import warnings
 from itertools import product
 from types import FunctionType, MethodType
 from typing import Literal
@@ -64,8 +65,9 @@ from pandas import DataFrame, Series, concat
 from scipy import signal  # type: ignore
 from scipy.interpolate import CubicSpline  # type: ignore
 from scipy.spatial.transform import Rotation
-
-from .modelling.ols.regression import PolynomialRegression
+from sklearn.linear_model import Ridge
+from sklearn.experimental import enable_iterative_imputer  # noqa: F401
+from sklearn.impute import IterativeImputer
 
 __all__ = [
     "find_peaks",
@@ -667,7 +669,7 @@ def fir_filt(
     if pstyle == "constant":
         pad_kwargs["constant_values"] = arr[0]
 
-    padded = np.pad(arr, **pad_kwargs)
+    padded = np.pad(arr, **pad_kwargs)  # type: ignore
     avg = np.mean(padded)
     out = signal.lfilter(coefs, 1.0, padded - avg)[(2 * order - 1) :]
     return np.array(out).flatten().astype(float) + avg
@@ -1299,190 +1301,291 @@ def gram_schmidt(i: np.ndarray, j: np.ndarray, k: np.ndarray | None = None):
 
 def fillna(
     arr: np.ndarray | DataFrame | Series,
-    value: float | int | None = None,
-    regressors: np.ndarray | DataFrame | Series | None = None,
+    value: float | int | np.ndarray | list | tuple | None = None,
+    mice: bool = False,
+    max_iter: int = 10,
+    random_state: int | None = None,
     inplace: bool = False,
 ):
     """
-    Fill missing values (NaN) in arrays or DataFrames using various imputation methods.
+    Fill missing values.
 
-    This function provides multiple strategies for handling missing data:
-    constant value replacement, linear regression imputation, or cubic spline
-    interpolation. The method is automatically selected based on the provided
-    parameters.
+    Imputation priority:
+
+    1. value is not None
+       Direct replacement.
+
+    2. mice=True
+       IterativeImputer (MICE-like) using all columns as predictors.
+
+    3. Otherwise
+       Natural cubic spline interpolation.
 
     Parameters
     ----------
-    arr : np.ndarray or DataFrame or Series
-        Array, DataFrame, or Series containing missing values (NaN) to be filled.
-    value : float or int or None, optional
-        Constant value for missing data replacement. If provided, all NaN
-        values are replaced with this value. If None, more sophisticated
-        imputation methods are used. Default is None.
-    regressors : np.ndarray or DataFrame or Series or None, optional
-        Independent variables for multiple linear regression imputation.
-        If provided, missing values are predicted using linear regression
-        with these regressors as predictors. If None, cubic spline
-        interpolation is applied to each column independently.
-        Default is None.
-    inplace : bool, optional
-        If True, modify the input object in place (for DataFrame/Series).
-        If False, return a new object with filled values. For np.ndarray,
-        inplace=True modifies the array directly. Default is False.
+    arr : ndarray | DataFrame | Series
+        Data containing missing values.
+
+    value : scalar | array-like | None, default=None
+        Direct replacement values.
+
+        Accepted formats:
+
+        - scalar
+        - (n_columns,)
+        - (1, n_columns)
+        - arr.shape
+
+        No NaN values are allowed.
+
+    mice : bool, default=False
+        If True and value is None, use IterativeImputer.
+
+    max_iter : int, default=10
+        Number of MICE iterations.
+
+    random_state : int | None, default=None
+        Random seed for MICE.
+
+    inplace : bool, default=False
+        Modify the original object.
 
     Returns
     -------
-    np.ndarray or DataFrame or Series
-        The array/DataFrame/Series with missing values filled. Return type
-        matches input type. If inplace=True, returns None for DataFrame/Series.
+    ndarray | DataFrame | Series | None
+        Filled object.
 
-    Notes
-    -----
-    Imputation Strategy:
-    1. If `value` is provided: All NaN replaced with constant value
-    2. If `regressors` provided: Linear regression imputation
-       - Fits separate regression model for each column
-       - Predicts missing values from available regressors
-       - Falls back to cubic spline for values that cannot be predicted
-    3. If neither provided: Cubic spline interpolation on each column
+        If inplace=True:
+            modifies the input and returns None.
 
-    Linear Regression Imputation:
-    - Requires at least 3 valid samples per column for model fitting
-    - Only predicts values where all regressors are available
-    - Polynomial regression of degree 1 (linear) is used
-
-    Cubic Spline Interpolation:
-    - Applied to each column independently
-    - Requires at least 2 valid values for interpolation
-    - Extrapolation at boundaries uses natural cubic spline
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> arr = np.array([1.0, np.nan, 3.0, np.nan, 5.0])
-    >>> fillna(arr)  # Cubic spline interpolation
-    array([1., 2., 3., 4., 5.])
-
-    >>> fillna(arr, value=0)  # Constant replacement
-    array([1., 0., 3., 0., 5.])
+        Otherwise:
+            returns a filled copy preserving the original type.
     """
-    # check if missing values exist
-    if not isinstance(arr, (DataFrame, np.ndarray, Series)):
+
+    # ------------------------------------------------------------------
+    # Validation
+    # ------------------------------------------------------------------
+
+    if not isinstance(arr, (np.ndarray, DataFrame, Series)):
         raise TypeError(
-            "'arr' must be a numpy.ndarray a pandas.DataFrame or a pandas.Series."
+            "'arr' must be a numpy.ndarray, pandas.DataFrame or pandas.Series."
         )
 
-    # Store original shape for later
     original_shape = arr.shape
 
+    # ------------------------------------------------------------------
+    # Convert to DataFrame
+    # ------------------------------------------------------------------
+
     if isinstance(arr, np.ndarray):
-        # Handle 1D arrays by reshaping to 2D
-        if arr.ndim == 1:
-            arr_reshaped = arr.reshape(-1, 1)
+
+        arr_float = arr.astype(float)
+
+        if arr_float.ndim == 1:
+
+            obj = DataFrame(
+                arr_float.reshape(-1, 1),
+                columns=["Y"],
+            )
+
         else:
-            arr_reshaped = arr
-        cols = [f"Y{i}" for i in np.arange(arr_reshaped.shape[1])]
-        obj = DataFrame(arr_reshaped, columns=cols, copy=True)
+
+            obj = DataFrame(
+                arr_float,
+                columns=[f"Y{i}" for i in range(arr_float.shape[1])],
+            )
+
     elif isinstance(arr, Series):
-        cols = ["Y"]
-        obj = DataFrame(arr, columns=cols, copy=True)
+
+        obj = DataFrame(
+            arr.astype(float),
+            columns=["Y"],
+        )
+
     else:
-        obj = arr if inplace else arr.copy().astype(float)
-    miss = np.isnan(obj.values)
 
-    # otherwise return a copy of the actual vector
-    if not miss.any():
-        if inplace:
-            return arr
-        else:
-            return arr.copy()
+        obj = arr.copy().astype(float)
 
-    # fill with the given value
-    if value is not None:
-        obj.iloc[miss] = value
-        out = obj.values.astype(float).reshape(original_shape)
-        if isinstance(arr, np.ndarray):
-            if inplace:
-                arr[:] = out
-                return None
-            else:
-                return out
-        if isinstance(arr, Series):
-            if inplace:
-                arr.loc[:] = out
-                return None
-            else:
-                return obj
+    # ------------------------------------------------------------------
+    # No missing values
+    # ------------------------------------------------------------------
+
+    if not obj.isna().values.any():
+
         if inplace:
-            arr.loc[:, :] = out  # type: ignore
             return None
+
+        return arr.copy()
+
+    # ==================================================================
+    # PRIORITY 1
+    # DIRECT REPLACEMENT
+    # ==================================================================
+
+    if value is not None:
+
+        value_array = np.asarray(value)
+
+        if np.isnan(value_array.astype(float)).any():
+            raise ValueError("'value' cannot contain NaN values.")
+
+        # --------------------------------------------------------------
+        # Scalar
+        # --------------------------------------------------------------
+
+        if value_array.ndim == 0:
+
+            filled = obj.fillna(float(value_array))
+
+        # --------------------------------------------------------------
+        # Shape (n_columns,)
+        # --------------------------------------------------------------
+
+        elif value_array.ndim == 1 and value_array.size == obj.shape[1]:
+
+            filled = obj.copy()
+
+            for i, col in enumerate(filled.columns):
+
+                filled[col] = filled[col].fillna(float(value_array[i]))
+
+        # --------------------------------------------------------------
+        # Shape (1, n_columns)
+        # --------------------------------------------------------------
+
+        elif value_array.ndim == 2 and value_array.shape == (1, obj.shape[1]):
+
+            filled = obj.copy()
+
+            for i, col in enumerate(filled.columns):
+
+                filled[col] = filled[col].fillna(float(value_array[0, i]))
+
+        # --------------------------------------------------------------
+        # Shape == arr.shape
+        # --------------------------------------------------------------
+
+        elif value_array.shape == obj.shape:
+
+            filled = obj.copy()
+
+            mask = filled.isna()
+
+            filled = filled.where(
+                ~mask,
+                value_array,  # type: ignore
+            )
+
         else:
-            return obj
 
-    # check if linear regression models have to be used
-    if regressors is not None:
-        if isinstance(regressors, np.ndarray):
-            if regressors.ndim == 1:
-                cols = ["X"]
-                regressors = DataFrame(np.atleast_2d(regressors).T, columns=cols)
-            else:
-                cols = [f"X{i}" for i in np.arange(regressors.shape[1])]
-                regressors = DataFrame(regressors, columns=cols)
-        elif isinstance(regressors, Series):
-            cols = ["X"]
-            regressors = DataFrame(np.atleast_2d(regressors.to_numpy()).T, columns=cols)
-        xmat = concat([obj, regressors], axis=1)
+            raise ValueError(
+                "Invalid shape for 'value'. Accepted shapes are:\n"
+                "- scalar\n"
+                "- (n_columns,)\n"
+                "- (1, n_columns)\n"
+                "- arr.shape"
+            )
 
-        # predict the missing values via linear regression over each column
-        xcols = regressors.columns.to_list()
-        for i, ycol in enumerate(obj.columns):
+    # ==================================================================
+    # PRIORITY 2
+    # MICE
+    # ==================================================================
 
-            # get the indices of the samples that can be used for training
-            # the regression model and those samples that can be predicted
-            # with that model
-            to_remove = [k for k in obj.columns if k != ycol]
-            new_mat = xmat.drop(to_remove, axis=1).copy()
-            i_old = new_mat.dropna().index
-            i_new = new_mat.loc[
-                new_mat[ycol].isna() & new_mat[xcols].notna().all(axis=1)
-            ].index
+    elif mice:
 
-            # if there are enough valid samples get the predictions and replace
-            # the missing data
-            if len(i_old) > 2 and len(i_new) > 0:
-                x_old = new_mat.loc[i_old, xcols]
-                y_old = new_mat.loc[i_old, [ycol]]
-                lrm = PolynomialRegression(degree=1).fit(x_old, y_old)
-                preds = lrm.predict(xmat.loc[i_new, xcols])
-                obj.loc[i_new, ycol] = preds.values.astype(float).flatten()
+        filled = DataFrame(
+            IterativeImputer(
+                estimator=Ridge(alpha=1.0),
+                max_iter=max_iter,
+                random_state=random_state,
+                initial_strategy="median",
+                imputation_order="ascending",
+                skip_complete=True,
+            ).fit_transform(obj),
+            index=obj.index,
+            columns=obj.columns,
+        )
 
-    # fill the missing data of each set via cubic spline
-    for i, col in enumerate(obj.columns):
-        x_new = np.where(np.isnan(obj[col].values.astype(float)))[0]
-        x_old = np.where(~np.isnan(obj[col].values.astype(float)))[0]
-        if len(x_new) > 0 and len(x_old) > 0:
-            y_old = obj[col].values[x_old].astype(float)
-            obj.iloc[x_new, i] = CubicSpline(x_old, y_old)(x_new).astype(float)
+    # ==================================================================
+    # PRIORITY 3
+    # NATURAL CUBIC SPLINE
+    # ==================================================================
 
-    # return the filled array
-    out = obj.values.astype(float).reshape(original_shape)
+    else:
+
+        filled = obj.copy()
+
+        for col in filled.columns:
+
+            values = filled[col].to_numpy(dtype=float)
+
+            x_new = np.where(np.isnan(values))[0]
+
+            if len(x_new) == 0:
+                continue
+
+            x_old = np.where(~np.isnan(values))[0]
+
+            if len(x_old) == 0:
+
+                warnings.warn(
+                    f"Column '{col}' contains only NaN values "
+                    f"and cannot be interpolated.",
+                    RuntimeWarning,
+                )
+
+                continue
+
+            if len(x_old) < 2:
+                continue
+
+            try:
+
+                spline = CubicSpline(
+                    x_old,
+                    values[x_old],
+                    bc_type="natural",
+                    extrapolate=True,
+                )
+
+                filled.loc[
+                    filled.index[x_new],
+                    col,
+                ] = spline(x_new)
+
+            except Exception:
+                continue
+
+    # ------------------------------------------------------------------
+    # Restore original type
+    # ------------------------------------------------------------------
+
+    out = filled.to_numpy(dtype=float).reshape(original_shape)
+
     if isinstance(arr, np.ndarray):
+
         if inplace:
             arr[:] = out
             return None
-        else:
-            return out
+
+        return out
+
     if isinstance(arr, Series):
+
+        result = filled.iloc[:, 0]
+
         if inplace:
-            arr.loc[:] = out
+            arr.loc[:] = result.values
             return None
-        else:
-            return obj
+
+        return result
+
     if inplace:
-        arr.loc[:, :] = out  # type: ignore
+
+        arr.loc[:, :] = out
         return None
-    else:
-        return obj
+
+    return filled
 
 
 def tkeo(
@@ -1561,11 +1664,7 @@ def to_reference_frame(
 
     # create the rotation matrix
     # gram_schmidt expects (N, 3) arrays, so reshape 1D axes to (1, 3)
-    rmat_array = gram_schmidt(
-        ax1.reshape(1, 3),
-        ax2.reshape(1, 3),
-        ax3.reshape(1, 3)
-    )
+    rmat_array = gram_schmidt(ax1.reshape(1, 3), ax2.reshape(1, 3), ax3.reshape(1, 3))
     # Extract the single rotation matrix from shape (1, 3, 3)
     rmat = Rotation.from_matrix(rmat_array[0])
 

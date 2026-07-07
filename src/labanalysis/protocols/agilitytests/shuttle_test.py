@@ -1,14 +1,12 @@
 """Shuttle test implementation."""
 
-from typing import Any, Callable, Literal
-
 import numpy as np
 import pandas as pd
 
 from ...constants import MINIMUM_CONTACT_FORCE_N
-from ...records import ForcePlatform, TimeseriesRecord
 from ...exercises import ChangeOfDirectionExercise
 from ...pipelines import get_default_processing_pipeline
+from ...records import ForcePlatform
 from ...signalprocessing import butterworth_filt, fillna
 from ...timeseries import Point3D
 from ..participant import Participant
@@ -44,7 +42,8 @@ class ShuttleTest(TestProtocol):
 
     Methods
     -------
-    from_files(filenames, participant, normative_data, left_foot_ground_reaction_force, right_foot_ground_reaction_force, s2)
+    from_files(filenames, participant, normative_data,
+        left_foot_ground_reaction_force, right_foot_ground_reaction_force, s2)
         Create ShuttleTest instance from TDF files.
     get_results()
         Generate ShuttleTestResults from processed data.
@@ -289,18 +288,18 @@ class ShuttleTest(TestProtocol):
             module = fp.force.copy().module.to_numpy().flatten()  # type: ignore
             idxs = module < MINIMUM_CONTACT_FORCE_N
             for i in ["origin", "force", "torque"]:
-                vals = fp[i].copy().to_numpy()
+                vals = fp[i].copy().to_numpy()  # type: ignore
                 vals[idxs, :] = np.nan
-                fp[i][:, :] = vals
+                fp[i][:, :] = vals  # type: ignore
 
             # strip nans from the ends
             fp.strip(inplace=True)
 
             # fill remaining force nans with zeros
-            fp.force[:, :] = fillna(fp.force.to_numpy(), value=0, inplace=False)
+            fp.force[:, :] = fillna(fp.force.to_numpy(), value=0, inplace=False)  # type: ignore
 
             # fill remaining position nans via cubic spline
-            fp.origin[:, :] = fillna(fp.origin.to_numpy(), inplace=False)
+            fp.origin[:, :] = fillna(fp.origin.to_numpy(), inplace=False)  # type: ignore
 
             # lowpass filter both origin and force
             fsamp = float(1 / np.mean(np.diff(fp.index)))

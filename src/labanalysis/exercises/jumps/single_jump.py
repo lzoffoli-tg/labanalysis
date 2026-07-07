@@ -3,9 +3,9 @@
 import numpy as np
 
 from ...constants import MINIMUM_CONTACT_FORCE_N, MINIMUM_FLIGHT_TIME_S, G
-from ...signalprocessing import continuous_batches
-from ...records.body import WholeBody
 from ...records import ForcePlatform
+from ...records.body import WholeBody
+from ...signalprocessing import continuous_batches
 from ...timeseries import Point3D
 
 
@@ -28,7 +28,7 @@ class SingleJump(WholeBody):
 
     def __init__(
         self,
-        bodymass_kg: float,
+        bodymass_kg: float | None = None,
         free_hands: bool = False,
         straight_legs: bool = False,
         left_foot_ground_reaction_force: ForcePlatform | None = None,
@@ -145,13 +145,13 @@ class SingleJump(WholeBody):
         self.set_free_hands(free_hands)
         self.set_straight_legs(straight_legs)
 
-    def set_bodymass_kg(self, value: float):
+    def set_bodymass_kg(self, value: float | None):
         """
         Set the bodymass in kg of the participant.
 
         Parameters
         ----------
-        value : float
+        value : float | None
             The bodymass in kg.
 
         Raises
@@ -159,11 +159,13 @@ class SingleJump(WholeBody):
         ValueError
             IIn case a non positive float is provided.
         """
+        if value is None:
+            self._bodymass_kg = value
         try:
-            self._bodymass_kg = float(value)
+            self._bodymass_kg = float(value)  # type: ignore
             assert self._bodymass_kg > 0
         except Exception:
-            raise ValueError("bodymass must be a positive float")
+            raise ValueError("bodymass must be a positive float or None")
 
     def set_free_hands(self, value: bool):
         """
@@ -271,17 +273,23 @@ class SingleJump(WholeBody):
         For jumps with multiple contact phases (e.g., drop jumps), this returns
         the primary propulsive contact phase (typically the last one).
         """
-        vgrf = self.vertical_ground_reaction_force
+        vgrf = self.resultant_force
         if vgrf is None:
             return None
-        module = vgrf["force"].to_numpy().flatten()
+        module = vgrf.force[self.vertical_axis].to_numpy().flatten()
 
         # identifico il batch relativi alla fase di contatto
         flight = module < MINIMUM_CONTACT_FORCE_N
         batch = np.arange(np.where(flight)[0][0])
 
         # ritorno l'oggetto corrispondente al batch più lungo
-        return WholeBody(**{i: v.copy().iloc[batch, :] for i, v in self.items()})
+        t0, t1 = vgrf.index[batch][[0, -1]]
+        return WholeBody(
+            **{
+                i: v.copy().loc[(v.index >= t0) & (v.index <= t1), :]
+                for i, v in self.items()
+            }
+        )
 
     @property
     def flight_phase(self):
@@ -298,21 +306,24 @@ class SingleJump(WholeBody):
         For jumps with multiple flight phases, this returns the primary
         flight phase (typically the longest one meeting minimum duration).
         """
-        vgrf = self.vertical_ground_reaction_force
+        vgrf = self.resultant_force
         if vgrf is None:
             return None
-        module = vgrf["force"].to_numpy().flatten()
+        module = vgrf.force[self.vertical_axis].to_numpy().flatten()
 
         # identifico i batch relativi alla fase di volo
         flight = module < MINIMUM_CONTACT_FORCE_N
         batches = continuous_batches(flight)
 
         # rimuovo i batch di durata non ragionevole
-        for i in range(len(batches)):
+        i = 0
+        while i < len(batches):
             batch = batches[i]
             duration = vgrf.index[batch[-1]] - vgrf.index[batch[0]]
             if duration < MINIMUM_FLIGHT_TIME_S:
                 batches.pop(i)
+            else:
+                i += 1
         if len(batches) == 0:
             raise ValueError("No valid flight phases have been discovered.")
 
@@ -320,8 +331,26 @@ class SingleJump(WholeBody):
         index = np.argsort([len(i) for i in batches])
 
         # ritorno l'oggetto corrispondente al batch più lungo
-        batch = batches[index[0]]
-        return WholeBody(**{i: v.copy().iloc[batch, :] for i, v in self.items()})
+        batch = batches[index[-1]]
+        t0, t1 = vgrf.iloc[batch].index[[0, -1]]
+        return WholeBody(
+            **{
+                i: v.loc[(v.index >= t0) & (v.index <= t1), :].copy()
+                for i, v in self.items()
+            }
+        )
+
+    @property
+    def jump_height_from_s2(self):
+        """return the jump height in meters calculated from the s2 marker"""
+        ff = self.flight_phase
+        if ff is None:
+            return None
+        s2: Point3D = ff["s2"]  # type: ignore
+        if s2 is None:
+            return None
+        vt = s2[self.vertical_axis].to_numpy().flatten()
+        return float(vt.max() - vt[0])
 
     @property
     def jump_height_from_ft(self):
@@ -333,16 +362,19 @@ class SingleJump(WholeBody):
 
     @property
     def takeoff_velocity(self):
+        if self.bodymass_kg is None:
+            return None
         cf = self.contact_phase
         if cf is None:
             return None
         rf = cf.resultant_force
         if rf is None:
             return None
-        vgrf = rf[self.vertical_axis].copy()
+        vgrf = rf.force[self.vertical_axis].copy()
         body_weight = self.bodymass_kg * G
         vgrf = vgrf - body_weight  # type: ignore
-        vacc = vgrf / self.bodymass_kg
+        vacc = vgrf.to_numpy().flatten() / self.bodymass_kg
+        vacc -= vacc[0]  # assumo che v0 = 0
         time = vgrf.index
         return float(np.trapezoid(vacc, time))  # type: ignore
 
@@ -354,14 +386,35 @@ class SingleJump(WholeBody):
         return (tv**2) / (2 * G)
 
     @property
+    def jump_height(self):
+        """
+        return the jump height defined as follows:
+
+        If S2 marker is available --> return the jump height measured from it.
+        Else return the minimum height estimated using the flight time and
+        the height from take-off velocity methods.
+        """
+        s2 = self.jump_height_from_s2
+        if s2:
+            return s2
+        ft = self.jump_height_from_ft or 0
+        tov = self.jump_height_from_tov or 0
+        if any([ft, tov]) > 0:
+            return min(ft, tov)
+        return None
+
+    @property
     def peak_vertical_force(self):
+        """
+        return the peak vertical force during the contact phase
+        """
         cp = self.contact_phase
         if cp is None:
             return None
         grf = cp.resultant_force
         if grf is None:
             return None
-        return float(grf["force"][self.vertical_axis].to_numpy().max())
+        return float(grf.force[self.vertical_axis].to_numpy().max())
 
     def copy(self):
         """

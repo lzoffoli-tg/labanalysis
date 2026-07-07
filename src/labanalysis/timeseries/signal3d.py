@@ -5,7 +5,7 @@
 import numpy as np
 import pint
 
-from ._base import Timeseries
+from .timeseries import Timeseries
 from .signal1d import Signal1D
 from ..utils import FloatArray1D, TextArray1D
 

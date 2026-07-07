@@ -5,9 +5,11 @@ from typing import Literal
 import numpy as np
 
 from ....constants import MINIMUM_ISOMETRIC_DISPLACEMENT_M
-from ....timeseries import EMGSignal, Point3D, Signal1D, Signal3D
 from ....records.forceplatform import ForcePlatform
+from ....timeseries import EMGSignal, Point3D, Signal1D, Signal3D
 from .default_freeweight_object import DefaultFreeWeightObject
+
+__all__ = ["RepetitionPhase"]
 
 
 class RepetitionPhase(DefaultFreeWeightObject):
@@ -160,7 +162,7 @@ class RepetitionPhase(DefaultFreeWeightObject):
             c7=c7,
             sc=sc,
             l2=l2,
-            **extra_signals,
+            **extra_signals,  # type: ignore
         )
 
     @property

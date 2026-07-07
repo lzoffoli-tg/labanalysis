@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pint
 
-from ._base import Timeseries
+from .timeseries import Timeseries
 from ..utils import FloatArray1D
 
 

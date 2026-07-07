@@ -8,7 +8,7 @@ import pandas as pd
 
 from ..utils import ureg
 from ..timeseries import Signal1D
-from ._base import Record
+from .record import Record
 
 
 class MetabolicRecord(Record):
@@ -77,10 +77,12 @@ class MetabolicRecord(Record):
 
     @property
     def breath_by_breath(self):
+        """return the breath-by-breath setting"""
         return self._breath_by_breath
 
     @property
     def rq(self):
+        """return the RQ values"""
         return Signal1D(
             self.vco2.to_numpy() / self.vo2.to_numpy(),
             self.index,
@@ -89,6 +91,7 @@ class MetabolicRecord(Record):
 
     @property
     def fat_oxidation(self):
+        """return the fat oxydation status"""
         vco2 = self.vco2.to_numpy()
         vo2 = self.vo2.to_numpy()
         # from: Frayn KN. "Calculation of substrate oxidation rates in vivo from gaseous exchange." Nutrition (1983).
@@ -96,7 +99,38 @@ class MetabolicRecord(Record):
         fox[fox < 0] = 0
         return Signal1D(fox, self.index, "g/kg/min")
 
+    @property
+    def vo2(self):
+        """return the VO2 signal"""
+        out: Signal1D = self["vo2"]
+        return out
+
+    @property
+    def vco2(self):
+        """return the VCO2 signal"""
+        out: Signal1D = self["vco2"]
+        return out
+
+    @property
+    def ve(self):
+        """return the VE signal"""
+        out: Signal1D = self["ve"]
+        return out
+
+    @property
+    def hr(self):
+        """return the HR signal"""
+        out: Signal1D = self["hr"]
+        return out
+
+    @property
+    def rf(self):
+        """return the Respiratory Frequency signal"""
+        out: Signal1D = self["rf"]
+        return out
+
     def copy(self):
+        """return a copy of the object"""
         return MetabolicRecord(
             vo2=self.vo2,
             vco2=self.vco2,
@@ -107,6 +141,7 @@ class MetabolicRecord(Record):
         )
 
     def to_dataframe(self):
+        """return a dataframe view of the object"""
         out = super().to_dataframe()
         out.loc[out.index, "RQ"] = self.rq.to_numpy()
         out.loc[out.index, "Fat Oxidation g/kg/min"] = self.fat_oxidation.to_numpy()
@@ -118,6 +153,18 @@ class MetabolicRecord(Record):
         filename: str,
         breath_by_breath: bool = False,
     ):
+        """
+        generate a MetabolicRecord from file
+
+        Parameters
+        ----------
+        filename: str
+            the path to a csv or xlsx file containing the data
+
+        breath_by_breath: bool (default=False)
+            if True the data are assumed to be sampled breath-by-breath. If
+            False, the data are sampled at constant sample rate.
+        """
 
         # check the filename
         msg = "filename must be the path to a .csv or .xlsx file containing"

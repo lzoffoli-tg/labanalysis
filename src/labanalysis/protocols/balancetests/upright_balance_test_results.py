@@ -2,10 +2,14 @@
 
 from typing import TYPE_CHECKING
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
-from ...records import TimeseriesRecord, ForcePlatform
+from ...modelling.ols.geometry import Ellipse
+
+from ...constants import G
+from ...records import ForcePlatform, TimeseriesRecord
 from ..test_results import TestResults
 from ._plotting import _get_sway_figure
 
@@ -17,6 +21,7 @@ class UprightBalanceTestResults(TestResults):
 
     def __init__(self, test: "UprightBalanceTest", include_emg: bool):
         from .upright_balance_test import UprightBalanceTest
+
         if not isinstance(test, UprightBalanceTest):
             raise ValueError("'test' must be an UprightBalanceTest instance.")
         super().__init__(test, include_emg)
