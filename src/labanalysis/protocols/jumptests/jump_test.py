@@ -768,13 +768,14 @@ class JumpTest(TestProtocol):
 
         # trim the data to the jump duration
         if not isinstance(jump, DropJump):
-            index = exe.resultant_force.strip(independent=False)
+            index = jump.resultant_force.strip()
             if index is None:
                 raise RuntimeError("strip failed")
             index = index.index
-            for key in exe.keys():
-                idx = (exe[key].index >= index[0]) & (exe[key].index <= index[-1])  # type: ignore
-                exe[key] = exe[key].loc[idx, :]  # type: ignore
+            for key, val in jump.items():
+                idx = (val.index >= index[0]) & (val.index <= index[-1])  # type: ignore
+                idx = np.where(idx)[0]
+                exe[key] = val.iloc[idx, :]  # type: ignore
             if not isinstance(exe, TimeseriesRecord):
                 raise RuntimeError("jump resizing failed.")
 

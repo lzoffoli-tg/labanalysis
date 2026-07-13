@@ -1,5 +1,7 @@
 """left shoulder joint module"""
 
+import numpy as np
+
 from .pelvis import Pelvis
 from ....timeseries import Point3D
 from .joint import Joint
@@ -15,64 +17,54 @@ class LeftShoulder(Joint):
         self,
         c7: Point3D,
         sc: Point3D,
-        pelvis_plane: Pelvis,
+        pelvis: Pelvis,
         left_acromion: Point3D,
         left_elbow_lateral: Point3D,
         left_elbow_medial: Point3D,
     ):
 
-        # setup the object reference frame and extract the versors
-        N = (c7 + sc) / 2
-        VT = pelvis_plane.vertical_versor - N
-        ML = left_acromion - N
-        J = Joint(N, ML, None, AP)  # type: ignore
-
         Ag = left_acromion.copy()
-        Al = J.apply(Ag)
+        N = (c7 + sc) / 2
+        AP = sc - c7
+        AP = AP / np.atleast_2d(np.linalg.norm(AP.to_numpy(), axis=1)).T
+        VT = N - pelvis.center
+        VT = VT / np.atleast_2d(np.linalg.norm(VT.to_numpy(), axis=1)).T
+        J = Joint(
+            N,  # type: ignore
+            None,
+            AP,  # type: ignore
+            VT,  # type: ignore
+        )
+        W = float((((N.to_numpy() - Ag.to_numpy()) ** 2).sum(axis=1) ** 0.5).mean())
 
         # estimate the joint center
-        W = ((N.to_numpy() - Ag.to_numpy()) ** 2).sum(axis=1).mean()
+        Al = J.apply(Ag)
         Sl: Point3D = Al.copy()  # type: ignore
-        Sl.loc[Sl.index, Sl.lateral_axis] -= 0.33 * W
-        Sl.loc[Sl.index, Sl.vertical_axis] -= 0.30 * W
-        Sl.loc[Sl.index, Sl.anteroposterior_axis] -= -0.19 * W
-
-        # return the estimated point in the global frame
+        Sl.loc[Sl.index, [Sl.lateral_axis]] += 0.33 * W
+        Sl.loc[Sl.index, [Sl.vertical_axis]] -= 0.30 * W
+        Sl.loc[Sl.index, [Sl.anteroposterior_axis]] -= 0.19 * W
         Sg: Point3D = J.apply_inverse(Sl)  # type: ignore
-
+        """
         # extrapolate the left shoulder joint center
-        elbow = (left_elbow_lateral + left_elbow_medial) / 2
+        Eg = (right_elbow_lateral + right_elbow_medial) / 2
         S = estimate_rigid_joint_center(
             J,
-            elbow,  # type: ignore
-            left_acromion,
+            Eg,  # type: ignore
+            Ag,
             Sg,
+            # bounds=[(-0.05, 0.05), (-0.05, 0.05), (-0.05, 0.05)],
         )
+        """
 
         # generate the object
-        ML = N - S  # type: ignore
-        super().__init__(N, ML, VT)  # type: ignore
+        VT = (-1) * VT
+        ML = N - Ag  # type: ignore
+        ML = ML / np.atleast_2d(np.linalg.norm(ML.to_numpy(), axis=1)).T
+        super().__init__(Sg, ML, VT)  # type: ignore
 
         # elbow
         self["elbow_medial"] = left_elbow_medial
         self["elbow_lateral"] = left_elbow_lateral
-
-    def get_approximated_joint_center(self, left_acromion: Point3D, sc: Point3D):
-        """return approximated joint center"""
-        # get the joint coordinates in local reference frame
-        Og = left_acromion
-        Ol = self.apply(Og)
-
-        # estimate the joint center
-        W = ((sc.to_numpy() - left_acromion.to_numpy()) ** 2).sum(axis=1).mean()
-        Sl: Point3D = Ol.copy()  # type: ignore
-        Sl.loc[Sl.index, Sl.lateral_axis] -= 0.33 * W
-        Sl.loc[Sl.index, Sl.vertical_axis] -= 0.30 * W
-        Sl.loc[Sl.index, Sl.anteroposterior_axis] -= -0.19 * W
-
-        # return the estimated point in the global frame
-        Sg: Point3D = self.apply_inverse(Sl)  # type: ignore
-        return Sg
 
     @property
     def _elbow_lateral(self):

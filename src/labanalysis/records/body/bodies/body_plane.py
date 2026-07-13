@@ -2,6 +2,7 @@
 
 import numpy as np
 
+from ....events.signal import Signal
 from ....timeseries import Point3D, Plane3D
 from ...timeseriesrecord import TimeseriesRecord
 
@@ -95,3 +96,7 @@ class BodyPlane(TimeseriesRecord):
             sums = sums + projs[i].to_numpy()
         out: Point3D = sums / len(projs)  # type: ignore
         return out
+
+    def events(self):
+        """Return the events associated with the body plane"""
+        return self._events

@@ -5,11 +5,10 @@ from typing import Literal
 import numpy as np
 
 from ....referenceframes.referenceframes import ReferenceFrame
-from ....timeseries import Signal1D, Timeseries
-from ....timeseries.point3d import Point3D
-from ....timeseries.signal3d import Signal3D
+from ....timeseries import Signal1D, Timeseries, Point3D, Signal3D
 from ...record import Record
 from ...timeseriesrecord import TimeseriesRecord
+from ....events.signal import Signal
 
 __all__ = ["Joint"]
 
@@ -22,9 +21,9 @@ class Joint(TimeseriesRecord):
     def __init__(
         self,
         center: Point3D,
-        lateral_vector: Signal3D | Point3D | None,
-        vertical_vector: Signal3D | Point3D | None,
-        anteroposterior_vector: Signal3D | Point3D | None,
+        lateral_vector: Signal3D | Point3D | None = None,
+        vertical_vector: Signal3D | Point3D | None = None,
+        anteroposterior_vector: Signal3D | Point3D | None = None,
     ):
         super().__init__()
         if not isinstance(center, Point3D):
@@ -209,4 +208,4 @@ class Joint(TimeseriesRecord):
         x, y = point.to_numpy()[:, col_map].T
 
         # get the angle
-        return Signal1D(np.degrees(np.arctan2(y, x)), point.index, "°")
+        return Signal1D(np.degrees(np.arctan2(y, x)), point.index, "deg")

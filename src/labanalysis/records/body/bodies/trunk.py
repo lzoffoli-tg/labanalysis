@@ -92,7 +92,7 @@ class Trunk(Joint, Segment):
         return Signal1D(
             np.asarray(angle_deg, float),
             p1.index,
-            "°",
+            "deg",
         )
 
     @property

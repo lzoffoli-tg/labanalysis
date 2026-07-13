@@ -25,9 +25,10 @@ class LeftAnkle(Joint):
         kne = (left_knee_medial + left_knee_lateral) / 2
         vrt = ori - kne
         super().__init__(
-            center=ori,
-            lateral_vector=lax,
-            vertical_vector=vrt,
+            center=ori, # type: ignore
+            lateral_vector=lax,  # type: ignore
+            vertical_vector=vrt,  # type: ignore
+            anteroposterior_vector=None,
         )  # type: ignore
         self["foot"] = left_foot
 

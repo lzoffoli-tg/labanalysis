@@ -22,7 +22,7 @@ class LeftElbow(Joint):
         lax = left_elbow_lateral - left_elbow_medial
         elb = (left_elbow_lateral + left_elbow_medial) / 2
         vrt = elb - left_shoulder.center
-        super().__init__(origin=elb, lateral_vector=lax, vertical_vector=vrt)  # type: ignore
+        super().__init__(center=elb, lateral_vector=lax, vertical_vector=vrt, anteroposterior_vector=None)  # type: ignore
 
         self["wrist_medial"] = left_wrist_medial
         self["wrist_lateral"] = left_wrist_lateral

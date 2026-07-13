@@ -4,8 +4,7 @@ import numpy as np
 import pandas as pd
 
 from ..io.read.btsbioengineering import read_tdf
-from ..signalprocessing import fillna as sp_fillna
-from ..timeseries import Timeseries, Signal1D, Signal3D, EMGSignal, Point3D
+from ..timeseries import Timeseries, Signal1D, Signal3D, EMGSignal, Point3D, Plane3D
 from .record import Record
 from .forceplatform import ForcePlatform
 from .metabolicrecord import MetabolicRecord
@@ -66,8 +65,10 @@ class TimeseriesRecord(Record):
         | Signal3D
         | EMGSignal
         | Point3D
+        | Plane3D
         | ForcePlatform
         | MetabolicRecord,
+
     ]
 
     @property
@@ -165,76 +166,111 @@ class TimeseriesRecord(Record):
 
     @property
     def resultant_force(self):
-        forces = self.forceplatforms
-        rows, cols = forces.shape
-        if cols == 0:
+        """
+        return a forceplatform object representing the resultant of all
+        available forceplatforms
+        """
+        platforms = list(self.forceplatforms.values())
+        if len(platforms) == 0:
             raise ValueError("No forceplatforms found within the TimeseriesRecord.")
-        i_total = np.asarray(forces.index, float)
-        f_total = np.zeros((rows, 3))
-        m_total = np.zeros_like(f_total)
-        r_cop_weighted = np.zeros_like(f_total)
-        force_weight_total = np.zeros((rows, 1))
+
+        # Indice temporale comune a tutte le piattaforme
+        common_times = list(
+            dict.fromkeys([t for platform in platforms for t in platform.index])
+        )
+        common_time_to_idx = {t: i for i, t in enumerate(common_times)}
+        n_samples = len(common_times)
+
+        force_accum = np.zeros((n_samples, 3), dtype=float)
+        torque_accum = np.zeros((n_samples, 3), dtype=float)
+        origin_weighted = np.zeros((n_samples, 3), dtype=float)
+        weight_accum = np.zeros(n_samples, dtype=float)
+        valid_count = np.zeros(n_samples, dtype=int)
+
         axes = []
         units = {}
-        for obj in forces.values():
-            f_arr = obj["force"].apply(sp_fillna, value=0, axis=0).to_numpy()  # type: ignore
-            r_arr = obj["origin"].apply(sp_fillna, axis=0).to_numpy()  # type: ignore
-            m_arr = obj["torque"].apply(sp_fillna, value=0, axis=0).to_numpy()  # type: ignore
-            i_arr = np.asarray(obj.index, float)
-            mask = np.where(np.isin(i_total, i_arr))[0]
 
-            # Sum forces
-            f_total[mask] = f_total[mask] + f_arr
+        for platform in platforms:
+            force = platform.force
+            origin = platform.origin
+            torque = platform.torque
 
-            # Sum moments around origin (adding translational moment)
-            m_total[mask] = m_total[mask] + m_arr + np.cross(r_arr, f_arr)
+            f_arr = np.asarray(force.to_numpy(), dtype=float)
+            o_arr = np.asarray(origin.to_numpy(), dtype=float)
+            m_arr = np.asarray(torque.to_numpy(), dtype=float)
 
-            # Use vertical force component magnitude as scalar weight
-            v_idx = [
-                i for i, v in enumerate(obj.origin.columns) if v == obj.vertical_axis
-            ]
-            if len(v_idx) == 0:
-                weights = np.linalg.norm(f_arr, axis=1, keepdims=True)
+            if f_arr.ndim != 2 or f_arr.shape[1] != 3:
+                continue
+            if o_arr.shape != f_arr.shape or m_arr.shape != f_arr.shape:
+                continue
+
+            platform_times = list(platform.index)
+            platform_ids = np.fromiter(
+                (common_time_to_idx[t] for t in platform_times),
+                dtype=int,
+                count=len(platform_times),
+            )
+
+            v_axis_idx = next(
+                (
+                    i
+                    for i, col in enumerate(force.columns)
+                    if col == force.vertical_axis
+                ),
+                None,
+            )
+            if v_axis_idx is None:
+                weights = np.linalg.norm(f_arr, axis=1)
             else:
-                weights = np.abs(f_arr[:, v_idx[0]]).reshape(-1, 1)
+                weights = np.abs(f_arr[:, v_axis_idx]).reshape(-1)
 
-            # Accumulate weighted COP: r_cop_weighted = sum(r_cop * weight)
-            r_cop_weighted[mask] = r_cop_weighted[mask] + r_arr * weights
-            force_weight_total[mask] = force_weight_total[mask] + weights
+            valid_mask = (
+                np.isfinite(f_arr).all(axis=1)
+                & np.isfinite(o_arr).all(axis=1)
+                & np.isfinite(m_arr).all(axis=1)
+                & np.isfinite(weights)
+            )
 
-            # update units and axes
-            if len(units) == 0:
-                for lbl in ["origin", "force", "torque"]:
-                    units[lbl] = obj[lbl].unit
-                axes = obj["origin"].columns
+            if not np.any(valid_mask):
+                continue
 
-        # Calculate combined COP as weighted average using vertical force weights
+            ids = platform_ids[valid_mask]
+            f_valid = f_arr[valid_mask]
+            o_valid = o_arr[valid_mask]
+            m_valid = m_arr[valid_mask]
+            w_valid = weights[valid_mask]
+
+            moments = m_valid + np.cross(o_valid, f_valid)
+
+            np.add.at(force_accum, ids, f_valid)
+            np.add.at(torque_accum, ids, moments)
+            np.add.at(origin_weighted, ids, o_valid * w_valid[:, None])
+            np.add.at(weight_accum, ids, w_valid)
+            np.add.at(valid_count, ids, 1)
+
+            if not units:
+                units["origin"] = origin.unit
+                units["force"] = force.unit
+                units["torque"] = torque.unit
+                axes = list(origin.columns)
+
+        force_out = np.full((n_samples, 3), np.nan, dtype=float)
+        torque_out = np.full((n_samples, 3), np.nan, dtype=float)
+        origin_out = np.full((n_samples, 3), np.nan, dtype=float)
+
+        valid_samples = valid_count > 0
+        force_out[valid_samples] = force_accum[valid_samples]
+        torque_out[valid_samples] = torque_accum[valid_samples]
+
         with np.errstate(divide="ignore", invalid="ignore"):
-            cop_data = np.zeros_like(r_cop_weighted)
-            nz = force_weight_total[:, 0] != 0
-            if np.any(nz):
-                cop_data[nz] = r_cop_weighted[nz] / force_weight_total[nz]
-            cop_data = np.nan_to_num(cop_data, nan=0.0, posinf=0.0, neginf=0.0)
+            nonzero_weight = valid_samples & (weight_accum != 0)
+            origin_out[nonzero_weight] = (
+                origin_weighted[nonzero_weight] / weight_accum[nonzero_weight, None]
+            )
 
-        # generate the force platform
-        cop = Point3D(
-            cop_data,
-            forces.index.tolist(),
-            units["origin"],
-            axes,
-        )
-        force = Signal3D(
-            f_total,
-            forces.index.tolist(),
-            units["force"],
-            axes,
-        )
-        torque = Signal3D(
-            m_total,
-            forces.index.tolist(),
-            units["torque"],
-            axes,
-        )
+        cop = Point3D(origin_out, common_times, units["origin"], axes)
+        force = Signal3D(force_out, common_times, units["force"], axes)
+        torque = Signal3D(torque_out, common_times, units["torque"], axes)
 
         return ForcePlatform(cop, force, torque)
 
@@ -259,7 +295,7 @@ class TimeseriesRecord(Record):
     def __setitem__(self, key, value):
         if not isinstance(key, str):
             raise ValueError("key must be a str")
-        types = (Timeseries, Signal1D, Signal3D, EMGSignal, Point3D, ForcePlatform)
+        types = (Timeseries, Signal1D, Signal3D, EMGSignal, Point3D, Plane3D, ForcePlatform, Record)
         if not isinstance(value, types):
             raise ValueError(f"value must be any of {types}")
         self._data[key] = value
@@ -341,7 +377,7 @@ class TimeseriesRecord(Record):
     def __init__(
         self,
         **signals: (
-            Timeseries | Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform
+            Timeseries | Signal1D | Signal3D | EMGSignal | Point3D | Plane3D | ForcePlatform
         ),
     ):
         """

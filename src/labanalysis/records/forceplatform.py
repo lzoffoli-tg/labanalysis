@@ -3,6 +3,7 @@
 import numpy as np
 
 from ..timeseries import Point3D, Signal3D
+from ..events.signal import Signal
 from .record import Record
 
 
@@ -98,8 +99,8 @@ class ForcePlatform(Record):
         super().__init__(origin=origin, force=force, torque=torque)
 
     def __setattr__(self, key, value):
-        if key == "_data":
-            super().__setattr__("_data", value)
+        if key in ["_data", "_updated"]:
+            super().__setattr__(key, value)
         else:
             self.__setitem__(key, value)
 

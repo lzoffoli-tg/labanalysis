@@ -13,12 +13,13 @@ class RightHip(Joint):
 
     def __init__(
         self,
+        s2: Point3D,
         pelvis: Pelvis,
         right_knee_lateral: Point3D,
         right_knee_medial: Point3D,
         right_trochanter: Point3D | None = None,
     ):
-
+        """
         knee: Point3D = (right_knee_lateral + right_knee_medial) / 2  # type: ignore
 
         # extrapolate the left hip joint center
@@ -28,28 +29,19 @@ class RightHip(Joint):
             right_trochanter,
             pelvis.right_hip_approximated,
         )
-
-        # convert it into the ASIS local frame
-        Hl: Point3D = pelvis.apply(Hg)  # type: ignore
-
-        # get the pelvis mid-point
-        Pg = pelvis.center
-
-        # rotate the pelvis midpoint in the ASIS local frame
-        Pl: Point3D = pelvis.apply(Pg)  # type: ignore
-
-        # set the lateral coordinates equal to those of the hip joint center
-        Pl.loc[Pl.index, Pl.lateral_axis] = Hl[self.lateral_axis].to_numpy()
-
-        # return to the global reference frame
-        Po: Point3D = pelvis.apply_inverse(Pl)  # type: ignore
+        """
 
         # get the lateral and vertical axes of the Hip reference frame
-        ML: Signal3D = -pelvis.lateral_versor  # type: ignore
-        VT = Hg - Po
+        ML = pelvis.right_midpoint - pelvis.left_midpoint
+        VT = pelvis.psis_midpoint - s2
 
         # build the class
-        super().__init__(Hg, ML, VT)  # type: ignore
+        super().__init__(
+            pelvis.right_hip_approximated,
+            ML,  # type: ignore
+            VT,  # type: ignore
+            None,
+        )  # type: ignore
 
         # knee
         self["knee_medial"] = right_knee_medial
@@ -91,7 +83,7 @@ class RightHip(Joint):
         return self.get_angle_by_point(
             self.apply(self._knee_center),  # type: ignore
             self.vertical_axis,  # type: ignore
-            self.anteriorposterior_axis,  # type: ignore
+            self.anteroposterior_axis,  # type: ignore
         )
 
     @property

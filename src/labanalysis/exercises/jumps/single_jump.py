@@ -278,15 +278,23 @@ class SingleJump(WholeBody):
             return None
         module = vgrf.force[self.vertical_axis].to_numpy().flatten()
 
-        # identifico il batch relativi alla fase di contatto
-        flight = module < MINIMUM_CONTACT_FORCE_N
-        batch = np.arange(np.where(flight)[0][0])
+        # l'inizio del tempo di contatto
+        contact = module >= MINIMUM_CONTACT_FORCE_N
+        if not np.any(contact):
+            return None
+        t0 = vgrf.index[np.where(contact)[0][0]]
 
-        # ritorno l'oggetto corrispondente al batch più lungo
-        t0, t1 = vgrf.index[batch][[0, -1]]
+        # fine del tempo di contatto
+        fp = self.flight_phase
+        if fp is None:
+            return None
+        t1 = fp.index[0]
+
+        # ritorno l'oggetto corrispondente all'intervallo di tempo tra l'avvio
+        # della fase di contatto e l'inizio della fase di volo
         return WholeBody(
             **{
-                i: v.copy().loc[(v.index >= t0) & (v.index <= t1), :]
+                i: v.copy().loc[(v.index >= t0) & (v.index < t1), :]
                 for i, v in self.items()
             }
         )

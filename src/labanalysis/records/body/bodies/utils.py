@@ -119,9 +119,7 @@ def estimate_rigid_joint_center(
             Greater trochanter.
 
         prior_global
-            Hip joint center estimated using a regression model
-            (De Leva, Harrington, etc.).
-
+            Hip joint center estimated
     Shoulder
         joint
             Thorax anatomical reference frame.
@@ -133,8 +131,7 @@ def estimate_rigid_joint_center(
             Acromion.
 
         prior_global
-            Shoulder joint center estimated using a regression model
-            (De Leva, Meskers, etc.).
+            Shoulder joint center estimated
 
     Optimization criteria
     ---------------------
@@ -274,7 +271,7 @@ def estimate_rigid_joint_center(
         return np.asarray(r, dtype=float)
 
     lb, ub = _get_bounds(bounds)
-    result = least_squares(residuals, x0=prior_local, bounds=(lb, ub), method="trf")
+    result = least_squares(residuals, x0=prior_local, bounds=(lb, ub), method="lm")
     joint_center_local = result.x
     joint_center_global = _local_to_global(
         joint_center_local,

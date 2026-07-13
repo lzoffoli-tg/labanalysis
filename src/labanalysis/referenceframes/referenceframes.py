@@ -207,12 +207,12 @@ class ReferenceFrame:
                 vertical_axis,
                 "vertical_axis",
             )
-            ax1 = ax1 / np.linalg.norm(ax1, axis=0)
+            ax1 = ax1 / np.atleast_2d(np.linalg.norm(ax1, axis=1)).T
             ax2 = self._extract_numpy_array(
                 anteroposterior_axis,
                 "anteroposterior_axis",
             )
-            ax2 = ax2 / np.linalg.norm(ax2, axis=0)
+            ax2 = ax2 / np.atleast_2d(np.linalg.norm(ax2, axis=1)).T
             if isinstance(anteroposterior_axis, Timeseries):
                 lateral_axis = anteroposterior_axis.copy()
                 lateral_axis.iloc[:, :] = np.cross(ax1, ax2)
@@ -230,12 +230,12 @@ class ReferenceFrame:
                 anteroposterior_axis,
                 "anteroposterior_axis",
             )
-            ax1 = ax1 / np.linalg.norm(ax1, axis=0)
+            ax1 = ax1 / np.atleast_2d(np.linalg.norm(ax1, axis=1)).T
             ax2 = self._extract_numpy_array(
                 lateral_axis,
                 "lateral_axis",
             )
-            ax2 = ax2 / np.linalg.norm(ax2, axis=0)
+            ax2 = ax2 / np.atleast_2d(np.linalg.norm(ax2, axis=1)).T
             if isinstance(anteroposterior_axis, Timeseries):
                 vertical_axis = anteroposterior_axis.copy()
                 vertical_axis.iloc[:, :] = np.cross(ax1, ax2)
@@ -253,12 +253,12 @@ class ReferenceFrame:
                 lateral_axis,
                 "lateral_axis",
             )
-            ax1 = ax1 / np.linalg.norm(ax1, axis=0)
+            ax1 = ax1 / np.atleast_2d(np.linalg.norm(ax1, axis=1)).T
             ax2 = self._extract_numpy_array(
                 vertical_axis,
                 "vertical_axis",
             )
-            ax2 = ax2 / np.linalg.norm(ax2, axis=0)
+            ax2 = ax2 / np.atleast_2d(np.linalg.norm(ax2, axis=1)).T
             if isinstance(vertical_axis, Timeseries):
                 anteroposterior_axis = vertical_axis.copy()
                 anteroposterior_axis.iloc[:, :] = np.cross(ax1, ax2)
@@ -455,9 +455,6 @@ class ReferenceFrame:
         if isinstance(obj, pd.DataFrame):
             return self._apply_to_dataframe(obj, inplace)
 
-        # Import at runtime to avoid circular import
-        from ..records import ForcePlatform, Record
-
         if isinstance(obj, ForcePlatform):
             return self._apply_to_forceplatform(obj, inplace)
 
@@ -544,18 +541,18 @@ class ReferenceFrame:
     def _apply_to_timeseries(self, ts: Timeseries, inplace: bool):
         """Apply transformation to Timeseries object."""
         # Validate 3D data
-        if ts._data.shape[1] != 3:
+        if ts.shape[1] != 3:
             raise ValueError(
-                f"Timeseries must have 3 columns (3D data), got {ts._data.shape[1]} columns. "
-                f"Cannot apply 3D reference frame to {ts._data.shape[1]}D signal."
+                f"Timeseries must have 3 columns (3D data), got {ts.shape[1]} columns. "
+                f"Cannot apply 3D reference frame to {ts.shape[1]}D signal."
             )
 
         # Transform data
-        transformed = self._apply_to_numpy(ts._data)
+        transformed = self._apply_to_numpy(ts.to_numpy())
 
         # Update Timeseries
         out = ts if inplace else ts.copy()
-        out[:, :] = transformed
+        out.iloc[:, :] = transformed
 
         if not inplace:
             return out
@@ -569,10 +566,10 @@ class ReferenceFrame:
         out = fp if inplace else fp.copy()
 
         # Transform origin (Point3D) with full transformation
-        out.origin[:, :] = self._apply_to_numpy(fp.origin._data)
+        out.origin.iloc[:, :] = self._apply_to_numpy(fp.origin.to_numpy())
 
         # Transform force (Signal3D) with rotation only (no translation)
-        force_data = fp.force._data
+        force_data = fp.force.to_numpy()
         n_force_samples = force_data.shape[0]
 
         if self._is_single_frame:
@@ -587,7 +584,7 @@ class ReferenceFrame:
             rmat = self._rotation_matrix
 
         transformed_force = np.einsum("nij,nj->ni", rmat, force_data)
-        out.force[:, :] = transformed_force
+        out.force.iloc[:, :] = transformed_force
 
         # Recalculate torque from free moment and transformed origin/force
         origin_np = self._extract_numpy_array(
@@ -600,7 +597,7 @@ class ReferenceFrame:
             else origin_np
         )
 
-        out.torque[:, :] = free_moment.to_numpy() + np.cross(
+        out.torque.iloc[:, :] = free_moment.to_numpy() + np.cross(
             out.origin.to_numpy() - origin_broadcast, out.force.to_numpy()
         )
 
@@ -691,18 +688,18 @@ class ReferenceFrame:
     def _apply_inverse_to_timeseries(self, ts: Timeseries, inplace: bool):
         """Apply inverse transformation to Timeseries object."""
         # Validate 3D data
-        if ts._data.shape[1] != 3:
+        if ts.shape[1] != 3:
             raise ValueError(
-                f"Timeseries must have 3 columns (3D data), got {ts._data.shape[1]} columns. "
-                f"Cannot apply 3D reference frame to {ts._data.shape[1]}D signal."
+                f"Timeseries must have 3 columns (3D data), got {ts.shape[1]} columns. "
+                f"Cannot apply 3D reference frame to {ts.shape[1]}D signal."
             )
 
         # Transform data
-        transformed = self._apply_inverse_to_numpy(ts._data)
+        transformed = self._apply_inverse_to_numpy(ts.to_numpy())
 
         # Update Timeseries
         out = ts if inplace else ts.copy()
-        out[:, :] = transformed
+        out.iloc[:, :] = transformed
 
         if not inplace:
             return out
@@ -716,10 +713,10 @@ class ReferenceFrame:
         out = fp if inplace else fp.copy()
 
         # Inverse transform origin (Point3D)
-        out.origin[:, :] = self._apply_inverse_to_numpy(fp.origin._data)
+        out.origin.iloc[:, :] = self._apply_inverse_to_numpy(fp.origin.to_numpy())
 
         # Inverse transform force (Signal3D) - rotation only
-        force_data = fp.force._data
+        force_data = fp.force.to_numpy()
         n_force_samples = force_data.shape[0]
 
         if self._is_single_frame:
@@ -736,7 +733,7 @@ class ReferenceFrame:
             rmat_transpose = self._rotation_matrix.transpose([0, 2, 1])
 
         transformed_force = np.einsum("nij,nj->ni", rmat_transpose, force_data)
-        out.force[:, :] = transformed_force
+        out.force.iloc[:, :] = transformed_force
 
         # Recalculate torque from free moment and inverse-transformed origin/force
         origin_np = self._extract_numpy_array(
@@ -749,7 +746,7 @@ class ReferenceFrame:
             else self._origin
         )
 
-        out.torque[:, :] = free_moment.to_numpy() + np.cross(
+        out.torque.iloc[:, :] = free_moment.to_numpy() + np.cross(
             out.origin.to_numpy() - origin_broadcast, out.force.to_numpy()
         )
 

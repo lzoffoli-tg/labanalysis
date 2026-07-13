@@ -4,8 +4,10 @@ from .body_plane import *
 from .head import *
 from .joint import *
 from .left_ankle import *
+from .left_arm import *
 from .left_elbow import *
 from .left_foot import *
+from .left_forearm import *
 from .left_hip import *
 from .left_knee import *
 from .left_leg import *
@@ -14,8 +16,10 @@ from .left_thigh import *
 from .neck import *
 from .pelvis import *
 from .right_ankle import *
+from .right_arm import *
 from .right_elbow import *
 from .right_foot import *
+from .right_forearm import *
 from .right_hip import *
 from .right_knee import *
 from .right_leg import *

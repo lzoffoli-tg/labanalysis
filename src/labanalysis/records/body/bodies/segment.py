@@ -5,6 +5,7 @@ import numpy as np
 from .joint import Joint
 from ....timeseries.point3d import Point3D
 from ...timeseriesrecord import TimeseriesRecord
+from ....events.signal import Signal
 
 
 class Segment(TimeseriesRecord):

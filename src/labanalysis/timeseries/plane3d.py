@@ -8,6 +8,8 @@ from .signal1d import Signal1D
 from .timeseries import Timeseries
 
 
+__all__ = ["Plane3D"]
+
 class Plane3D(Timeseries):
     """
     General Plane 3D class

@@ -10,6 +10,9 @@ import pint
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
+from ..events import Signal
+from ..indexers.timeseries_iloc_indexer import TimeseriesILocIndexer
+from ..indexers.timeseries_loc_indexer import TimeseriesLocIndexer
 from ..signalprocessing import fillna as sp_fillna
 from ..utils import FloatArray1D, FloatArray2D, TextArray1D, ureg
 
@@ -21,67 +24,16 @@ class Timeseries:
     Base class for time-series data providing pandas-like indexing, arithmetic
     operations, unit conversion, and signal processing capabilities. Designed for
     biomechanical and physiological signals.
-
-    Attributes
-    ----------
-    index : np.ndarray
-        Time index array (1D).
-    columns : np.ndarray
-        Column labels array (1D).
-    _data : np.ndarray
-        Internal data storage (2D array: rows=time, cols=variables).
-    _unit : pint.Quantity or str
-        Unit of measurement for the data.
-
-    Properties
-    ----------
-    ix : TimeseriesIXIndexer
-        Integer-based indexer for iloc-style access.
-    unit : str
-        String representation of the unit of measurement.
-    shape : tuple
-        Shape of the data array (n_timepoints, n_columns).
-
-    Notes
-    -----
-    - Supports arithmetic operations (+, -, *, /, etc.) with broadcasting
-    - Integrates with pint for unit conversion and validation
-    - Provides fillna() for gap filling via interpolation
-    - Can be converted to pandas DataFrame or numpy array
-    - Supports method chaining with inplace operations
-
-    See Also
-    --------
-    Signal1D : 1D time-series specialization
-    Signal3D : 3D vector time-series
-    Point3D : 3D position trajectory
-    EMGSignal : Electromyography signal
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from labanalysis.timeseries import Timeseries
-    >>> data = np.random.randn(100, 3)
-    >>> index = np.linspace(0, 10, 100)
-    >>> ts = Timeseries(data, index, columns=['X', 'Y', 'Z'], unit='m')
-    >>> ts.shape
-    (100, 3)
-    >>> ts.unit
-    'm'
     """
 
     @property
     def loc(self):
         """Label-based indexer (pandas .loc analog)."""
-        from .loc_indexer import TimeseriesLocIndexer
-
         return TimeseriesLocIndexer(self)
 
     @property
     def iloc(self):
         """Position-based indexer (pandas .iloc analog)."""
-        from .iloc_indexer import TimeseriesILocIndexer
-
         return TimeseriesILocIndexer(self)
 
     @property
@@ -429,103 +381,96 @@ class Timeseries:
                 "Inconsistent shape: data shape does not match index and columns length"
             )
 
-    def _view(
-        self,
-        rows: slice | list[float | bool] | np.ndarray | None = None,
-        cols: list[str | bool] | None = None,
-    ):
-        if rows is None:
-            row_mask = slice(None)
-        elif isinstance(rows, slice):
-            start = self.index[0] if rows.start is None else rows.start
-            stop = self.index[-1] if rows.stop is None else rows.stop
-            row_mask = (self.index >= start) & (self.index <= stop)
+    def _view(self, rows=None, cols=None):
+        """
+        Return a view/subset of this Timeseries-like object while preserving
+        the concrete subclass type only when the column structure is unchanged.
+
+        If the selection changes the number of columns (e.g. 3 -> 2, 3 -> 1,
+        4 -> 3), the returned object is a base Timeseries instead of the
+        specialized subclass.
+        """
+
+        def _normalize_selector(selector, labels):
+            if selector is None:
+                return slice(None)
+
+            if isinstance(selector, slice):
+                return selector
+
+            if isinstance(selector, (np.ndarray, list, tuple)):
+                arr = np.asarray(selector)
+
+                if arr.dtype == bool:
+                    return arr.astype(bool, copy=False)
+
+                if arr.dtype.kind in "iu":
+                    return arr.astype(int, copy=False)
+
+                labels_arr = np.asarray(labels)
+
+                if labels_arr.dtype.kind in "fiu":
+                    mask = np.zeros(len(labels_arr), dtype=bool)
+                    for value in arr.astype(float, copy=False):
+                        mask |= np.isclose(
+                            labels_arr.astype(float),
+                            value,
+                            rtol=1e-6,
+                            atol=1e-8,
+                        )
+                    return np.flatnonzero(mask)
+
+                mask = np.zeros(len(labels_arr), dtype=bool)
+                for value in arr.tolist():
+                    mask |= labels_arr == value
+                return np.flatnonzero(mask)
+
+            if isinstance(selector, (bool, np.bool_)):
+                return np.array([selector], dtype=bool)
+
+            if isinstance(selector, (int, np.integer)):
+                return np.array([int(selector)], dtype=int)
+
+            labels_arr = np.asarray(labels)
+            if labels_arr.dtype.kind in "fiu":
+                mask = np.isclose(
+                    labels_arr.astype(float),
+                    float(selector),
+                    rtol=1e-6,
+                    atol=1e-8,
+                )
+                return np.flatnonzero(mask)
+
+            mask = labels_arr == selector
+            return np.flatnonzero(mask)
+
+        row_sel = _normalize_selector(rows, self.index)
+        col_sel = _normalize_selector(cols, self.columns)
+
+        if isinstance(row_sel, np.ndarray) and row_sel.dtype == bool:
+            row_sel = np.flatnonzero(row_sel)
+        if isinstance(col_sel, np.ndarray) and col_sel.dtype == bool:
+            col_sel = np.flatnonzero(col_sel)
+
+        if isinstance(row_sel, slice) and isinstance(col_sel, slice):
+            view_data = self._data[row_sel, col_sel]
+        elif isinstance(row_sel, slice):
+            view_data = self._data[row_sel, col_sel]
+        elif isinstance(col_sel, slice):
+            view_data = self._data[row_sel, col_sel]
         else:
-            try:
-                arr = np.asarray(rows)
-            except Exception:
-                arr = rows
+            view_data = self._data[np.ix_(row_sel, col_sel)]
 
-            if isinstance(arr, (np.ndarray, list)) and all(
-                [isinstance(i, (bool, np.bool_)) for i in arr]
-            ):
-                row_mask = np.asarray(arr, dtype=bool)
-            elif isinstance(arr, np.ndarray) and arr.dtype.kind == "f":
-                idx = np.asarray(self.index, float)
-                mask = np.zeros(len(idx), dtype=bool)
-                for v in arr.astype(float):
-                    mask |= np.isclose(idx, v, rtol=1e-6, atol=1e-8)
-                row_mask = mask
-            elif isinstance(arr, (list, np.ndarray)) and all(
-                [isinstance(i, (int, np.integer)) for i in arr]
-            ):
-                row_mask = np.isin(self.index, arr)
-            else:
-                row_mask = np.isin(self.index, rows)
-        if cols is None:
-            col_mask = slice(None)
-        elif isinstance(cols, slice):
-            start = cols.start
-            if start is None:
-                start = self.columns[0]
-            stop = cols.stop
-            if stop is None:
-                stop = self.columns[-1]
-            col_idx = [i for i, v in enumerate(self.columns) if v in [start, stop]]
-            col_idx = np.arange(col_idx[0], col_idx[-1] + 1)
-            col_mask = np.isin(col_idx, np.arange(len(self.columns)))
-        else:
-            col_mask = np.isin(self.columns, np.asarray(cols))
+        view_index = self.index[row_sel]
+        view_columns = self.columns[col_sel]
 
-        if not isinstance(col_mask, slice):
-            try:
-                if col_mask.size == len(self.columns) and np.all(col_mask):
-                    cols = None
-                    col_mask = slice(None)
-            except Exception:
-                pass
+        view_obj = self.__new__(self._get_view_class(rows=row_sel, cols=col_sel))
+        try:
+            view_obj._unit = self._unit
+        except AttributeError:
+            view_obj._unit = "dimensionless"
 
-        if isinstance(row_mask, np.ndarray) and row_mask.dtype == bool:
-            row_indices = np.where(row_mask)[0]
-        elif isinstance(row_mask, slice):
-            row_indices = row_mask
-        else:
-            row_indices = row_mask
-
-        if isinstance(col_mask, np.ndarray) and col_mask.dtype == bool:
-            col_indices = np.where(col_mask)[0]
-        elif isinstance(col_mask, slice):
-            col_indices = col_mask
-        else:
-            col_indices = col_mask
-
-        if isinstance(row_indices, np.ndarray) and isinstance(col_indices, np.ndarray):
-            view_data = self._data[np.ix_(row_indices, col_indices)]
-        elif isinstance(row_indices, slice) and isinstance(col_indices, np.ndarray):
-            view_data = self._data[row_indices, col_indices]
-        elif isinstance(row_indices, np.ndarray) and isinstance(col_indices, slice):
-            view_data = self._data[row_indices, col_indices]
-        else:
-            view_data = self._data[row_indices, col_indices]
-
-        view_index = self.index[row_mask]
-        view_columns = self.columns[col_mask]
-
-        if cols is None:
-            view_obj = self.__new__(type(self))
-            try:
-                view_obj._unit = self._unit
-            except AttributeError:
-                view_obj._unit = "dimensionless"
-
-            # Copy subclass-specific attributes using hook method
-            self._copy_view_attributes(view_obj)
-        else:
-            view_obj = Timeseries.__new__(Timeseries)
-            try:
-                view_obj._unit = self._unit
-            except AttributeError:
-                view_obj._unit = "dimensionless"
+        self._copy_view_attributes(view_obj)
 
         view_obj._data = view_data
         view_obj.index = (
@@ -538,6 +483,39 @@ class Timeseries:
         )
 
         return view_obj
+
+    def _get_view_class(self, rows=None, cols=None):
+        """
+        Return the class to use for a view object.
+
+        Preserve the concrete subclass only when the selected columns keep the same
+        dimensionality as the original object. If the number of selected columns
+        changes, return the base Timeseries class.
+        """
+        if cols is None:
+            return type(self)
+
+        if isinstance(cols, slice):
+            if cols == slice(None):
+                selected_columns = self._data.shape[1]
+            else:
+                selected_columns = len(range(*cols.indices(self._data.shape[1])))
+        elif isinstance(cols, np.ndarray):
+            if cols.dtype == bool:
+                selected_columns = int(np.count_nonzero(cols))
+            else:
+                selected_columns = len(cols)
+        elif isinstance(cols, (list, tuple)):
+            selected_columns = len(cols)
+        else:
+            selected_columns = 1
+
+        original_columns = self._data.shape[1]
+
+        if selected_columns != original_columns:
+            return Timeseries
+
+        return type(self)
 
     def _copy_view_attributes(self, view_obj):
         """

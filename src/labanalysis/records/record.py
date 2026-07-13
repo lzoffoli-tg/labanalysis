@@ -8,10 +8,10 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
+from ..indexers.record_iloc_indexer import RecordILocIndexer
+from ..indexers.record_loc_indexer import RecordLocIndexer
 from ..signalprocessing import fillna as sp_fillna
-from ..timeseries import Timeseries, Signal1D, Signal3D, EMGSignal, Point3D
-from .loc_indexer import RecordLocIndexer
-from .iloc_indexer import RecordILocIndexer
+from ..timeseries import EMGSignal, Point3D, Signal1D, Signal3D, Timeseries, Plane3D
 
 
 class Record:
@@ -131,7 +131,20 @@ class Record:
     def __setitem__(self, key, value):
         if not isinstance(key, str):
             raise ValueError("key must be a str")
-        if not isinstance(value, (Timeseries, Signal1D, Signal3D, EMGSignal, Point3D)):
+
+        if isinstance(
+            value, (Timeseries, Signal1D, Signal3D, EMGSignal, Point3D, Plane3D)
+        ):
+            allowed = True
+        else:
+            try:
+                from .forceplatform import ForcePlatform
+
+                allowed = isinstance(value, ForcePlatform)
+            except Exception:
+                allowed = False
+
+        if not allowed:
             raise ValueError("value must be a Timeseries or Record")
         if key in self.keys() and hasattr(self, key):
             raise ValueError(f"{key} is a property of this Record.")
@@ -143,7 +156,6 @@ class Record:
             data = object.__getattribute__(self, "_data")
         except AttributeError:
             raise AttributeError("_data is not a valid attribute of this Record")
-
         if name in data.keys():
             return data[name]
         raise AttributeError(f"{name} is not a valid attribute of this Record")
@@ -159,11 +171,11 @@ class Record:
 
     def __init__(
         self,
-        **signals: Timeseries | Signal1D | Signal3D | EMGSignal | Point3D,
+        **signals: Timeseries | Signal1D | Signal3D | EMGSignal | Point3D | Plane3D,
     ):
         self._data: dict[
             str,
-            Timeseries | Signal1D | Signal3D | EMGSignal | Point3D,
+            Timeseries | Signal1D | Signal3D | EMGSignal | Point3D | Plane3D,
         ] = {}
         for key, value in signals.items():
             self[key] = value
@@ -433,7 +445,7 @@ class Record:
         """
 
         def fill_record(
-            record: "Record",
+            record: Record,
             vals: np.ndarray,
             counter: int,
         ):

@@ -22,11 +22,11 @@ class RightKnee(Joint):
         # object with reference frame
         lax = right_knee_medial - right_knee_lateral
         kne = (right_knee_medial + right_knee_lateral) / 2
-        vrt = kne - right_hip
-        super().__init__(origin=kne, lateral_vector=lax, vertical_vector=vrt)  # type: ignore
+        vrt = kne - right_hip.center
+        super().__init__(center=kne, lateral_vector=lax, vertical_vector=vrt, anteroposterior_vector=None)  # type: ignore
 
         # ankle
-        self["ankle"] = right_ankle
+        self["ankle"] = right_ankle.center
 
     @property
     def _ankle(self):
@@ -50,4 +50,22 @@ class RightKnee(Joint):
             self.apply(self._ankle),  # type: ignore
             self.vertical_axis,  # type: ignore
             self.anteroposterior_axis,  # type: ignore
+        )
+
+    @property
+    def varusvalgus(self):
+        """
+        Calculate right knee varus-valgus angle in frontal plane.
+
+        Returns
+        -------
+        Signal1D
+            knee varus/valgus angle in degrees.
+            Negative = (X-shaped knee valgus)
+            Positive = (O-shaped knee varus)
+        """
+        return self.get_angle_by_point(
+            self.apply(self._ankle),  # type: ignore
+            self.vertical_axis,  # type: ignore
+            self.lateral_axis,  # type: ignore
         )

@@ -73,7 +73,7 @@ def get_default_point3d_processing_func(point: Point3D):
     1. Fill missing values (NaN) via cubic spline interpolation
     2. Low-pass filter (6 Hz cutoff, 4th order Butterworth, phase-corrected)
     """
-    point.fillna(inplace=True)
+    point.fillna(mice=True, inplace=True)
     fsamp = float(1 / np.mean(np.diff(point.index)))
     point.apply(
         butterworth_filt,
@@ -103,7 +103,7 @@ def get_default_signal3d_processing_func(signal: Signal3D):
     1. Fill missing values (NaN) via cubic spline interpolation
     2. Low-pass filter (6 Hz cutoff, 4th order Butterworth, phase-corrected)
     """
-    signal.fillna(inplace=True)
+    signal.fillna(mice=True, inplace=True)
     fsamp = 1 / np.mean(np.diff(signal.index))
     signal.apply(
         butterworth_filt,
@@ -181,7 +181,7 @@ def get_default_forceplatform_processing_func(fp: ForcePlatform):
 
     fp.force[:, :] = fillna(fp.force.to_numpy(), value=0, inplace=False)
 
-    fp.origin[:, :] = fillna(fp.origin.to_numpy(), inplace=False)
+    fp.origin[:, :] = fillna(fp.origin.to_numpy(), mice=True, inplace=False)
 
     fsamp = float(1 / np.mean(np.diff(fp.index)))
     filt_fun = lambda x: butterworth_filt(

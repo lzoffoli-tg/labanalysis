@@ -3,6 +3,7 @@
 from .segment import Segment
 from .body_plane import BodyPlane
 from ....timeseries import Point3D
+from ....events.signal import Signal
 
 __all__ = ["Head"]
 

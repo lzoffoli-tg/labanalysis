@@ -267,12 +267,12 @@ class JumpTestResults(TestResults):
                     ftime = int(round(1000 * ftime))
                 tov = jump.takeoff_velocity
                 if tov is not None:
-                    tov = float(round(tov, 2))
+                    tov = int(round(tov * 100, 0))
                 elevation = jump.jump_height
                 if elevation is not None:
-                    elevation = float(round(elevation * 100, 1))
+                    elevation = int(round(elevation * 100, 0))
                 for side in sides:
-                    out.loc["takeoff velocity (m/s)", side] = tov
+                    out.loc["takeoff velocity (cm/s)", side] = tov
                     out.loc["elevation (cm)", side] = elevation
                     out.loc["flight time (ms)", side] = ftime
                     out.loc["contact time (ms)", side] = ctime
@@ -289,6 +289,15 @@ class JumpTestResults(TestResults):
                     for side in sides:
                         out.loc["reactive strength index", side] = rsi
 
+                # convert index in column
+                out.insert(0, "parameter", out.index)
+                out.reset_index(inplace=True, drop=True)
+
+                # add jump conditions
+                out.insert(0, "free hands", jump.free_hands)
+                if isinstance(jump, DropJump):
+                    out.insert(0, "box height (cm)", jump.box_height)
+
                 # Add jump number and side
                 jump_num = sides_counter[jump.side]
                 out.insert(0, "jump", jump_num)
@@ -302,6 +311,18 @@ class JumpTestResults(TestResults):
             # Concatenate all sides and add jump type
             result = pd.concat(list(sides_df.values()), ignore_index=True)
             result.insert(0, "type", jump_name)
+
+            # calculate symmetry
+            def get_symmetry(x: pd.Series):
+                if x.left and x.right:
+                    return float(100 * (1 - abs(x.right - x.left) / (x.left + x.right)))
+                else:
+                    return None
+
+            result.insert(
+                result.shape[1], "symmetry (%)", result.apply(get_symmetry, axis=1)
+            )
+
             return result
 
         # Process each jump type
@@ -383,6 +404,9 @@ class JumpTestResults(TestResults):
 
                     # Add metadata columns
                     df.insert(0, "side", jump.side)
+                    df.insert(0, "free hands", jump.free_hands)
+                    if isinstance(jump, DropJump):
+                        df.insert(0, "box height (cm)", jump.box_height_cm)
                     df.insert(0, "jump", jump_idx)
                     df.insert(0, "type", jump_name)
 

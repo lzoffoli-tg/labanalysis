@@ -1,7 +1,5 @@
 """WholeBody class - Full body biomechanical model."""
 
-import numpy as np
-
 from ...timeseries.emgsignal import EMGSignal
 from ...timeseries.point3d import Point3D
 from ...timeseries.signal1d import Signal1D
@@ -12,19 +10,27 @@ from ..record import Record
 from ..timeseriesrecord import TimeseriesRecord
 from .bodies.head import Head
 from .bodies.left_ankle import LeftAnkle
+from .bodies.left_arm import LeftArm
 from .bodies.left_elbow import LeftElbow
 from .bodies.left_foot import LeftFoot
+from .bodies.left_forearm import LeftForearm
 from .bodies.left_hip import LeftHip
 from .bodies.left_knee import LeftKnee
+from .bodies.left_leg import LeftLeg
 from .bodies.left_shoulder import LeftShoulder
+from .bodies.left_thigh import LeftThigh
 from .bodies.neck import Neck
 from .bodies.pelvis import Pelvis
 from .bodies.right_ankle import RightAnkle
+from .bodies.right_arm import RightArm
 from .bodies.right_elbow import RightElbow
 from .bodies.right_foot import RightFoot
+from .bodies.right_forearm import RightForearm
 from .bodies.right_hip import RightHip
 from .bodies.right_knee import RightKnee
+from .bodies.right_leg import RightLeg
 from .bodies.right_shoulder import RightShoulder
+from .bodies.right_thigh import RightThigh
 from .bodies.trunk import Trunk
 
 __all__ = ["WholeBody"]
@@ -118,57 +124,6 @@ class WholeBody(TimeseriesRecord):
     Force platforms (optional):
         ground_reaction_force : ForcePlatform, optional
             Ground reaction force data
-
-    Examples
-    --------
-    Create from individual markers:
-
-    >>> left_asis = Point3D(...)
-    >>> right_asis = Point3D(...)
-    >>> body = WholeBody(left_asis=left_asis, right_asis=right_asis, ...)
-
-    Load from TDF file:
-
-    >>> body = WholeBody.from_tdf(
-    ...     "capture.tdf",
-    ...     left_asis="L_ASIS",
-    ...     right_asis="R_ASIS",
-    ...     left_knee_lateral="L_KNEE_LAT",
-    ...     # ... other marker labels ...
-    ... )
-
-    Access computed properties:
-
-    >>> # Joint centers
-    >>> left_ankle_center = body.left_ankle
-    >>> pelvis_center = body.pelvis_center
-    >>>
-    >>> # Anthropometry
-    >>> left_leg_len = body.left_leg_length
-    >>> shoulder_w = body.shoulder_width
-    >>>
-    >>> # Joint angles
-    >>> left_knee_angle = body.left_knee_flexionextension
-    >>> pelvis_tilt = body.pelvis_anteroposterior_tilt_global
-    >>>
-    >>> # Aggregate all measurements
-    >>> all_lengths = body.segment_lengths()
-    >>> all_angles = body.joint_angles
-
-    Notes
-    -----
-    - Properties gracefully degrade when markers are missing: they return Signal1D/Point3D
-      filled with NaN instead of raising errors
-    - Reference frames follow ISB recommendations where applicable
-    - Angles use anatomical conventions (flexion/extension, abduction/adduction, etc.)
-    - The class supports deep copying via the `copy()` method
-
-    See Also
-    --------
-    TimeseriesRecord : Base class for timeseries data
-    Point3D : 3D point timeseries
-    Signal1D : 1D signal timeseries
-    ReferenceFrame : 3D reference frame with orientation
     """
 
     def __init__(
@@ -298,6 +253,33 @@ class WholeBody(TimeseriesRecord):
                 raise ValueError(f"{i} must be a Timeseries or Record object.")
 
         super().__init__(**points, **forces, **extras)  # type: ignore
+
+        self._left_foot = None
+        self._right_foot = None
+        self._left_ankle = None
+        self._right_ankle = None
+        self._left_knee = None
+        self._right_knee = None
+        self._pelvis = None
+        self._left_leg = None
+        self._right_leg = None
+        self._left_thigh = None
+        self._right_thigh = None
+        self._left_shoulder = None
+        self._right_shoulder = None
+        self._left_hip = None
+        self._right_hip = None
+        self._trunk = None
+        self._neck = None
+        self._left_arm = None
+        self._right_arm = None
+        self._left_forearm = None
+        self._right_forearm = None
+        self._left_elbow = None
+        self._right_elbow = None
+        self._left_wrist = None
+        self._right_wrist = None
+        self._head = None
 
     @classmethod
     def from_tdf(
@@ -524,26 +506,26 @@ class WholeBody(TimeseriesRecord):
             val = points[key]
             if val is None:
                 points.pop(key)
-        points_vals = np.array(list(points.values()))
-        points_keys = np.array(list(points.keys()))
+        points_vals = list(points.values())
+        points_keys = list(points.keys())
         keys = list(forces.keys())
         for key in keys:
             val = forces[key]
             if val is None:
                 forces.pop(key)
-        forceplatforms_vals = np.array(list(forces.values()))
-        forceplatforms_keys = np.array(list(forces.keys()))
+        forceplatforms_vals = list(forces.values())
+        forceplatforms_keys = list(forces.keys())
         for key, val in tdf.items():
             if key in points_vals:
                 if not isinstance(val, Point3D):
                     raise ValueError("key must be a Point3D")
-                idx = np.where(points_vals == key)[0][0]
+                idx = [i for i, v in enumerate(points_vals) if v == key][0]
                 out[points_keys[idx]] = val
 
             elif key in forceplatforms_vals:
                 if not isinstance(val, ForcePlatform):
                     raise ValueError("key must be a ForcePlatform")
-                idx = np.where(forceplatforms_vals == key)[0][0]
+                idx = [i for i, v in enumerate(forceplatforms_vals) if v == key][0]
                 out[forceplatforms_keys[idx]] = val
 
             elif isinstance(val, (Timeseries, Record)):
@@ -949,294 +931,448 @@ class WholeBody(TimeseriesRecord):
     @property
     def left_foot(self):
         """left foot plane"""
-        if (
-            self.left_toe is not None
-            and self.left_heel is not None
-            and self.left_fifth_metatarsal_head is not None
-        ):
-            return LeftFoot(
-                self.left_toe,
-                self.left_heel,
-                self.left_fifth_metatarsal_head,
-                self.left_first_metatarsal_head,
-            )
-        return None
+        if self._left_foot is None:
+            if (
+                self.left_toe is not None
+                and self.left_heel is not None
+                and self.left_fifth_metatarsal_head is not None
+            ):
+                self._left_foot = LeftFoot(
+                    self.left_toe,
+                    self.left_heel,
+                    self.left_fifth_metatarsal_head,
+                    self.left_first_metatarsal_head,
+                )
+        return self._left_foot
 
     @property
     def right_foot(self):
         """right foot plane"""
-        if (
-            self.right_toe is not None
-            and self.right_heel is not None
-            and self.right_fifth_metatarsal_head is not None
-        ):
-            return RightFoot(
-                self.right_toe,
-                self.right_heel,
-                self.right_fifth_metatarsal_head,
-                self.right_first_metatarsal_head,
-            )
-        return None
+        if self._right_foot is None:
+            if (
+                self.right_toe is not None
+                and self.right_heel is not None
+                and self.right_fifth_metatarsal_head is not None
+            ):
+                self._right_foot = RightFoot(
+                    self.right_toe,
+                    self.right_heel,
+                    self.right_fifth_metatarsal_head,
+                    self.right_first_metatarsal_head,
+                )
+        return self._right_foot
 
     @property
     def left_ankle(self):
         """left ankle joint"""
-        if (
-            self.left_ankle_lateral is not None
-            and self.left_ankle_medial is not None
-            and self.left_knee_lateral is not None
-            and self.left_knee_medial is not None
-            and self.left_foot is not None
-        ):
-            return LeftAnkle(
-                self.left_ankle_lateral,
-                self.left_ankle_medial,
-                self.left_knee_lateral,
-                self.left_knee_medial,
-                self.left_foot,
-            )
-        return None
+        if self._left_ankle is None:
+            if (
+                self.left_ankle_lateral is not None
+                and self.left_ankle_medial is not None
+                and self.left_knee_lateral is not None
+                and self.left_knee_medial is not None
+                and self.left_foot is not None
+            ):
+                self._left_ankle = LeftAnkle(
+                    self.left_ankle_lateral,
+                    self.left_ankle_medial,
+                    self.left_knee_lateral,
+                    self.left_knee_medial,
+                    self.left_foot,
+                )
+        return self._left_ankle
 
     @property
     def right_ankle(self):
         """right ankle joint"""
-        if (
-            self.right_ankle_lateral is not None
-            and self.right_ankle_medial is not None
-            and self.right_knee_lateral is not None
-            and self.right_knee_medial is not None
-            and self.right_foot is not None
-        ):
-            return RightAnkle(
-                self.right_ankle_lateral,
-                self.right_ankle_medial,
-                self.right_knee_lateral,
-                self.right_knee_medial,
-                self.right_foot,
-            )
-        return None
+        if self._right_ankle is None:
+            if (
+                self.right_ankle_lateral is not None
+                and self.right_ankle_medial is not None
+                and self.right_knee_lateral is not None
+                and self.right_knee_medial is not None
+                and self.right_foot is not None
+            ):
+                self._right_ankle = RightAnkle(
+                    self.right_ankle_lateral,
+                    self.right_ankle_medial,
+                    self.right_knee_lateral,
+                    self.right_knee_medial,
+                    self.right_foot,
+                )
+        return self._right_ankle
+
+    @property
+    def left_leg(self):
+        """left leg"""
+        if self._left_leg is None:
+            if self.left_knee is not None and self.left_ankle is not None:
+                self._left_leg = LeftLeg(
+                    self.left_ankle,
+                    self.left_knee,
+                )
+        return self._left_leg
+
+    @property
+    def right_leg(self):
+        """right leg"""
+        if self._right_leg is None:
+            if self.right_knee is not None and self.right_ankle is not None:
+                self._right_leg = RightLeg(
+                    self.right_ankle,
+                    self.right_knee,
+                )
+        return self._right_leg
+
+    @property
+    def left_thigh(self):
+        """left thigh"""
+        if self._left_thigh is None:
+            if self.left_hip is not None and self.left_knee is not None:
+                self._left_thigh = LeftThigh(
+                    self.left_hip,
+                    self.left_knee,
+                )
+        return self._left_thigh
+
+    @property
+    def right_thigh(self):
+        """right thigh"""
+        if self._right_thigh is None:
+            if self.right_hip is not None and self.right_knee is not None:
+                self._right_thigh = RightThigh(
+                    self.right_hip,
+                    self.right_knee,
+                )
+        return self._right_thigh
 
     @property
     def pelvis(self):
         """pelvis plane"""
-        if (
-            self.left_asis is not None
-            and self.left_psis is not None
-            and self.right_asis is not None
-            and self.right_psis is not None
-        ):
-            return Pelvis(
-                self.left_asis,
-                self.right_asis,
-                self.left_psis,
-                self.right_psis,
-            )
-        return None
+        if self._pelvis is None:
+            if (
+                self.left_asis is not None
+                and self.left_psis is not None
+                and self.right_asis is not None
+                and self.right_psis is not None
+            ):
+                self._pelvis = Pelvis(
+                    self.left_asis,
+                    self.right_asis,
+                    self.left_psis,
+                    self.right_psis,
+                )
+        return self._pelvis
 
     @property
     def left_hip(self):
         """left hip joint"""
-        if (
-            self.pelvis is not None
-            and self.left_knee_lateral is not None
-            and self.left_knee_medial is not None
-        ):
-            return LeftHip(
-                self.pelvis,
-                self.left_knee_lateral,
-                self.left_knee_medial,
-                self.left_trochanter,
-            )
-        return None
+        if self._left_hip is None:
+            if (
+                self.s2 is not None
+                and self.pelvis is not None
+                and self.left_knee_lateral is not None
+                and self.left_knee_medial is not None
+            ):
+                self._left_hip = LeftHip(
+                    self.s2,
+                    self.pelvis,
+                    self.left_knee_lateral,
+                    self.left_knee_medial,
+                    self.left_trochanter,
+                )
+        return self._left_hip
 
     @property
     def right_hip(self):
         """right hip joint"""
-        if (
-            self.pelvis is not None
-            and self.right_knee_lateral is not None
-            and self.right_knee_medial is not None
-        ):
-            return RightHip(
-                self.pelvis,
-                self.right_knee_lateral,
-                self.right_knee_medial,
-                self.right_trochanter,
-            )
-        return None
+        if self._right_hip is None:
+            if (
+                self.s2 is not None
+                and self.pelvis is not None
+                and self.right_knee_lateral is not None
+                and self.right_knee_medial is not None
+            ):
+                self._right_hip = RightHip(
+                    self.s2,
+                    self.pelvis,
+                    self.right_knee_lateral,
+                    self.right_knee_medial,
+                    self.right_trochanter,
+                )
+        return self._right_hip
 
     @property
     def left_knee(self):
         """left knee joint"""
-        if (
-            self.left_hip is not None
-            and self.left_ankle is not None
-            and self.left_knee_lateral is not None
-            and self.left_knee_medial is not None
-        ):
-            return LeftKnee(
-                self.left_hip,
-                self.left_ankle,
-                self.left_knee_lateral,
-                self.left_knee_medial,
-            )
-        return None
+        if self._left_knee is None:
+            if (
+                self.left_hip is not None
+                and self.left_ankle is not None
+                and self.left_knee_lateral is not None
+                and self.left_knee_medial is not None
+            ):
+                self._left_knee = LeftKnee(
+                    self.left_hip,
+                    self.left_ankle,
+                    self.left_knee_lateral,
+                    self.left_knee_medial,
+                )
+        return self._left_knee
 
     @property
     def right_knee(self):
         """right knee joint"""
-        if (
-            self.right_hip is not None
-            and self.right_ankle is not None
-            and self.right_knee_lateral is not None
-            and self.right_knee_medial is not None
-        ):
-            return RightKnee(
-                self.right_hip,
-                self.right_ankle,
-                self.right_knee_lateral,
-                self.right_knee_medial,
-            )
-        return None
+        if self._right_knee is None:
+            if (
+                self.right_hip is not None
+                and self.right_ankle is not None
+                and self.right_knee_lateral is not None
+                and self.right_knee_medial is not None
+            ):
+                self._right_knee = RightKnee(
+                    self.right_hip,
+                    self.right_ankle,
+                    self.right_knee_lateral,
+                    self.right_knee_medial,
+                )
+        return self._right_knee
 
     @property
     def trunk(self):
         """trunk joint"""
-        if (
-            self.c7 is not None
-            and self.sc is not None
-            and self.sx is not None
-            and self.l2 is not None
-            and self.t5 is not None
-            and self.pelvis_plane is not None
-            and self.left_hip_joint is not None
-            and self.right_hip_joint is not None
-        ):
-            return Trunk(
-                self.c7,
-                self.sc,
-                self.l2,
-                self.t5,
-                self.pelvis_plane,
-                self.left_hip_joint,
-                self.right_hip_joint,
-            )
-        return None
+        if self._trunk is None:
+            if (
+                self.c7 is not None
+                and self.sc is not None
+                and self.l2 is not None
+                and self.t5 is not None
+                and self.pelvis is not None
+                and self.left_hip is not None
+                and self.right_hip is not None
+            ):
+                self._trunk = Trunk(
+                    self.c7,
+                    self.sc,
+                    self.l2,
+                    self.t5,
+                    self.pelvis,
+                    self.left_hip,
+                    self.right_hip,
+                )
+        return self._trunk
 
     @property
     def head(self):
         """head plane"""
-        if (
-            self.head_anterior is not None
-            and self.head_posterior is not None
-            and self.head_left is not None
-            and self.head_right is not None
-        ):
-            return Head(
-                self.head_anterior,
-                self.head_posterior,
-                self.head_left,
-                self.head_right,
-            )
-        return None
+        if self._head is None:
+            if (
+                self.head_anterior is not None
+                and self.head_posterior is not None
+                and self.head_left is not None
+                and self.head_right is not None
+            ):
+                self._head = Head(
+                    self.head_anterior,
+                    self.head_posterior,
+                    self.head_left,
+                    self.head_right,
+                )
+        return self._head
 
     @property
     def neck(self):
         """neck joint"""
-        if (
-            self.c7 is not None
-            and self.sc is not None
-            and self.pelvis_plane is not None
-            and self.head_plane is not None
-            and self.left_shoulder is not None
-            and self.right_shoulder is not None
-        ):
-            return Neck(
-                self.c7,
-                self.sc,
-                self.pelvis_plane,
-                self.head_plane,
-                self.left_shoulder,
-                self.right_shoulder,
-            )
-        return None
+        if self._neck is None:
+            if (
+                self.c7 is not None
+                and self.sc is not None
+                and self.pelvis is not None
+                and self.head is not None
+                and self.left_shoulder is not None
+                and self.right_shoulder is not None
+            ):
+                self._neck = Neck(
+                    self.c7,
+                    self.sc,
+                    self.pelvis,
+                    self.head,
+                    self.left_shoulder,
+                    self.right_shoulder,
+                )
+        return self._neck
 
     @property
     def left_shoulder(self):
         """left shoulder joint"""
-        if (
-            self.c7 is not None
-            and self.sc is not None
-            and self.pelvis_plane is not None
-            and self.left_acromion is not None
-            and self.left_elbow_lateral is not None
-            and self.left_elbow_medial is not None
-        ):
-            return LeftShoulder(
-                self.c7,
-                self.sc,
-                self.pelvis_plane,
-                self.left_acromion,
-                self.left_elbow_lateral,
-                self.left_elbow_lateral,
-            )
-        return None
+        if self._left_shoulder is None:
+            if (
+                self.c7 is not None
+                and self.sc is not None
+                and self.pelvis is not None
+                and self.left_acromion is not None
+                and self.left_elbow_lateral is not None
+                and self.left_elbow_medial is not None
+            ):
+                self._left_shoulder = LeftShoulder(
+                    self.c7,
+                    self.sc,
+                    self.pelvis,
+                    self.left_acromion,
+                    self.left_elbow_lateral,
+                    self.left_elbow_medial,
+                )
+        return self._left_shoulder
 
     @property
     def right_shoulder(self):
         """right shoulder joint"""
-        if (
-            self.c7 is not None
-            and self.sc is not None
-            and self.pelvis_plane is not None
-            and self.right_acromion is not None
-            and self.right_elbow_lateral is not None
-            and self.right_elbow_medial is not None
-        ):
-            return RightShoulder(
-                self.c7,
-                self.sc,
-                self.pelvis_plane,
-                self.right_acromion,
-                self.right_elbow_lateral,
-                self.right_elbow_lateral,
-            )
-        return None
+        if self._right_shoulder is None:
+            if (
+                self.c7 is not None
+                and self.sc is not None
+                and self.pelvis is not None
+                and self.right_acromion is not None
+                and self.right_elbow_lateral is not None
+                and self.right_elbow_medial is not None
+            ):
+                self._right_shoulder = RightShoulder(
+                    self.c7,
+                    self.sc,
+                    self.pelvis,
+                    self.right_acromion,
+                    self.right_elbow_lateral,
+                    self.right_elbow_medial,
+                )
+        return self._right_shoulder
 
     @property
     def left_elbow(self):
         """left elbow joint"""
-        if (
-            self.left_shoulder_joint is not None
-            and self.left_elbow_lateral is not None
-            and self.left_elbow_medial is not None
-            and self.left_wrist_lateral is not None
-            and self.left_wrist_medial is not None
-        ):
-            return LeftElbow(
-                self.left_shoulder_joint,
-                self.left_elbow_lateral,
-                self.left_elbow_medial,
-                self.left_wrist_lateral,
-                self.left_wrist_medial,
-            )
-        return None
+        if self._left_elbow is None:
+            if (
+                self.left_shoulder is not None
+                and self.left_elbow_lateral is not None
+                and self.left_elbow_medial is not None
+                and self.left_wrist_lateral is not None
+                and self.left_wrist_medial is not None
+            ):
+                self._left_elbow = LeftElbow(
+                    self.left_shoulder,
+                    self.left_elbow_lateral,
+                    self.left_elbow_medial,
+                    self.left_wrist_lateral,
+                    self.left_wrist_medial,
+                )
+        return self._left_elbow
 
     @property
     def right_elbow(self):
         """right elbow joint"""
+        if self._right_elbow is None:
+            if (
+                self.right_shoulder is not None
+                and self.right_elbow_lateral is not None
+                and self.right_elbow_medial is not None
+                and self.right_wrist_lateral is not None
+                and self.right_wrist_medial is not None
+            ):
+                self._right_elbow = RightElbow(
+                    self.right_shoulder,
+                    self.right_elbow_lateral,
+                    self.right_elbow_medial,
+                    self.right_wrist_lateral,
+                    self.right_wrist_medial,
+                )
+        return self._right_elbow
+
+    @property
+    def left_arm(self):
+        """left arm"""
+        if self._left_arm is None:
+            if self.left_shoulder is not None and self.left_elbow is not None:
+                self._left_arm = LeftArm(
+                    self.left_shoulder,
+                    self.left_elbow,
+                )
+        return self._left_arm
+
+    @property
+    def right_arm(self):
+        """right arm"""
+        if self._right_arm is None:
+            if self.right_shoulder is not None and self.right_elbow is not None:
+                self._right_arm = RightArm(
+                    self.right_shoulder,
+                    self.right_elbow,
+                )
+        return self._right_arm
+
+    @property
+    def left_forearm(self):
+        """left forearm"""
+        if self._left_forearm is None:
+            if self.left_elbow is not None and self.left_wrist is not None:
+                self._left_forearm = LeftForearm(
+                    self.left_elbow,
+                    self.left_wrist,
+                )
+        return self._left_forearm
+
+    @property
+    def right_forearm(self):
+        """right forearm"""
+        if self._right_forearm is None:
+            if self.right_elbow is not None and self.right_wrist is not None:
+                self._right_forearm = RightForearm(
+                    self.right_elbow,
+                    self.right_wrist,
+                )
+        return self._right_forearm
+
+    @property
+    def left_wrist(self):
+        """left wrist"""
+        if self._left_wrist is None:
+            if (
+                self.left_wrist_lateral is not None
+                and self.left_wrist_medial is not None
+            ):
+                self._left_wrist: Point3D | None = (self.left_wrist_lateral + self.left_wrist_medial) / 2  # type: ignore
+        return self._left_wrist
+
+    @property
+    def right_wrist(self):
+        """right wrist"""
+        if self._right_wrist is None:
+            if (
+                self.right_wrist_lateral is not None
+                and self.right_wrist_medial is not None
+            ):
+                self._right_wrist: Point3D | None = (self.right_wrist_lateral + self.right_wrist_medial) / 2  # type: ignore
+        return self._right_wrist
+
+    @property
+    def shoulders_width(self):
+        """return the shoulders width"""
+        if self.left_shoulder is not None and self.right_shoulder is not None:
+            L = self.left_shoulder.center.to_numpy()
+            R = self.right_shoulder.center.to_numpy()
+            return float((((L - R) ** 2).sum(axis=1) ** 0.5).mean())
+
+    @property
+    def shoulders_lateral_tilt(self):
+        """return the shoulders lateral tilt"""
         if (
-            self.right_shoulder_joint is not None
-            and self.right_elbow_lateral is not None
-            and self.right_elbow_medial is not None
-            and self.right_wrist_lateral is not None
-            and self.right_wrist_medial is not None
+            self.left_shoulder is not None
+            and self.right_shoulder is not None
+            and self.pelvis is not None
         ):
-            return RightElbow(
-                self.right_shoulder_joint,
-                self.right_elbow_lateral,
-                self.right_elbow_medial,
-                self.right_wrist_lateral,
-                self.right_wrist_medial,
+            P = self.pelvis
+            L = P.apply(self.left_shoulder.center)  # type: ignore
+            R = P.apply(self.right_shoulder.center)  # type: ignore
+            return P.get_angle_by_point(
+                L - R,  # type: ignore
+                self.lateral_axis,  # type: ignore
+                self.vertical_axis,  # type: ignore
             )
-        return None

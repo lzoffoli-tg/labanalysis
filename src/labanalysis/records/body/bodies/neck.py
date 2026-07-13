@@ -1,6 +1,8 @@
 """neck joint module"""
 
-from ....timeseries import Point3D
+import numpy as np
+
+from ....timeseries import Point3D, Signal1D
 from .head import Head
 from .joint import Joint
 from .left_shoulder import LeftShoulder
@@ -17,20 +19,22 @@ class Neck(Joint):
         self,
         c7: Point3D,
         sc: Point3D,
-        pelvis_plane: Pelvis,
-        head_plane: Head,
+        pelvis: Pelvis,
+        head: Head,
         left_shoulder: LeftShoulder,
         right_shoulder: RightShoulder,
     ):
 
         # get the reference frame
         AP = sc - c7
-        O = (sc + c7) / 2
-        VT = O - pelvis_plane.center
+        AP = AP / np.atleast_2d(np.linalg.norm(AP.to_numpy(), axis=1)).T
+        C = (sc + c7) / 2
+        VT = C - pelvis.center
+        Og = c7 + AP * 0.03
 
         # build the class
         super().__init__(
-            O,  # type: ignore
+            Og,  # type: ignore
             None,
             VT,  # type: ignore
             AP,  # type: ignore
@@ -39,7 +43,7 @@ class Neck(Joint):
         # upper markers
         self["c7"] = c7
         self["sc"] = sc
-        self["head"] = head_plane
+        self["head"] = head
         self["left_shoulder"] = left_shoulder
         self["right_shoulder"] = right_shoulder
 
@@ -74,7 +78,7 @@ class Neck(Joint):
         return out
 
     @property
-    def neck_flexionextension(self):
+    def flexionextension(self):
         """
         Calculate neck flexion-extension angle.
 
@@ -91,11 +95,11 @@ class Neck(Joint):
         return self.get_angle_by_point(
             self.apply(self._head.center),  # type: ignore
             self.vertical_axis,  # type: ignore
-            self.anteriorposterior_axis,  # type: ignore
+            self.anteroposterior_axis,  # type: ignore
         )
 
     @property
-    def neck_lateralflexion(self):
+    def lateralflexion(self):
         """
         Calculate neck adduction/abduction
 
@@ -156,9 +160,10 @@ class Neck(Joint):
             self.lateral_axis,  # type: ignore
             self.vertical_axis,  # type: ignore
         )
-        out.loc[out.to_numpy() >= 0, :] = 180 - out.loc[out.to_numpy() > 0, :]
-        out.loc[out.to_numpy() < 0, :] = 180 + out.loc[out.to_numpy() > 0, :]
-        return out
+        val = out.to_numpy().flatten()
+        val[val > 0] = 180 - val[val > 0]
+        val[val < 0] = -(180 + val[val < 0])
+        out = Signal1D(val.reshape(-1, 1), out.index, "deg")
 
     @property
     def left_shoulder_protractionretraction(self):
@@ -202,6 +207,8 @@ class Neck(Joint):
             self.lateral_axis,  # type: ignore
             self.anteroposterior_axis,  # type: ignore
         )
-        out.loc[out.to_numpy() >= 0, :] = 180 - out.loc[out.to_numpy() > 0, :]
-        out.loc[out.to_numpy() < 0, :] = 180 + out.loc[out.to_numpy() > 0, :]
+        val = out.to_numpy().flatten()
+        val[val > 0] = 180 - val[val > 0]
+        val[val < 0] = -180 - val[val < 0]
+        out = Signal1D(val.reshape(-1, 1), out.index, "deg")
         return out

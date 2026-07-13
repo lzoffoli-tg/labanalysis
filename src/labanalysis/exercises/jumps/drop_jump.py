@@ -149,7 +149,7 @@ class DropJump(SingleJump):
     def __init__(
         self,
         box_height_cm: float,
-        bodymass_kg: float,
+        bodymass_kg: float | None,
         free_hands: bool = False,
         left_hand_ground_reaction_force: ForcePlatform | None = None,
         right_hand_ground_reaction_force: ForcePlatform | None = None,
@@ -281,7 +281,7 @@ class DropJump(SingleJump):
         cls,
         filename: str,
         box_height_cm: float,
-        bodymass_kg: float | int,
+        bodymass_kg: float | int | None,
         left_foot_ground_reaction_force: str | None,
         right_foot_ground_reaction_force: str | None,
         free_hands: bool = False,
