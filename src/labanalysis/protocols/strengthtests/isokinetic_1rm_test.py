@@ -8,7 +8,7 @@ import pandas as pd
 from ...records import TimeseriesRecord
 from ...exercises.strength import IsokineticExercise
 from ...timeseries import EMGSignal, Signal1D
-from ...pipelines import ProcessingPipeline, get_default_emgsignal_processing_func, get_default_processing_pipeline
+from ...pipelines import get_default_processing_pipeline
 from ...signalprocessing import butterworth_filt
 from ...io.read.biostrength import PRODUCTS
 from ..participant import Participant

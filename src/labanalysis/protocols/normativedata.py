@@ -98,7 +98,7 @@ _male_jumps_normative_values = pd.DataFrame(
         ["repeated jumps", "Male", "unilateral", "rsi (cm/s)", 43, 12],
         ["repeated jumps", "Male", "unilateral", "contact time (ms)", 350, 60],
         ["squat jump", "Male", "bilateral", "elevation (cm)", 35.0, 9.4],
-        ["free hand jump", "Male", "bilateral", "elevation (cm)", 41.5, 12.1],
+        ["counter movement jump - free hands", "Male", "bilateral", "elevation (cm)", 41.5, 12.1],
         ["counter movement jump", "Male", "bilateral", "elevation (cm)", 36.5, 10.5],
         ["counter movement jump", "Male", "unilateral", "elevation (cm)", 19.0, 6.2],
         ["drop jump (40cm)", "Male", "bilateral", "rsi (cm/s)", 120, 30],

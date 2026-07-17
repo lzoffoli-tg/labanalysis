@@ -7,7 +7,6 @@ import pandas as pd
 
 from ...exercises.strength import IsometricExercise
 
-from ...signalprocessing import cubicspline_interp
 from ..test_results import TestResults
 from ._plotting import _get_force_figure
 

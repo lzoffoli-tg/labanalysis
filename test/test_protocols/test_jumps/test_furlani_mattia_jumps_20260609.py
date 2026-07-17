@@ -58,7 +58,7 @@ def test_mattia_furlani_jump_tests():
         # generate the test
         test = laban.JumpTest.from_files(
             participant=PARTICIPANT,
-            # squat_jump_files=sj_files,
+            squat_jump_files=sj_files,
             counter_movement_jump_files=cmj_files,
             counter_movement_jump_free_hands=cmj_fh_mask,
             s2="S2",
