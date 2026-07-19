@@ -1,0 +1,436 @@
+{%- extends 'lab/index.html.j2' -%}
+
+{% block header %}
+{{ super() }}
+<!-- Generated with custom HRTeller template: collapsible cells + resizable sidebar TOC -->
+{% endblock header %}
+
+{% block html_head_css %}
+{{ super() }}
+<style>
+/* ========================================================================
+   Custom nbconvert Stylesheet for HRTeller Reports
+   Features: Resizable sidebar TOC + Collapsible code cells
+   ======================================================================== */
+
+/* RESIZABLE SIDEBAR TOC */
+.sidebar-toc {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 280px;
+  height: 100vh;
+  overflow-y: auto;
+  background-color: #f8f9fa;
+  border-right: 2px solid #dee2e6;
+  padding: 20px 15px;
+  z-index: 1000;
+  box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+  transition: box-shadow 0.2s ease;
+}
+
+.sidebar-toc.resizing {
+  user-select: none;
+  box-shadow: 4px 0 10px rgba(0,0,0,0.2);
+}
+
+.sidebar-toc h2 {
+  margin-top: 0;
+  font-size: 1.2em;
+  color: #495057;
+  border-bottom: 2px solid #007bff;
+  padding-bottom: 10px;
+  margin-bottom: 15px;
+}
+
+.sidebar-resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  background-color: transparent;
+  transition: background-color 0.2s ease;
+  z-index: 10;
+}
+
+.sidebar-resize-handle:hover,
+.sidebar-resize-handle:active {
+  background-color: #007bff;
+  opacity: 0.5;
+}
+
+.main-content {
+  margin-left: 300px;
+  padding: 20px 40px;
+  max-width: 1400px;
+  transition: margin-left 0.1s ease;
+}
+
+/* TOC ITEMS */
+.toc-item {
+  padding: 6px 0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-left: 3px solid transparent;
+  padding-left: 10px;
+  font-size: 0.9em;
+  color: #212529;
+}
+
+.toc-item:hover {
+  background-color: #e9ecef;
+  border-left-color: #007bff;
+}
+
+.toc-item.active {
+  background-color: #e7f1ff;
+  border-left-color: #0056b3;
+  font-weight: 600;
+  color: #0056b3;
+}
+
+.toc-item.level-1 {
+  font-size: 1.0em;
+  font-weight: 600;
+  padding-left: 10px;
+  margin-top: 8px;
+  color: #212529;
+}
+
+.toc-item.level-2 {
+  font-size: 0.9em;
+  padding-left: 25px;
+  color: #495057;
+}
+
+.toc-item.level-3 {
+  font-size: 0.85em;
+  padding-left: 40px;
+  color: #6c757d;
+}
+
+/* COLLAPSIBLE CODE CELLS */
+.code-toggle {
+  display: inline-block;
+  cursor: pointer;
+  user-select: none;
+  padding: 4px 10px;
+  margin-bottom: 5px;
+  background-color: #f1f3f5;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  font-size: 0.85em;
+  color: #495057;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.code-toggle:hover {
+  background-color: #e9ecef;
+  border-color: #adb5bd;
+}
+
+.code-toggle::before {
+  content: '▼ ';
+  font-size: 0.8em;
+  margin-right: 5px;
+}
+
+.jp-Cell.jp-CodeCell.collapsed .code-toggle::before {
+  content: '▶ ';
+}
+
+.jp-Cell.jp-CodeCell.collapsed .jp-InputArea {
+  display: none;
+}
+
+.jp-Cell.jp-CodeCell.collapsed .code-toggle {
+  background-color: #fff3cd;
+  border-color: #ffc107;
+}
+
+/* GLOBAL TOGGLE BUTTONS */
+.global-toggle-container {
+  position: sticky;
+  top: 10px;
+  z-index: 100;
+  text-align: right;
+  margin-bottom: 20px;
+  padding: 10px;
+  background-color: #ffffff;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.global-toggle-container button {
+  margin-left: 10px;
+  padding: 6px 15px;
+  cursor: pointer;
+  border: 1px solid #007bff;
+  background-color: #ffffff;
+  color: #007bff;
+  border-radius: 4px;
+  font-size: 0.9em;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.global-toggle-container button:hover {
+  background-color: #007bff;
+  color: #ffffff;
+}
+
+/* RESPONSIVE DESIGN */
+@media (max-width: 1024px) {
+  .sidebar-toc { width: 220px; }
+  .main-content { margin-left: 240px; }
+}
+
+@media (max-width: 768px) {
+  .sidebar-toc {
+    position: relative;
+    width: 100%;
+    height: auto;
+    max-height: 300px;
+    border-right: none;
+    border-bottom: 2px solid #dee2e6;
+  }
+  .sidebar-resize-handle { display: none; }
+  .main-content { margin-left: 0; padding: 20px; }
+}
+
+/* SCROLLBAR STYLING */
+.sidebar-toc::-webkit-scrollbar { width: 8px; }
+.sidebar-toc::-webkit-scrollbar-track { background: #f1f3f5; }
+.sidebar-toc::-webkit-scrollbar-thumb { background: #adb5bd; border-radius: 4px; }
+.sidebar-toc::-webkit-scrollbar-thumb:hover { background: #868e96; }
+</style>
+{% endblock html_head_css %}
+
+{% block body %}
+<body>
+  <!-- Resizable Sidebar TOC -->
+  <nav id="sidebar-toc" class="sidebar-toc">
+    <h2>Indice</h2>
+    <div id="toc-content"></div>
+    <div class="sidebar-resize-handle" id="resize-handle"></div>
+  </nav>
+
+  <!-- Main Content Area -->
+  <main id="main-content" class="main-content">
+    {{ super() }}
+  </main>
+
+  <!-- Custom JavaScript -->
+  <script>
+/* ========================================================================
+   Custom nbconvert JavaScript for HRTeller Reports
+   ======================================================================== */
+
+function initializeTableOfContents() {
+  const tocContainer = document.getElementById('toc-content');
+  if (!tocContainer) return;
+
+  const headings = document.querySelectorAll('.jp-MarkdownCell h1, .jp-MarkdownCell h2, .jp-MarkdownCell h3');
+
+  headings.forEach((heading, index) => {
+    if (!heading.id) {
+      heading.id = 'heading-' + index;
+    }
+
+    const level = parseInt(heading.tagName[1]);
+    const tocItem = document.createElement('div');
+    tocItem.className = 'toc-item level-' + level;
+    // Remove pilcrow symbols (¶) and other unwanted characters
+    tocItem.textContent = heading.textContent.replace(/[¶#]/g, '').trim();
+    tocItem.dataset.target = heading.id;
+
+    tocItem.addEventListener('click', function() {
+      document.querySelectorAll('.toc-item').forEach(item => {
+        item.classList.remove('active');
+      });
+      this.classList.add('active');
+
+      // Scroll to heading with proper offset
+      const rect = heading.getBoundingClientRect();
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const targetPosition = rect.top + scrollTop - 80; // 80px offset from top
+
+      window.scrollTo({
+        top: targetPosition,
+        behavior: 'smooth'
+      });
+    });
+
+    tocContainer.appendChild(tocItem);
+  });
+
+  setupScrollSpy();
+}
+
+function setupScrollSpy() {
+  let ticking = false;
+  window.addEventListener('scroll', function() {
+    if (!ticking) {
+      window.requestAnimationFrame(function() {
+        updateActiveTocItem();
+        ticking = false;
+      });
+      ticking = true;
+    }
+  });
+}
+
+function updateActiveTocItem() {
+  const headings = Array.from(document.querySelectorAll('.jp-MarkdownCell h1, .jp-MarkdownCell h2, .jp-MarkdownCell h3'));
+  const tocItems = document.querySelectorAll('.toc-item');
+
+  let activeHeading = null;
+  for (let i = headings.length - 1; i >= 0; i--) {
+    const rect = headings[i].getBoundingClientRect();
+    if (rect.top <= 100) {
+      activeHeading = headings[i];
+      break;
+    }
+  }
+
+  if (activeHeading) {
+    tocItems.forEach(item => {
+      item.classList.toggle('active', item.dataset.target === activeHeading.id);
+    });
+  }
+}
+
+function initializeCollapsibleCells() {
+  const codeCells = document.querySelectorAll('.jp-Cell.jp-CodeCell');
+
+  codeCells.forEach(cell => {
+    const toggle = document.createElement('div');
+    toggle.className = 'code-toggle';
+    toggle.textContent = 'Codice';
+    toggle.title = 'Clicca per espandere/comprimere il codice';
+
+    const inputArea = cell.querySelector('.jp-InputArea');
+    if (inputArea) {
+      inputArea.parentNode.insertBefore(toggle, inputArea);
+    }
+
+    toggle.addEventListener('click', function() {
+      cell.classList.toggle('collapsed');
+      if (cell.classList.contains('collapsed')) {
+        toggle.textContent = 'Codice (compressa)';
+      } else {
+        toggle.textContent = 'Codice';
+      }
+    });
+  });
+
+  addGlobalToggleButtons();
+}
+
+function addGlobalToggleButtons() {
+  const mainContent = document.querySelector('.main-content');
+  if (!mainContent) return;
+
+  const buttonContainer = document.createElement('div');
+  buttonContainer.className = 'global-toggle-container';
+
+  const collapseAllBtn = document.createElement('button');
+  collapseAllBtn.textContent = '▲ Comprimi Tutto il Codice';
+  collapseAllBtn.title = 'Comprimi tutte le celle di codice';
+
+  const expandAllBtn = document.createElement('button');
+  expandAllBtn.textContent = '▼ Espandi Tutto il Codice';
+  expandAllBtn.title = 'Espandi tutte le celle di codice';
+
+  collapseAllBtn.addEventListener('click', function() {
+    document.querySelectorAll('.jp-Cell.jp-CodeCell').forEach(cell => {
+      cell.classList.add('collapsed');
+    });
+    document.querySelectorAll('.code-toggle').forEach(toggle => {
+      toggle.textContent = 'Codice (compressa)';
+    });
+  });
+
+  expandAllBtn.addEventListener('click', function() {
+    document.querySelectorAll('.jp-Cell.jp-CodeCell').forEach(cell => {
+      cell.classList.remove('collapsed');
+    });
+    document.querySelectorAll('.code-toggle').forEach(toggle => {
+      toggle.textContent = 'Codice';
+    });
+  });
+
+  buttonContainer.appendChild(collapseAllBtn);
+  buttonContainer.appendChild(expandAllBtn);
+  mainContent.insertBefore(buttonContainer, mainContent.firstChild);
+}
+
+function initializeSidebarResize() {
+  const sidebar = document.getElementById('sidebar-toc');
+  const resizeHandle = document.getElementById('resize-handle');
+  const mainContent = document.getElementById('main-content');
+
+  if (!sidebar || !resizeHandle || !mainContent) return;
+
+  const MIN_WIDTH = 200;
+  const MAX_WIDTH = 600;
+  const STORAGE_KEY = 'sidebar-toc-width';
+
+  const savedWidth = localStorage.getItem(STORAGE_KEY);
+  if (savedWidth) {
+    const width = parseInt(savedWidth, 10);
+    if (width >= MIN_WIDTH && width <= MAX_WIDTH) {
+      setSidebarWidth(width);
+    }
+  }
+
+  let isResizing = false;
+  let startX = 0;
+  let startWidth = 0;
+
+  resizeHandle.addEventListener('mousedown', function(e) {
+    isResizing = true;
+    startX = e.clientX;
+    startWidth = sidebar.offsetWidth;
+    sidebar.classList.add('resizing');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', function(e) {
+    if (!isResizing) return;
+    const deltaX = e.clientX - startX;
+    let newWidth = startWidth + deltaX;
+    newWidth = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, newWidth));
+    setSidebarWidth(newWidth);
+  });
+
+  document.addEventListener('mouseup', function() {
+    if (isResizing) {
+      isResizing = false;
+      sidebar.classList.remove('resizing');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      localStorage.setItem(STORAGE_KEY, sidebar.offsetWidth);
+    }
+  });
+
+  function setSidebarWidth(width) {
+    sidebar.style.width = width + 'px';
+    mainContent.style.marginLeft = (width + 20) + 'px';
+  }
+}
+
+// Initialize on DOMContentLoaded
+document.addEventListener('DOMContentLoaded', function() {
+  initializeTableOfContents();
+  initializeCollapsibleCells();
+  initializeSidebarResize();
+  console.log('HRTeller custom template initialized');
+});
+  </script>
+</body>
+{% endblock body %}

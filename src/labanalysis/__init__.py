@@ -3,7 +3,9 @@ labanalysis - Biomechanical and physiological data analysis library.
 """
 
 from .constants import *
+from .converters import *
 from .equations import *
+from .events import *
 from .exercises import *
 from .indexers import *
 from .io import *
@@ -17,4 +19,3 @@ from .referenceframes import *
 from .signalprocessing import *
 from .timeseries import *
 from .utils import *
-from .events import *

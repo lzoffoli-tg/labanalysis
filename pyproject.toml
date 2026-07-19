@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "labanalysis"
-version = "230"
+version = "231"
 description = "A small package to simplify data processing in python."
 authors = [{ name = "Luca Zoffoli", email = "lzoffoli@technogym.com" }]
 requires-python = ">=3.12"
@@ -39,6 +39,9 @@ dev = [
     "pytest-xdist>=3.0",
     "pytest-timeout>=2.0",
 ]
+
+[project.scripts]
+labanalysis = "labanalysis.converters.client:convert"
 
 [tool.setuptools]
 # Include only src directory in distribution (exclude test, docs, etc.)

@@ -1,11 +1,11 @@
 """analisi dati raccolti"""
 
 # %% SETUP
-import subprocess
+import shutil
 import sys
 from os import makedirs
-from os.path import abspath, dirname, join, exists
-import warnings
+from os.path import abspath, dirname, exists, join
+from pathlib import Path
 
 sys.path.append(dirname(dirname(dirname(dirname(abspath(__file__))))))
 
@@ -101,12 +101,7 @@ def test_mattia_furlani_jump_tests():
     results.save_all(RESULTS_PATH, force_overwrite=True)
 
     # remove temporary files
-    try:
-        subprocess.run(f"rmdir /S /Q '{RESULTS_PATH}'", shell=True)
-    except Exception:
-        warnings.warn(
-            f"Failed to remove temporary files. Please remove them manually. from {RESULTS_PATH}"
-        )
+    shutil.rmtree(Path(RESULTS_PATH), ignore_errors=True)
 
 
 if __name__ == "__main__":
