@@ -35,16 +35,16 @@ class JumpTest(TestProtocol):
     normative_data : pd.DataFrame, optional
         Reference data for performance ranking
         Default: jumps_normative_values
-    emg_normalization_references : TimeseriesRecord or 'self', optional
+    emg_normalization_references : Record or 'self', optional
         EMG normalization references
         'self' = use test data for normalization
-        Default: empty TimeseriesRecord
+        Default: empty Record
     emg_normalization_function : callable, optional
         Function to compute normalization value (e.g., np.mean, np.max)
         Default: np.mean
-    emg_activation_references : TimeseriesRecord or 'self', optional
+    emg_activation_references : Record or 'self', optional
         References for muscle activation thresholds
-        Default: empty TimeseriesRecord
+        Default: empty Record
     emg_activation_threshold : float, optional
         Threshold multiplier for activation detection
         Default: 3 (3x reference level)

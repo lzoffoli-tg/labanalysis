@@ -17,7 +17,7 @@ BTS Bioengineering systems (Smart-DX, SMART Clinic, ELITE) export data in TDF (T
 import labanalysis as laban
 
 # Load TDF file
-record = laban.TimeseriesRecord.from_tdf("C:/Data/trial001.tdf")
+record = laban.Record.from_tdf("C:/Data/trial001.tdf")
 
 # Access force platforms
 fp1 = record['FP1']
@@ -68,7 +68,7 @@ Tab-delimited numerical data:
 
 ```python
 # Load complete file
-record = laban.TimeseriesRecord.from_tdf("trial.tdf")
+record = laban.Record.from_tdf("trial.tdf")
 
 # Check what's available
 print(record.keys())
@@ -164,7 +164,7 @@ vastus_lateralis = emg['vastus_lateralis']
 
 ```python
 # Load trial with two force platforms
-record = laban.TimeseriesRecord.from_tdf("gait.tdf")
+record = laban.Record.from_tdf("gait.tdf")
 
 # Access both platforms
 fp1 = record['FP1']
@@ -186,7 +186,7 @@ fig.show()
 
 ```python
 # Load all four platforms
-record = laban.TimeseriesRecord.from_tdf("trial.tdf")
+record = laban.Record.from_tdf("trial.tdf")
 
 platforms = [record[f'FP{i}'] for i in range(1, 5)]
 
@@ -271,7 +271,7 @@ import labanalysis as laban
 import numpy as np
 
 # Load jump data
-record = laban.TimeseriesRecord.from_tdf("cmj.tdf")
+record = laban.Record.from_tdf("cmj.tdf")
 fp = record['FP1']
 
 # Get vertical force
@@ -308,7 +308,7 @@ print(f"Jump height: {jump_height*100:.1f} cm")
 
 ```python
 # Load gait trial with markers and force platforms
-record = laban.TimeseriesRecord.from_tdf("gait.tdf")
+record = laban.Record.from_tdf("gait.tdf")
 
 # Create WholeBody for kinematics
 body = laban.WholeBody.from_tdf(
@@ -348,7 +348,7 @@ print(f"Stride length: {stride_end - stride_start} samples")
 
 ```python
 # Load TDF with EMG
-record = laban.TimeseriesRecord.from_tdf("emg_trial.tdf")
+record = laban.Record.from_tdf("emg_trial.tdf")
 
 # Access EMG channels
 emg = record['EMG']
@@ -401,14 +401,14 @@ file_path = Path("C:/Data/trial.tdf").resolve()
 if not file_path.exists():
     print(f"File not found: {file_path}")
 else:
-    record = laban.TimeseriesRecord.from_tdf(str(file_path))
+    record = laban.Record.from_tdf(str(file_path))
 ```
 
 ### Missing Columns
 
 ```python
 try:
-    record = laban.TimeseriesRecord.from_tdf("trial.tdf")
+    record = laban.Record.from_tdf("trial.tdf")
     fp1 = record['FP1']
 except KeyError as e:
     print(f"Missing device: {e}")
@@ -424,7 +424,7 @@ print(f"Available columns: {list(df.columns)}")
 
 ```python
 # Verify sampling frequency
-record = laban.TimeseriesRecord.from_tdf("trial.tdf")
+record = laban.Record.from_tdf("trial.tdf")
 fp = record['FP1']
 
 print(f"Detected sampling frequency: {fp.sampling_frequency} Hz")
@@ -469,7 +469,7 @@ df = pd.read_csv(
 )
 
 # Option 2: Downsample
-record = laban.TimeseriesRecord.from_tdf("large_trial.tdf")
+record = laban.Record.from_tdf("large_trial.tdf")
 fp = record['FP1']
 
 # Downsample from 1000 Hz to 100 Hz
@@ -494,7 +494,7 @@ print(f"Found {len(trial_files)} trials")
 
 # Process batch
 for trial_file in trial_files:
-    record = laban.TimeseriesRecord.from_tdf(trial_file)
+    record = laban.Record.from_tdf(trial_file)
     # ... analysis
 ```
 
@@ -502,7 +502,7 @@ for trial_file in trial_files:
 
 ```python
 # Validate loaded data
-record = laban.TimeseriesRecord.from_tdf("trial.tdf")
+record = laban.Record.from_tdf("trial.tdf")
 
 # Check force platform data quality
 fp = record['FP1']

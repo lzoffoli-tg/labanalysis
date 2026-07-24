@@ -467,7 +467,7 @@ import labanalysis as laban
 import plotly.graph_objects as go
 
 # Load force platform data
-record = laban.TimeseriesRecord.from_tdf("jump_test.tdf")
+record = laban.Record.from_tdf("jump_test.tdf")
 fp = record['FP1']
 fz = fp.force['Fz']
 

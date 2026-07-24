@@ -10,7 +10,7 @@ from ..records import Record
 
 class ProcessingPipeline:
     """
-    A pipeline for processing various types of TimeseriesRecord-compatible
+    A pipeline for processing various types of Record-compatible
     objects.
     This class allows the user to define a sequence of processing functions
     for each supported object type and apply them to a collection of objects.
@@ -92,7 +92,7 @@ class ProcessingPipeline:
         ----------
         *objects : variable length argument list
             Objects to process. Can be individual Signal1D, Signal3D, Point3D,
-            EMGSignal, ForcePlatform, or TimeseriesRecord instances.
+            EMGSignal, ForcePlatform, or Record instances.
         inplace : bool, optional
             If True, modifies the objects in place. If False, returns the
             processed copies.

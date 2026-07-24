@@ -7,7 +7,7 @@ import pandas as pd
 
 from ...exercises import UprightPosture
 from ...pipelines import get_default_processing_pipeline
-from ...records import ForcePlatform, TimeseriesRecord
+from ...records import ForcePlatform, Record
 from ...referenceframes import ReferenceFrame
 from ...timeseries.emgsignal import EMGSignal
 from ...timeseries.point3d import Point3D
@@ -47,12 +47,12 @@ class UprightBalanceTest(TestProtocol):
         eyes: Literal["open", "closed"],
         normative_data: pd.DataFrame = uprightbalance_normative_values,
         emg_normalization_references: (
-            TimeseriesRecord | str | Literal["self"]
-        ) = TimeseriesRecord(),
+            Record | str | Literal["self"]
+        ) = Record(),
         emg_normalization_function: Callable = np.mean,
         emg_activation_references: (
-            TimeseriesRecord | str | Literal["self"]
-        ) = TimeseriesRecord(),
+            Record | str | Literal["self"]
+        ) = Record(),
         emg_activation_threshold: float | int = 3,
         relevant_muscle_map: list[str] | None = None,
     ):
@@ -78,12 +78,12 @@ class UprightBalanceTest(TestProtocol):
         right_foot_ground_reaction_force: str | None = None,
         normative_data: pd.DataFrame = uprightbalance_normative_values,
         emg_normalization_references: (
-            TimeseriesRecord | str | Literal["self"]
-        ) = TimeseriesRecord(),
+            Record | str | Literal["self"]
+        ) = Record(),
         emg_normalization_function: Callable = np.mean,
         emg_activation_references: (
-            TimeseriesRecord | str | Literal["self"]
-        ) = TimeseriesRecord(),
+            Record | str | Literal["self"]
+        ) = Record(),
         emg_activation_threshold: float | int = 3,
         relevant_muscle_map: list[str] | None = None,
     ):
@@ -112,25 +112,12 @@ class UprightBalanceTest(TestProtocol):
     def exercise(self):
         return self._exercise
 
-    def copy(self):
-        return UprightBalanceTest(
-            participant=self.participant,
-            exercise=self.exercise,
-            eyes=self.eyes,  # type: ignore
-            normative_data=self.normative_data,
-            emg_normalization_references=self.emg_normalization_references,
-            emg_normalization_function=self.emg_normalization_function,
-            emg_activation_references=self.emg_activation_references,
-            emg_activation_threshold=self.emg_activation_threshold,
-            relevant_muscle_map=self.relevant_muscle_map,
-        )
-
     @property
     def processed_data(self):
 
         # apply the pipeline to the test data
         exe = self.processing_pipeline(self.exercise, inplace=False)
-        if not isinstance(exe, TimeseriesRecord):
+        if not isinstance(exe, Record):
             raise ValueError("Something went wrong during data processing.")
 
         # normalize emg data and remove non-relevant muscles

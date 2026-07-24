@@ -9,7 +9,7 @@ from ...constants import (
     DEFAULT_MINIMUM_CONTACT_GRF_N,
     DEFAULT_MINIMUM_HEIGHT_PERCENTAGE,
 )
-from ...records import ForcePlatform, TimeseriesRecord
+from ...records import ForcePlatform, Record
 from ...exercises.gait import WalkingExercise
 from ...timeseries import EMGSignal, Point3D, Signal1D, Signal3D
 from ...pipelines import get_default_processing_pipeline
@@ -366,7 +366,7 @@ class WalkingTest(WalkingExercise, TestProtocol):
         -------
         GaitTest
         """
-        record = TimeseriesRecord.from_tdf(file)
+        record = Record.from_tdf(file)
         labels = {
             "left_hand_ground_reaction_force": left_hand_ground_reaction_force,
             "right_hand_ground_reaction_force": right_hand_ground_reaction_force,

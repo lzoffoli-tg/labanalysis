@@ -5,7 +5,7 @@ from typing import Callable, Literal
 import numpy as np
 import pandas as pd
 
-from ...records import TimeseriesRecord
+from ...records import Record
 from ...exercises.strength import IsokineticExercise
 from ...timeseries import EMGSignal, Signal1D
 from ...pipelines import get_default_processing_pipeline
@@ -48,15 +48,15 @@ class Isokinetic1RMTest(TestProtocol):
     normative_data : pd.DataFrame, optional
         Reference data for performance ranking and comparison.
         Default is empty DataFrame.
-    emg_normalization_references : TimeseriesRecord or str or 'self', optional
+    emg_normalization_references : Record or str or 'self', optional
         Reference signals for EMG amplitude normalization. If 'self', uses
-        test data for normalization. Default is empty TimeseriesRecord.
+        test data for normalization. Default is empty Record.
     emg_normalization_function : callable, optional
         Function to compute normalization value from reference (e.g., np.mean,
         np.max). Default is np.mean.
-    emg_activation_references : TimeseriesRecord or str or 'self', optional
+    emg_activation_references : Record or str or 'self', optional
         Reference signals for determining muscle activation thresholds.
-        Default is empty TimeseriesRecord.
+        Default is empty Record.
     emg_activation_threshold : float, optional
         Threshold multiplier for detecting muscle activation onset.
         Default is 3 (3x reference level).
@@ -147,12 +147,12 @@ class Isokinetic1RMTest(TestProtocol):
         participant: Participant,
         normative_data: pd.DataFrame = pd.DataFrame(),
         emg_normalization_references: (
-            TimeseriesRecord | str | Literal["self"]
-        ) = TimeseriesRecord(),
+            Record | str | Literal["self"]
+        ) = Record(),
         emg_normalization_function: Callable = np.mean,
         emg_activation_references: (
-            TimeseriesRecord | str | Literal["self"]
-        ) = TimeseriesRecord(),
+            Record | str | Literal["self"]
+        ) = Record(),
         emg_activation_threshold: float = 3,
         relevant_muscle_map: list[str] | None = None,
     ):
@@ -219,20 +219,6 @@ class Isokinetic1RMTest(TestProtocol):
     def rm1_coefs(self):
         return self._1rm_coefs
 
-    def copy(self):
-        return Isokinetic1RMTest(
-            participant=self.participant.copy(),
-            normative_data=self.normative_data,
-            rm1_coefs=self.rm1_coefs,
-            left=self.left,
-            right=self.right,
-            bilateral=self.bilateral,
-            emg_normalization_references=self.emg_normalization_references,
-            emg_normalization_function=self.emg_normalization_function,
-            emg_activation_references=self.emg_activation_references,
-            emg_activation_threshold=self.emg_activation_threshold,
-        )
-
     @classmethod
     def from_files(
         cls,
@@ -256,12 +242,12 @@ class Isokinetic1RMTest(TestProtocol):
         bilateral_emg_filename: str | None = None,
         normative_data: pd.DataFrame = pd.DataFrame(),
         emg_normalization_references: (
-            TimeseriesRecord | str | Literal["self"]
-        ) = TimeseriesRecord(),
+            Record | str | Literal["self"]
+        ) = Record(),
         emg_normalization_function: Callable = np.mean,
         emg_activation_references: (
-            TimeseriesRecord | str | Literal["self"]
-        ) = TimeseriesRecord(),
+            Record | str | Literal["self"]
+        ) = Record(),
         emg_activation_threshold: float = 3,
         relevant_muscle_map: list[str] | None = None,
     ):
@@ -280,7 +266,7 @@ class Isokinetic1RMTest(TestProtocol):
             )
             left.update({i: bio[i] for i in ["force", "position"]})
         if left_emg_filename is not None:
-            emg = TimeseriesRecord.from_tdf(left_emg_filename)
+            emg = Record.from_tdf(left_emg_filename)
             left.update(emg.emgsignals)
         if len(left) > 0:
             left = IsokineticExercise(
@@ -301,7 +287,7 @@ class Isokinetic1RMTest(TestProtocol):
             )
             right.update({i: bio[i] for i in ["force", "position"]})
         if right_emg_filename is not None:
-            emg = TimeseriesRecord.from_tdf(right_emg_filename)
+            emg = Record.from_tdf(right_emg_filename)
             right.update(emg.emgsignals)
         if len(right) > 0:
             right = IsokineticExercise(
@@ -322,7 +308,7 @@ class Isokinetic1RMTest(TestProtocol):
             )
             bilateral.update({i: bio[i] for i in ["force", "position"]})
         if bilateral_emg_filename is not None:
-            emg = TimeseriesRecord.from_tdf(bilateral_emg_filename)
+            emg = Record.from_tdf(bilateral_emg_filename)
             bilateral.update(emg.emgsignals)
         if len(bilateral) > 0:
             bilateral = IsokineticExercise(

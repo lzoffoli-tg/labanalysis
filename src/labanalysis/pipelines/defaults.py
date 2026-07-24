@@ -13,7 +13,7 @@ from ..signalprocessing import (
 )
 from ..timeseries import EMGSignal, Point3D, Signal1D, Signal3D
 from ..records import ForcePlatform, MetabolicRecord
-from ._base import ProcessingPipeline
+from .base import ProcessingPipeline
 
 
 def get_default_emgsignal_processing_func(channel: EMGSignal):
@@ -173,14 +173,15 @@ def get_default_forceplatform_processing_func(fp: ForcePlatform):
     module = fp.force.copy().module.to_numpy().flatten()
     idxs = module < MINIMUM_CONTACT_FORCE_N
     for i in ["origin", "force", "torque"]:
-        vals = fp[i].copy().to_numpy()
+        if fp[i] is None:
+            continue
+        vals = fp[i]
+        vals = vals.copy().to_numpy()  # type: ignore
         vals[idxs, :] = np.nan
-        fp[i][:, :] = vals
+        fp[i].iloc[:, :] = vals  # type: ignore
 
     fp.strip(inplace=True)
-
     fp.force[:, :] = fillna(fp.force.to_numpy(), value=0, inplace=False)
-
     fp.origin[:, :] = fillna(fp.origin.to_numpy(), mice=True, inplace=False)
 
     fsamp = float(1 / np.mean(np.diff(fp.index)))

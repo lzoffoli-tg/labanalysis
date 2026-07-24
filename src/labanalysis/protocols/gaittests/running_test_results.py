@@ -4,9 +4,14 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from tqdm import tqdm
 
+from ...exercises.gait import RunningStep
 from ...signalprocessing import cubicspline_interp
+from ...timeseries.signal1d import Signal1D
+from ...timeseries.timeseries import Timeseries
 from ..test_results import TestResults
+from .running_test import RunningTest
 
 
 class RunningTestResults(TestResults):
@@ -63,7 +68,12 @@ class RunningTestResults(TestResults):
     - Distinct colors: blue for vertical, red for anteroposterior
     """
 
-    def __init__(self, test, include_emg: bool = False):
+    def __init__(
+        self,
+        test,
+        include_emg: bool = False,
+        limit_steps: int | None = None,
+    ):
         """
         Initialize RunningTestResults.
 
@@ -73,21 +83,48 @@ class RunningTestResults(TestResults):
             The running test instance.
         include_emg : bool, optional
             Include EMG metrics. Default is False.
+        limit_steps : int | None, optional
+            If provided, limits the number of steps included in the results.
         """
+        if not isinstance(test, RunningTest):
+            raise ValueError("test must be a RunningTest instance.")
         self._test = test
+
+        if not isinstance(include_emg, bool):
+            raise ValueError("include_emg must be a boolean.")
         self._include_emg = include_emg
+
+        if limit_steps is not None and not isinstance(limit_steps, int):
+            raise ValueError("limit_steps must be an integer or None.")
+        self._limit_steps = limit_steps
+
         self._summary = None
         self._analytics = None
         self._figures = None
-        self._generate_results(test)
+        self._generate_results()
 
-    def _generate_results(self, test):
+    @property
+    def limit_steps(self):
+        """limit the number of steps for each exercise of the test"""
+        return self._limit_steps
+
+    @property
+    def include_emg(self):
+        """return whether EMG data is included in the results"""
+        return self._include_emg
+
+    @property
+    def test(self):
+        """return the running test instance"""
+        return self._test
+
+    def _generate_results(self):
         """Generate all results components."""
-        self._summary = self._get_summary(test)
-        self._analytics = self._get_analytics(test)
-        self._figures = self._get_figures(test)
+        self._summary = self._get_summary()
+        self._analytics = self._get_analytics()
+        self._figures = self._get_figures()
 
-    def _get_summary(self, test):
+    def _get_summary(self):
         """
         Generate summary statistics.
 
@@ -96,139 +133,45 @@ class RunningTestResults(TestResults):
         dict
             Dictionary with 'per_step' and 'aggregate' DataFrames.
         """
+        # get steps data
         steps_data = []
+        for exe in self._test.exercises:
+            count = 0
+            for cycle in tqdm(
+                exe.steps,
+                f"SUMMARY - speed: {exe.speed} - grade: {exe.grade}",
+            ):
+                if not isinstance(cycle, RunningStep):
+                    continue
+                if self.limit_steps is None or count < self.limit_steps:
+                    metrics = cycle.get_output_metrics(include_emg=self._include_emg)
+                    count += 1
+                    metrics[("step", "#")] = count
+                    steps_data.append(metrics)
+        steps = pd.DataFrame(steps_data)
+        steps.columns = pd.MultiIndex.from_tuples(steps.columns)  # type: ignore
 
-        for i, cycle in enumerate(test.cycles, start=1):
-            row = {
-                "cycle": i,
-                "side": cycle.side,
-                "contact_time_s": cycle.contact_time_s,
-                "propulsion_time_s": cycle.propulsion_time_s,
-                "flight_time_s": cycle.flight_time_s,
-                "cadence_steps_per_min": 60.0 / cycle.cycle_time_s,
-            }
+        # get aggregated data
+        agg_data = pd.DataFrame(
+            steps.drop([("step", "#")], axis=1)
+            .groupby(
+                [
+                    ("speed", "km/h"),
+                    ("pace", "min/km"),
+                    ("grade", "%"),
+                    ("side", "left/right"),
+                ]
+            )
+            .agg(["mean", "std"])
+            .stack([0, 1])
+            .unstack(3)
+            .stack(0)
+            .unstack(-1)
+        )
 
-            # Peak vertical force
-            if cycle.peak_force is not None and not np.isnan(cycle.peak_force):
-                row["peak_vertical_force_N"] = float(cycle.peak_force)
+        return {"per_step": steps, "aggregate": agg_data}
 
-            # Peak braking force
-            braking = cycle.peak_braking_force
-            if braking is not None:
-                braking_val = braking.to_numpy().flatten()
-                if len(braking_val) > 0:
-                    row["peak_braking_force_N"] = float(braking_val[0])
-
-            # Peak propulsion force
-            propulsion = cycle.peak_propulsion_force
-            if propulsion is not None:
-                propulsion_val = propulsion.to_numpy().flatten()
-                if len(propulsion_val) > 0:
-                    row["peak_propulsion_force_N"] = float(propulsion_val[0])
-
-            # Vertical oscillation
-            oscillation = cycle.vertical_oscillation
-            if oscillation is not None:
-                osc_array = oscillation.to_numpy().flatten()
-                if len(osc_array) > 0:
-                    osc_value = float(osc_array[0])
-                    unit = oscillation.unit
-
-                    # Convert to mm if in meters
-                    if unit == "m":
-                        osc_value *= 1000
-                    elif unit == "cm":
-                        osc_value *= 10
-
-                    row["vertical_oscillation_mm"] = osc_value
-
-            # Peak trunk lateral flexion
-            trunk_lat = cycle.peak_trunk_lateral_flexion
-            if trunk_lat is not None:
-                trunk_lat_array = trunk_lat.to_numpy().flatten()
-                if len(trunk_lat_array) > 0:
-                    row["peak_trunk_lateral_flexion_deg"] = float(trunk_lat_array[0])
-
-            # Peak pelvis lateral tilt
-            pelvis_tilt = cycle.peak_pelvis_lateral_tilt
-            if pelvis_tilt is not None:
-                pelvis_tilt_array = pelvis_tilt.to_numpy().flatten()
-                if len(pelvis_tilt_array) > 0:
-                    row["peak_pelvis_lateral_tilt_deg"] = float(pelvis_tilt_array[0])
-
-            # Peak trunk rotation
-            trunk_rot = cycle.peak_trunk_rotation
-            if trunk_rot is not None:
-                trunk_rot_array = trunk_rot.to_numpy().flatten()
-                if len(trunk_rot_array) > 0:
-                    row["peak_trunk_rotation_deg"] = float(trunk_rot_array[0])
-
-            steps_data.append(row)
-
-        summary_steps = pd.DataFrame(steps_data)
-
-        # Aggregate statistics by side
-        metrics = [
-            "contact_time_s",
-            "propulsion_time_s",
-            "flight_time_s",
-            "cadence_steps_per_min",
-            "peak_vertical_force_N",
-            "peak_braking_force_N",
-            "peak_propulsion_force_N",
-            "vertical_oscillation_mm",
-            "peak_trunk_lateral_flexion_deg",
-            "peak_pelvis_lateral_tilt_deg",
-            "peak_trunk_rotation_deg",
-        ]
-
-        agg_data = []
-        for metric in metrics:
-            if metric not in summary_steps.columns:
-                continue
-
-            left_vals = summary_steps[summary_steps["side"] == "left"][metric].dropna()
-            right_vals = summary_steps[summary_steps["side"] == "right"][
-                metric
-            ].dropna()
-
-            row: dict[str, float | str] = {"metric": metric}
-
-            # Left side statistics
-            if len(left_vals) > 0:
-                row["left_mean"] = left_vals.mean()
-                row["left_std"] = left_vals.std()
-                if left_vals.mean() != 0:
-                    row["left_cv%"] = (left_vals.std() / left_vals.mean()) * 100
-                else:
-                    row["left_cv%"] = np.nan
-
-            # Right side statistics
-            if len(right_vals) > 0:
-                row["right_mean"] = right_vals.mean()
-                row["right_std"] = right_vals.std()
-                if right_vals.mean() != 0:
-                    row["right_cv%"] = (right_vals.std() / right_vals.mean()) * 100
-                else:
-                    row["right_cv%"] = np.nan
-
-            # Left-right asymmetry
-            if len(left_vals) > 0 and len(right_vals) > 0:
-                l_mean = left_vals.mean()
-                r_mean = right_vals.mean()
-                avg = (l_mean + r_mean) / 2
-                if avg != 0:
-                    row["diff_%"] = 100 * (r_mean - l_mean) / avg
-                else:
-                    row["diff_%"] = np.nan
-
-            agg_data.append(row)
-
-        summary_aggregate = pd.DataFrame(agg_data)
-
-        return {"per_step": summary_steps, "aggregate": summary_aggregate}
-
-    def _get_analytics(self, test):
+    def _get_analytics(self):
         """
         Generate time-series analytics.
 
@@ -237,43 +180,34 @@ class RunningTestResults(TestResults):
         pd.DataFrame
             Long-format DataFrame with time-series data for each cycle.
         """
-        analytics_parts = []
+        # get steps data
+        steps_data = []
+        for exe in self.test.exercises:
+            count = 1
+            for cycle in tqdm(
+                exe.steps,
+                f"ANALYTICS - speed: {exe.speed} - grade: {exe.grade}",
+            ):
+                if not isinstance(cycle, RunningStep):
+                    continue
+                if self.limit_steps is None or count < self.limit_steps:
+                    signals = cycle.get_output_signals(include_emg=self._include_emg)
+                    signals = signals.to_dataframe()
+                    cols = [tuple(i.rsplit(" ", 1)) for i in signals.columns]
+                    cols = pd.MultiIndex.from_tuples(cols)
+                    signals.columns = cols
+                    signals.insert(0, ("time", "s"), signals.index.to_numpy())
+                    signals.insert(0, ("step", "#"), count)
+                    signals.insert(0, ("side", "left/right"), cycle.side)
+                    signals.insert(0, ("speed", "km/h"), cycle.speed)
+                    signals.insert(0, ("pace", "min/km"), cycle.pace)
+                    signals.insert(0, ("grade", "%"), cycle.grade)
+                    signals.reset_index(drop=True, inplace=True)
+                steps_data.append(signals)
+        out = pd.DataFrame(pd.concat(steps_data, ignore_index=True))
+        return out
 
-        for i, cycle in enumerate(test.cycles, start=1):
-            contact = cycle.contact_phase
-            if contact is None:
-                continue
-
-            res = contact.resultant_force
-            if res is None:
-                continue
-
-            # Extract vertical and anteroposterior forces
-            v_force = res.force[test.vertical_axis].to_numpy().flatten()
-            ap_force = res.force[test.anteroposterior_axis].to_numpy().flatten()
-            time = res.index
-
-            # Create DataFrame
-            df = pd.DataFrame(
-                {
-                    "time_s": time - time[0],  # Relative time from contact start
-                    "vertical_force_N": v_force,
-                    "anteroposterior_force_N": ap_force,
-                }
-            )
-
-            # Add metadata
-            df.insert(0, "side", cycle.side)
-            df.insert(0, "cycle", i)
-
-            analytics_parts.append(df)
-
-        if len(analytics_parts) == 0:
-            return pd.DataFrame()
-
-        return pd.concat(analytics_parts, ignore_index=True)
-
-    def _get_figures(self, test):
+    def _get_figures(self):
         """
         Generate interactive figures.
 
@@ -282,10 +216,10 @@ class RunningTestResults(TestResults):
         dict
             Dictionary with 'force_profiles' figure.
         """
-        fig = self._get_force_profile_figure(test)
+        fig = self._get_force_profile_figure()
         return {"force_profiles": fig}
 
-    def _get_force_profile_figure(self, test):
+    def _get_force_profile_figure(self):
         """
         Create force profile figure with mean and std.
 

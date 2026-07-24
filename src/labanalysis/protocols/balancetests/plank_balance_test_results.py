@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 
 from ...constants import G
 from ...modelling.ols.geometry import Ellipse
-from ...records import ForcePlatform, TimeseriesRecord
+from ...records import ForcePlatform, Record
 from ..test_results import TestResults
 from ._plotting import _get_sway_figure
 
@@ -25,7 +25,7 @@ class PlankBalanceTestResults(TestResults):
             raise ValueError("'test' must be a PlankBalanceTest instance.")
         super().__init__(test, include_emg)
 
-    def _get_force_symmetry(self, exe: TimeseriesRecord):
+    def _get_force_symmetry(self, exe: Record):
         """
         Returns coordination and balance metrics from force signals.
 
@@ -82,7 +82,7 @@ class PlankBalanceTestResults(TestResults):
 
         return pd.concat(out, ignore_index=True)
 
-    def _get_bodymass_kg(self, exe: TimeseriesRecord):
+    def _get_bodymass_kg(self, exe: Record):
         """
         Returns the subject's body mass in kilograms.
 
@@ -93,11 +93,11 @@ class PlankBalanceTestResults(TestResults):
         """
         return float(exe.resultant_force.force[exe.vertical_axis].to_numpy().mean() / G)
 
-    def _get_area_of_stability_mm2(self, exe: TimeseriesRecord):
+    def _get_area_of_stability_mm2(self, exe: Record):
         x, y = self._get_cop_mm(exe).to_numpy().astype(float).T
         return Ellipse().fit(x, y).area
 
-    def _get_cop_mm(self, exe: TimeseriesRecord):
+    def _get_cop_mm(self, exe: Record):
         def extract_cop(force: ForcePlatform):
             cop = force.origin.copy() * 1000
             cop_x = cop.copy()[:, cop.lateral_axis].to_numpy().astype(float).flatten()  # type: ignore
@@ -146,7 +146,7 @@ class PlankBalanceTestResults(TestResults):
         cop_x, cop_y = self._get_cop_mm(test.exercise).to_numpy().T
 
         # get the emgsignals
-        emgs = test.exercise.emgsignals if self.include_emg else TimeseriesRecord()
+        emgs = test.exercise.emgsignals if self.include_emg else Record()
 
         # get the normative data
         norms = test.normative_data

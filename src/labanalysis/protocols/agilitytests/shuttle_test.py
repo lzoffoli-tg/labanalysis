@@ -133,24 +133,6 @@ class ShuttleTest(TestProtocol):
         """
         return self._change_of_direction_exercises
 
-    def copy(self):
-        """
-        Create a deep copy of the ShuttleTest object.
-
-        Returns
-        -------
-        ShuttleTest
-            A new ShuttleTest instance with copied participant data, normative data,
-            and change of direction exercises.
-        """
-        return ShuttleTest(
-            participant=self.participant.copy(),
-            normative_data=self.normative_data,
-            change_of_direction_exercises=[
-                i.copy() for i in self.change_of_direction_exercises
-            ],
-        )
-
     @classmethod
     def from_files(
         cls,

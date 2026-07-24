@@ -170,7 +170,7 @@ Fill missing values using regression against correlated signals.
 **Example:**
 ```python
 # Load bilateral markers
-record = laban.TimeseriesRecord.from_tdf("gait.tdf")
+record = laban.Record.from_tdf("gait.tdf")
 
 # Right ankle has complete data, left has gaps
 ankle_R = record.markers['ankle_R']
@@ -225,7 +225,7 @@ print(f"Filled {len(filled_indices)} samples using regression")
 
 ```python
 # Load motion capture trial
-record = laban.TimeseriesRecord.from_tdf("walking.tdf")
+record = laban.Record.from_tdf("walking.tdf")
 
 # Get all markers
 markers = record.markers
@@ -314,7 +314,7 @@ emg_bp = laban.butterworth_filt(
 
 ```python
 # Load bilateral gait data
-record = laban.TimeseriesRecord.from_tdf("gait.tdf")
+record = laban.Record.from_tdf("gait.tdf")
 
 # Left marker has very long dropout (>1 second)
 marker_L = record.markers['ankle_L']

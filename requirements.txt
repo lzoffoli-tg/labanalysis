@@ -4,3 +4,4 @@ pandas
 pint
 torch
 git+https://github.com/lzoffoli-tg/onnxmodels.git
+git+https://github.com/lzoffoli-tg/biostrengthdataconverter.git

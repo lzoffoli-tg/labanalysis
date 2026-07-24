@@ -37,7 +37,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Load force platform data
-record = laban.TimeseriesRecord.from_tdf("balance_test.tdf")
+record = laban.Record.from_tdf("balance_test.tdf")
 fp = record.forceplatforms['FP1']
 
 # Get COP data
@@ -352,8 +352,8 @@ print(f"Mean frequency (AP): {mean_freq_y:.3f} Hz")
 
 ```python
 # Load both conditions
-record_eo = laban.TimeseriesRecord.from_tdf("balance_eyes_open.tdf")
-record_ec = laban.TimeseriesRecord.from_tdf("balance_eyes_closed.tdf")
+record_eo = laban.Record.from_tdf("balance_eyes_open.tdf")
+record_ec = laban.Record.from_tdf("balance_eyes_closed.tdf")
 
 fp_eo = record_eo.forceplatforms['FP1']
 fp_ec = record_ec.forceplatforms['FP1']
@@ -436,7 +436,7 @@ print(f"Single-leg difficulty: {difficulty_ratio:.1f}x harder")
 # Test maximum voluntary lean in different directions
 
 # Load trial where subject leans forward maximally
-record_lean = laban.TimeseriesRecord.from_tdf("lean_forward.tdf")
+record_lean = laban.Record.from_tdf("lean_forward.tdf")
 fp_lean = record_lean.forceplatforms['FP1']
 
 cop_lean = fp_lean.cop
@@ -486,7 +486,7 @@ print(f"  Backward: {backward_pct:.1f}%")
 # Analyze response to external perturbation
 
 # Load perturbation trial (e.g., platform translation)
-record_pert = laban.TimeseriesRecord.from_tdf("perturbation.tdf")
+record_pert = laban.Record.from_tdf("perturbation.tdf")
 fp_pert = record_pert.forceplatforms['FP1']
 
 cop_pert = fp_pert.cop
@@ -636,7 +636,7 @@ def analyze_balance_test(tdf_file, participant, condition='eyes_open'):
     import numpy as np
     
     # Load data
-    record = laban.TimeseriesRecord.from_tdf(tdf_file)
+    record = laban.Record.from_tdf(tdf_file)
     fp = record.forceplatforms['FP1']
     
     # Get COP

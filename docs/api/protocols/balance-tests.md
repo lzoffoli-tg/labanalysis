@@ -40,15 +40,15 @@ class UprightBalanceTest(TestProtocol):
     normative_data : pd.DataFrame, optional
         Reference normative values
         Default: uprightbalance_normative_values
-    emg_normalization_references : TimeseriesRecord or 'self', optional
+    emg_normalization_references : Record or 'self', optional
         EMG normalization references
-        Default: empty TimeseriesRecord
+        Default: empty Record
     emg_normalization_function : callable, optional
         Function to compute normalization value
         Default: np.mean
-    emg_activation_references : TimeseriesRecord or 'self', optional
+    emg_activation_references : Record or 'self', optional
         References for muscle activation thresholds
-        Default: empty TimeseriesRecord
+        Default: empty Record
     emg_activation_threshold : float, optional
         Threshold multiplier for activation detection
         Default: 3
@@ -147,9 +147,9 @@ def from_files(
     left_foot_ground_reaction_force: str | None = None,
     right_foot_ground_reaction_force: str | None = None,
     normative_data: pd.DataFrame = uprightbalance_normative_values,
-    emg_normalization_references: TimeseriesRecord | str | Literal['self'] = TimeseriesRecord(),
+    emg_normalization_references: Record | str | Literal['self'] = Record(),
     emg_normalization_function: Callable = np.mean,
-    emg_activation_references: TimeseriesRecord | str | Literal['self'] = TimeseriesRecord(),
+    emg_activation_references: Record | str | Literal['self'] = Record(),
     emg_activation_threshold: float | int = 3,
     relevant_muscle_map: list[str] | None = None
 ) -> 'UprightBalanceTest'
@@ -295,15 +295,15 @@ class PlankBalanceTest(TestProtocol):
     normative_data : pd.DataFrame, optional
         Reference normative values
         Default: plankbalance_normative_values
-    emg_normalization_references : TimeseriesRecord or 'self', optional
+    emg_normalization_references : Record or 'self', optional
         EMG normalization references
-        Default: empty TimeseriesRecord
+        Default: empty Record
     emg_normalization_function : callable, optional
         Function to compute normalization value
         Default: np.mean
-    emg_activation_references : TimeseriesRecord or 'self', optional
+    emg_activation_references : Record or 'self', optional
         References for muscle activation thresholds
-        Default: empty TimeseriesRecord
+        Default: empty Record
     emg_activation_threshold : float, optional
         Threshold multiplier for activation detection
         Default: 3
@@ -386,9 +386,9 @@ def from_files(
     left_hand_ground_reaction_force: str = 'left_hand',
     right_hand_ground_reaction_force: str = 'right_hand',
     normative_data: pd.DataFrame = plankbalance_normative_values,
-    emg_normalization_references: TimeseriesRecord | str | Literal['self'] = TimeseriesRecord(),
+    emg_normalization_references: Record | str | Literal['self'] = Record(),
     emg_normalization_function: Callable = np.mean,
-    emg_activation_references: TimeseriesRecord | str | Literal['self'] = TimeseriesRecord(),
+    emg_activation_references: Record | str | Literal['self'] = Record(),
     emg_activation_threshold: float | int = 3,
     relevant_muscle_map: list[str] | None = None
 ) -> 'PlankBalanceTest'

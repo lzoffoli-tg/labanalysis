@@ -19,8 +19,8 @@ class Trunk(Joint, Segment):
         self,
         c7: Point3D,
         sc: Point3D,
-        l2: Point3D,
-        t5: Point3D,
+        l2: Point3D | None,
+        t5: Point3D | None,
         pelvis: Pelvis,
         left_hip: LeftHip,
         right_hip: RightHip,
@@ -41,9 +41,11 @@ class Trunk(Joint, Segment):
         # upper markers
         self["c7"] = c7
         self["sc"] = sc
-        self["l2"] = l2
-        self["t5"] = t5
         self["pelvis"] = pelvis
+        if l2 is not None:
+            self["l2"] = l2
+        if t5 is not None:
+            self["t5"] = t5
 
     def _get_angle_between_three_points(
         self,
@@ -149,7 +151,7 @@ class Trunk(Joint, Segment):
         return self.get_angle_by_point(
             self.apply(self._neck_base),  # type: ignore
             self.vertical_axis,  # type: ignore
-            self.anteriorposterior_axis,  # type: ignore
+            self.anteroposterior_axis,  # type: ignore
         )
 
     @property
@@ -189,7 +191,7 @@ class Trunk(Joint, Segment):
             trunk rotation angle in degrees.
         """
         vec: Signal3D = self._sc - self._c7  # type: ignore
-        vec.loc[vec.index, vec.vertical_axis] = 0
+        # vec.loc[vec.index, vec.vertical_axis] = 0
         return self.get_angle_by_point(
             self.apply(vec),  # type: ignore
             self.anteroposterior_axis,  # type: ignore
@@ -212,7 +214,7 @@ class Trunk(Joint, Segment):
         """
         return self.get_angle_by_point(
             self._neck_base - self.center,  # type: ignore
-            self.anteriorposterior_axis,  # type: ignore
+            self.anteroposterior_axis,  # type: ignore
             self.vertical_axis,  # type: ignore
         )
 
@@ -251,7 +253,7 @@ class Trunk(Joint, Segment):
             trunk transverse tilt angle in degrees.
         """
         return self.get_angle_by_point(
-            self["c7"] - self["sc"],  # type: ignore
+            self._c7 - self._sc,  # type: ignore
             self.lateral_axis,  # type: ignore
             self.anteroposterior_axis,  # type: ignore
         )
@@ -290,6 +292,8 @@ class Trunk(Joint, Segment):
 
         # Calculate 3-point angle: C7 - T5 - L2
         # Internal angle at T5 vertex (order: superior → vertex → inferior)
+        if self._c7 is None or self._t5 is None or self._l2 is None:
+            return None
         return self._get_angle_between_three_points(
             self._c7,
             self._t5,
@@ -309,6 +313,8 @@ class Trunk(Joint, Segment):
             Smaller angle = greater lordotic curvature (more curved)
             Larger angle = reduced lordosis (flatter)
         """
+        if self._t5 is None or self._l2 is None or self._pelvis.psis_midpoint is None:
+            return None
         return self._get_angle_between_three_points(
             self._t5,
             self._l2,

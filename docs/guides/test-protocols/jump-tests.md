@@ -32,7 +32,7 @@ participant = laban.Participant(
 )
 
 # Load CMJ data from force platform
-record = laban.TimeseriesRecord.from_tdf("cmj_trial.tdf")
+record = laban.Record.from_tdf("cmj_trial.tdf")
 fp = record['FP1']
 
 # Create CMJ test
@@ -87,7 +87,7 @@ participant = laban.Participant(
 )
 
 # 2. Load force platform data
-record = laban.TimeseriesRecord.from_tdf("cmj.tdf")
+record = laban.Record.from_tdf("cmj.tdf")
 fp = record['FP1']
 
 # 3. Create and run test
@@ -197,7 +197,7 @@ SJ eliminates the countermovement to assess concentric-only power:
 
 ```python
 # Load SJ data
-record = laban.TimeseriesRecord.from_tdf("sj.tdf")
+record = laban.Record.from_tdf("sj.tdf")
 fp = record['FP1']
 
 # Create SJ test
@@ -240,7 +240,7 @@ DJ assesses reactive strength and plyometric ability:
 
 ```python
 # Load DJ data
-record = laban.TimeseriesRecord.from_tdf("dj_30cm.tdf")
+record = laban.Record.from_tdf("dj_30cm.tdf")
 fp = record['FP1']
 
 # Create DJ test (specify drop height)
@@ -303,7 +303,7 @@ results_list = []
 
 for height in drop_heights:
     # Load corresponding file
-    record = laban.TimeseriesRecord.from_tdf(f"dj_{int(height*100)}cm.tdf")
+    record = laban.Record.from_tdf(f"dj_{int(height*100)}cm.tdf")
     fp = record['FP1']
     
     # Analyze
@@ -350,7 +350,7 @@ Continuous jumping for fatigue assessment:
 
 ```python
 # Load repeated jump trial
-record = laban.TimeseriesRecord.from_tdf("repeated_jumps.tdf")
+record = laban.Record.from_tdf("repeated_jumps.tdf")
 fp = record['FP1']
 
 # Create test
@@ -424,7 +424,7 @@ results_dict = {}
 # Analyze each jump type
 for protocol in protocols:
     # Load data
-    record = laban.TimeseriesRecord.from_tdf(f"{protocol.lower()}_trial.tdf")
+    record = laban.Record.from_tdf(f"{protocol.lower()}_trial.tdf")
     fp = record['FP1']
     
     # Create test
@@ -470,7 +470,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 # Load CMJ data
-record = laban.TimeseriesRecord.from_tdf("cmj.tdf")
+record = laban.Record.from_tdf("cmj.tdf")
 fp = record['FP1']
 fz = fp.force['Fz']
 

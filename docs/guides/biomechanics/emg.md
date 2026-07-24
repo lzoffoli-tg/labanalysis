@@ -86,7 +86,7 @@ print(f"EMG range: {emg.data.min():.1f} to {emg.data.max():.1f} μV")
 
 ```python
 # Load TDF file
-record = laban.TimeseriesRecord.from_tdf("emg_trial.tdf")
+record = laban.Record.from_tdf("emg_trial.tdf")
 
 # Check available signals
 print(record.keys())

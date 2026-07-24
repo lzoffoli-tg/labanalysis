@@ -227,7 +227,7 @@ body = laban.WholeBody.from_tdf(
 
 ```python
 # Load record first
-record = laban.TimeseriesRecord.from_tdf("mocap.tdf")
+record = laban.Record.from_tdf("mocap.tdf")
 
 # Create WholeBody from record
 body = laban.WholeBody(
@@ -286,7 +286,7 @@ knee_flex = body.left_knee_flexionextension
 ankle_flex = body.left_ankle_flexionextension
 
 # Find heel strikes (example with force platform)
-record = laban.TimeseriesRecord.from_tdf("gait.tdf")
+record = laban.Record.from_tdf("gait.tdf")
 fp = record['FP1']
 fz = fp.force['Fz'].data
 

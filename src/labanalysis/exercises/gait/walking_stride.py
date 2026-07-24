@@ -7,7 +7,7 @@ import numpy as np
 from ...constants import *
 from ...records.body import WholeBody
 from ...records.forceplatform import ForcePlatform
-from ...records.timeseriesrecord import TimeseriesRecord
+from ...records.record import Record
 from ...signalprocessing import *
 from ...timeseries import EMGSignal, Point3D, Signal1D, Signal3D
 from .gait_cycle import GaitCycle
@@ -73,16 +73,16 @@ class WalkingStride(GaitCycle):
     @property
     def swing_phase(self):
         """
-        Get the TimeseriesRecord corresponding to the swing phase of the step.
+        Get the Record corresponding to the swing phase of the step.
 
         Returns
         -------
-        TimeseriesRecord
-            The TimeseriesRecord for the swing phase.
+        Record
+            The Record for the swing phase.
         """
-        sliced = self.copy()[self.init_s : self.footstrike_s]
+        sliced = self.copy()[self.init_time : self.footstrike_time]
         out = WholeBody()
-        if isinstance(sliced, TimeseriesRecord):
+        if isinstance(sliced, Record):
             for i, v in sliced.items():
                 out[i] = v
         return out
@@ -90,16 +90,16 @@ class WalkingStride(GaitCycle):
     @property
     def stance_phase(self):
         """
-        Get the TimeseriesRecord corresponding to the contact phase.
+        Get the Record corresponding to the contact phase.
 
         Returns
         -------
-        TimeseriesRecord
-            The TimeseriesRecord for the contact phase.
+        Record
+            The Record for the contact phase.
         """
-        sliced = self.copy()[self.footstrike_s : self.end_s]
+        sliced = self.copy()[self.footstrike_time : self.end_time]
         out = WholeBody()
-        if isinstance(sliced, TimeseriesRecord):
+        if isinstance(sliced, Record):
             for i, v in sliced.items():
                 out[i] = v
         return out
@@ -114,7 +114,7 @@ class WalkingStride(GaitCycle):
         float
             The swing time in seconds.
         """
-        return self.footstrike_s - self.init_s
+        return self.footstrike_time - self.init_time
 
     @property
     def stance_time_s(self):
@@ -126,7 +126,7 @@ class WalkingStride(GaitCycle):
         float
             The stance time in seconds.
         """
-        return self.end_s - self.footstrike_s
+        return self.end_time - self.footstrike_time
 
     @property
     def opposite_footstrike_s(self):
@@ -147,16 +147,16 @@ class WalkingStride(GaitCycle):
     @property
     def first_double_support_phase(self):
         """
-        Get the TimeseriesRecord corresponding to the first double support phase.
+        Get the Record corresponding to the first double support phase.
 
         Returns
         -------
-        TimeseriesRecord
-            The TimeseriesRecord for the first double support phase.
+        Record
+            The Record for the first double support phase.
         """
-        sliced = self.copy()[self.footstrike_s : self.midstance_s]
+        sliced = self.copy()[self.footstrike_time : self.midstance_time]
         out = WholeBody()
-        if isinstance(sliced, TimeseriesRecord):
+        if isinstance(sliced, Record):
             for i, v in sliced.items():
                 out[i] = v
         return out
@@ -171,21 +171,21 @@ class WalkingStride(GaitCycle):
         float
             The first double support time in seconds.
         """
-        return self.midstance_s - self.footstrike_s
+        return self.midstance_time - self.footstrike_time
 
     @property
     def second_double_support_phase(self):
         """
-        Get the TimeseriesRecord corresponding to the second double support phase.
+        Get the Record corresponding to the second double support phase.
 
         Returns
         -------
-        TimeseriesRecord
-            The TimeseriesRecord for the second double support phase.
+        Record
+            The Record for the second double support phase.
         """
-        sliced = self.copy()[self.opposite_footstrike_s : self.end_s]
+        sliced = self.copy()[self.opposite_footstrike_s : self.end_time]
         out = WholeBody()
-        if isinstance(sliced, TimeseriesRecord):
+        if isinstance(sliced, Record):
             for i, v in sliced.items():
                 out[i] = v
         return out
@@ -200,21 +200,21 @@ class WalkingStride(GaitCycle):
         float
             The second double support time in seconds.
         """
-        return self.end_s - self.opposite_footstrike_s
+        return self.end_time - self.opposite_footstrike_s
 
     @property
     def single_support_phase(self):
         """
-        Get the TimeseriesRecord corresponding to the single support phase.
+        Get the Record corresponding to the single support phase.
 
         Returns
         -------
-        TimeseriesRecord
-            The TimeseriesRecord for the single support phase.
+        Record
+            The Record for the single support phase.
         """
-        sliced = self.copy()[self.midstance_s : self.opposite_footstrike_s]
+        sliced = self.copy()[self.midstance_time : self.opposite_footstrike_s]
         out = WholeBody()
-        if isinstance(sliced, TimeseriesRecord):
+        if isinstance(sliced, Record):
             for i, v in sliced.items():
                 out[i] = v
         return out
@@ -229,7 +229,7 @@ class WalkingStride(GaitCycle):
         float
             The single support time in seconds.
         """
-        return self.opposite_footstrike_s - self.midstance_s
+        return self.opposite_footstrike_s - self.midstance_time
 
     def _get_grf_positive_crossing_times(self):
         """

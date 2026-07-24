@@ -8,8 +8,8 @@ import pandas as pd
 
 from ...constants import MINIMUM_CONTACT_FORCE_N
 from ...exercises import DropJump, RepeatedJumps, SingleJump
-from ...pipelines._base import ProcessingPipeline
-from ...records import ForcePlatform, TimeseriesRecord
+from ...pipelines.base import ProcessingPipeline
+from ...records import ForcePlatform, Record
 from ...referenceframes import ReferenceFrame
 from ...signalprocessing import butterworth_filt, fillna, rms_filt
 from ...timeseries import EMGSignal, Point3D
@@ -21,103 +21,61 @@ from .jump_test_results import JumpTestResults
 
 class JumpTest(TestProtocol):
     """
-    Test protocol for comprehensive jump performance assessment.
+    Test protocol for vertical jump performance assessment.
 
-    JumpTest manages and analyzes multiple types of vertical jumps including
-    squat jumps (SJ), counter-movement jumps (CMJ), drop jumps (DJ), and
-    repeated jumps. The class handles data acquisition from force platforms,
-    processes biomechanical signals, normalizes EMG data, and generates
-    performance reports with normative comparisons.
-
-    The protocol supports:
-    - Multiple jump types with distinct biomechanical characteristics
-    - Bilateral and unilateral jump execution
-    - EMG normalization and muscle activation analysis
-    - Automated data processing pipelines
-    - Normative data comparison for performance ranking
+    Manages squat jumps (SJ), counter-movement jumps (CMJ), drop jumps (DJ),
+    and repeated jumps. Processes force platform and EMG data, applies signal
+    processing pipelines, and generates performance reports with normative
+    comparisons.
 
     Parameters
     ----------
     participant : Participant
-        Participant information including demographics and anthropometrics.
-        Must have weight specified.
+        Participant information with weight specified.
     normative_data : pd.DataFrame, optional
-        Reference data for performance ranking and comparison.
-        Default is jumps_normative_values.
-    emg_normalization_references : TimeseriesRecord or str or 'self', optional
-        Reference signals for EMG amplitude normalization. If 'self', uses
-        test data for normalization. Default is empty TimeseriesRecord.
+        Reference data for performance comparison (default: jumps_normative_values).
+    emg_normalization_references : Record or str or 'self', optional
+        Reference signals for EMG normalization (default: empty Record).
     emg_normalization_function : callable, optional
-        Function to compute normalization value from reference (e.g., np.mean,
-        np.max). Default is np.mean.
-    emg_activation_references : TimeseriesRecord or str or 'self', optional
-        Reference signals for determining muscle activation thresholds.
-        Default is empty TimeseriesRecord.
+        Function for normalization value (default: np.mean).
+    emg_activation_references : Record or str or 'self', optional
+        Reference signals for activation thresholds (default: empty Record).
     emg_activation_threshold : float, optional
-        Threshold multiplier for detecting muscle activation onset.
-        Default is 3 (3x reference level).
+        Threshold multiplier for activation onset (default: 3).
     relevant_muscle_map : list of str or None, optional
-        List of muscle names to include in analysis. If None, includes all
-        detected muscles. Default is None.
+        Muscle names to include in analysis (default: None, includes all).
     squat_jumps : list of SingleJump, optional
-        Squat jump trials. Default is empty list.
+        Squat jump trials (default: empty list).
     counter_movement_jumps : list of SingleJump, optional
-        Counter-movement jump trials. Default is empty list.
+        Counter-movement jump trials (default: empty list).
     drop_jumps : list of DropJump, optional
-        Drop jump trials. Default is empty list.
+        Drop jump trials (default: empty list).
     repeated_jumps : list of SingleJump, optional
-        Individual jumps from repeated jump sequences. Default is empty list.
+        Repeated jump trials (default: empty list).
 
     Attributes
     ----------
     squat_jumps : list of SingleJump
-        Squat jump trials (concentric-only jumps from static position).
+        Concentric-only jumps from static position.
     counter_movement_jumps : list of SingleJump
-        Counter-movement jump trials (jumps with pre-stretch).
+        Jumps with pre-stretch movement.
     drop_jumps : list of DropJump
-        Drop jump trials (plyometric jumps from elevated surface).
+        Plyometric jumps from elevated surface.
     repeated_jumps : list of SingleJump
-        Individual jumps from continuous jumping sequences.
+        Continuous jumping sequences.
     jumps : list
-        All jumps combined (all four types concatenated).
+        All jump types concatenated.
     processed_data : JumpTest
-        Copy of test with all signals processed through the pipeline.
+        Test copy with processed signals.
     processing_pipeline : ProcessingPipeline
-        Signal processing pipeline with jump-specific configurations.
-
-    Notes
-    -----
-    Jump Types:
-    - Squat Jump (SJ): Concentric-only jump from static semi-squat position
-      (no counter-movement allowed). Measures pure concentric power.
-    - Counter-Movement Jump (CMJ): Jump with preliminary downward movement
-      to utilize stretch-shortening cycle. Measures reactive strength.
-    - Drop Jump (DJ): Jump immediately after landing from a box. Measures
-      fast stretch-shortening cycle and reactive strength index (RSI).
-    - Repeated Jumps: Continuous jumping for fatigue or endurance assessment.
-
-    Processing Pipeline:
-    - Force platforms: 30 Hz lowpass filter, moment calculation
-    - EMG signals: 20-450 Hz bandpass, 50ms RMS envelope (vs. 200ms default)
-    - Kinematic markers: Standard WholeBody processing pipeline
-    - Reference frame: Auto-aligned to bilateral force center for bilateral jumps
-
-    Performance Metrics:
-    - Elevation (cm): Jump height calculated from flight time and impulse
-    - Flight time (ms): Aerial phase duration
-    - Contact time (ms): Ground contact duration
-    - Takeoff velocity (m/s): Velocity at takeoff instant
-    - RSI (cm/s): Reactive strength index (elevation/contact_time)
-    - Force symmetry (%): Left-right force balance for bilateral jumps
-    - EMG activation timing (ms): Muscle onset relative to landing
-    - EMG pre-activation ratio (%): Pre-landing vs. post-landing EMG
+        Jump-specific signal processing configuration.
 
     See Also
     --------
     SingleJump : Single vertical jump record.
-    DropJump : Drop jump record with box height.
+    DropJump : Drop jump with box height.
     RepeatedJumps : Continuous jumping sequence.
-    JumpTestResults : Results container with figures and summaries.
+    JumpTestResults : Results with figures and summaries.
 
     Examples
     --------
@@ -135,15 +93,54 @@ class JumpTest(TestProtocol):
 
     @property
     def repeated_jumps(self):
+        """
+        Get the list of repeated jump trials.
+
+        Returns
+        -------
+        list of SingleJump
+            All repeated jump trials in the test.
+        """
         return self._repeated_jumps
 
     def add_repeated_jumps(self, *jumps: SingleJump):
+        """
+        Add one or more repeated jump trials to the test.
+
+        Parameters
+        ----------
+        *jumps : SingleJump
+            Variable number of SingleJump instances to add.
+
+        Raises
+        ------
+        ValueError
+            If any jump is not a SingleJump instance.
+        """
         for jump in jumps:
             if not isinstance(jump, SingleJump):
                 raise ValueError("jump must be a SingleJump instance.")
             self._repeated_jumps.append(jump)
 
     def pop_repeated_jumps(self, index: int):
+        """
+        Remove and return a repeated jump trial at specified index.
+
+        Parameters
+        ----------
+        index : int
+            Zero-based index of the jump to remove.
+
+        Returns
+        -------
+        SingleJump
+            The removed jump trial.
+
+        Raises
+        ------
+        ValueError
+            If index is not an integer or is out of range.
+        """
         if not isinstance(index, int):
             raise ValueError("index must be an int.")
         if index < 0 or index > len(self._repeated_jumps) - 1:
@@ -153,15 +150,54 @@ class JumpTest(TestProtocol):
 
     @property
     def squat_jumps(self):
+        """
+        Get the list of squat jump trials.
+
+        Returns
+        -------
+        list of SingleJump
+            All squat jump trials in the test.
+        """
         return self._squat_jumps
 
     def add_squat_jumps(self, *jumps: SingleJump):
+        """
+        Add one or more squat jump trials to the test.
+
+        Parameters
+        ----------
+        *jumps : SingleJump
+            Variable number of SingleJump instances to add.
+
+        Raises
+        ------
+        ValueError
+            If any jump is not a SingleJump instance.
+        """
         for jump in jumps:
             if not isinstance(jump, SingleJump):
                 raise ValueError("jump must be a SingleJump instance.")
             self._squat_jumps.append(jump)
 
     def pop_squat_jumps(self, index: int):
+        """
+        Remove and return a squat jump trial at specified index.
+
+        Parameters
+        ----------
+        index : int
+            Zero-based index of the jump to remove.
+
+        Returns
+        -------
+        SingleJump
+            The removed squat jump trial.
+
+        Raises
+        ------
+        ValueError
+            If index is not an integer or is out of range.
+        """
         if not isinstance(index, int):
             raise ValueError("index must be an int.")
         if index < 0 or index > len(self._squat_jumps) - 1:
@@ -171,15 +207,54 @@ class JumpTest(TestProtocol):
 
     @property
     def counter_movement_jumps(self):
+        """
+        Get the list of counter-movement jump trials.
+
+        Returns
+        -------
+        list of SingleJump
+            All counter-movement jump trials in the test.
+        """
         return self._counter_movement_jumps
 
     def add_counter_movement_jumps(self, *jumps: SingleJump):
+        """
+        Add one or more counter-movement jump trials to the test.
+
+        Parameters
+        ----------
+        *jumps : SingleJump
+            Variable number of SingleJump instances to add.
+
+        Raises
+        ------
+        ValueError
+            If any jump is not a SingleJump instance.
+        """
         for jump in jumps:
             if not isinstance(jump, SingleJump):
                 raise ValueError("jump must be a SingleJump instance.")
             self._counter_movement_jumps.append(jump)
 
     def pop_counter_movement_jumps(self, index: int):
+        """
+        Remove and return a counter-movement jump trial at specified index.
+
+        Parameters
+        ----------
+        index : int
+            Zero-based index of the jump to remove.
+
+        Returns
+        -------
+        SingleJump
+            The removed counter-movement jump trial.
+
+        Raises
+        ------
+        ValueError
+            If index is not an integer or is out of range.
+        """
         if not isinstance(index, int):
             raise ValueError("index must be an int.")
         if index < 0 or index > len(self._counter_movement_jumps) - 1:
@@ -189,15 +264,54 @@ class JumpTest(TestProtocol):
 
     @property
     def drop_jumps(self):
+        """
+        Get the list of drop jump trials.
+
+        Returns
+        -------
+        list of DropJump
+            All drop jump trials in the test.
+        """
         return self._drop_jumps
 
     def add_drop_jumps(self, *jumps: DropJump):
+        """
+        Add one or more drop jump trials to the test.
+
+        Parameters
+        ----------
+        *jumps : DropJump
+            Variable number of DropJump instances to add.
+
+        Raises
+        ------
+        ValueError
+            If any jump is not a DropJump instance.
+        """
         for jump in jumps:
             if not isinstance(jump, DropJump):
                 raise ValueError("jump must be a DropJump instance.")
             self._drop_jumps.append(jump)
 
     def pop_drop_jumps(self, index: int):
+        """
+        Remove and return a drop jump trial at specified index.
+
+        Parameters
+        ----------
+        index : int
+            Zero-based index of the jump to remove.
+
+        Returns
+        -------
+        DropJump
+            The removed drop jump trial.
+
+        Raises
+        ------
+        ValueError
+            If index is not an integer or is out of range.
+        """
         if not isinstance(index, int):
             raise ValueError("index must be an int.")
         if index < 0 or index > len(self._drop_jumps) - 1:
@@ -207,6 +321,15 @@ class JumpTest(TestProtocol):
 
     @property
     def jumps(self):
+        """
+        Get all jump trials combined.
+
+        Returns
+        -------
+        list
+            Concatenation of squat jumps, counter-movement jumps, drop jumps,
+            and repeated jumps.
+        """
         return (
             self.squat_jumps
             + self.counter_movement_jumps
@@ -219,12 +342,12 @@ class JumpTest(TestProtocol):
         participant: Participant,
         normative_data: pd.DataFrame = jumps_normative_values,
         emg_normalization_references: (
-            TimeseriesRecord | str | Literal["self"]
-        ) = TimeseriesRecord(),
+            Record | str | Literal["self"]
+        ) = Record(),
         emg_normalization_function: Callable = np.mean,
         emg_activation_references: (
-            TimeseriesRecord | str | Literal["self"]
-        ) = TimeseriesRecord(),
+            Record | str | Literal["self"]
+        ) = Record(),
         emg_activation_threshold: float = 3,
         relevant_muscle_map: list[str] | None = None,
         squat_jumps: list[SingleJump] = [],
@@ -260,12 +383,12 @@ class JumpTest(TestProtocol):
         participant: Participant,
         normative_data: pd.DataFrame = jumps_normative_values,
         emg_normalization_references: (
-            TimeseriesRecord | str | Literal["self"]
-        ) = TimeseriesRecord(),
+            Record | str | Literal["self"]
+        ) = Record(),
         emg_normalization_function: Callable = np.mean,
         emg_activation_references: (
-            TimeseriesRecord | str | Literal["self"]
-        ) = TimeseriesRecord(),
+            Record | str | Literal["self"]
+        ) = Record(),
         emg_activation_threshold: float = 3,
         relevant_muscle_map: list[str] | None = None,
         squat_jump_files: list[str] = [],
@@ -719,21 +842,7 @@ class JumpTest(TestProtocol):
     def get_results(self, include_emg: bool = True):
         return JumpTestResults(self.processed_data, include_emg)
 
-    def copy(self):
-        return JumpTest(
-            participant=self.participant,
-            normative_data=self.normative_data,
-            emg_normalization_references=self.emg_activation_references,
-            emg_activation_references=self.emg_activation_references,
-            emg_activation_threshold=self.emg_activation_threshold,
-            relevant_muscle_map=self.relevant_muscle_map,
-            squat_jumps=self.squat_jumps,
-            counter_movement_jumps=self.counter_movement_jumps,
-            drop_jumps=self.drop_jumps,
-            repeated_jumps=self.repeated_jumps,
-        )
-
-    def _process_record(self, record: TimeseriesRecord):
+    def _process_record(self, record: Record):
         # apply the pipeline to the test data
         pipeline = self.processing_pipeline
         exe = pipeline(record, inplace=False)  # type: ignore
@@ -776,10 +885,10 @@ class JumpTest(TestProtocol):
                 idx = (val.index >= index[0]) & (val.index <= index[-1])  # type: ignore
                 idx = np.where(idx)[0]
                 exe[key] = val.iloc[idx, :]  # type: ignore
-            if not isinstance(exe, TimeseriesRecord):
+            if not isinstance(exe, Record):
                 raise RuntimeError("jump resizing failed.")
-
-        exe = exe.strip()
+        else:
+            exe = exe.strip()
         exe = self._process_record(exe)  # type: ignore
 
         # align the reference frame

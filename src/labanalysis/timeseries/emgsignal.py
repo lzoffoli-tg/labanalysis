@@ -114,15 +114,6 @@ class EMGSignal(Signal1D):
         """
         return self._name
 
-    def copy(self):
-        return EMGSignal(
-            self._data.copy(),
-            self.index.copy(),
-            self._name,
-            self._side,
-            self.unit,
-        )
-
     def _copy_view_attributes(self, view_obj):
         """
         Copy EMGSignal-specific attributes to view object.

@@ -81,7 +81,7 @@ Gram-Schmidt handles multiple frames simultaneously:
 # Create coordinate systems for each time sample
 # Example: pelvis coordinate system from LASI, RASI, LPSI, RPSI markers
 
-record = laban.TimeseriesRecord.from_tdf("walking.tdf")
+record = laban.Record.from_tdf("walking.tdf")
 
 # Load pelvic markers
 LASI = record.markers['LASI'].data  # (N, 3)
@@ -198,7 +198,7 @@ import labanalysis as laban
 import numpy as np
 
 # Load force platform and markers
-record = laban.TimeseriesRecord.from_tdf("walking.tdf")
+record = laban.Record.from_tdf("walking.tdf")
 fp = record.forceplatforms['FP1']
 
 # Load heel and toe markers to determine gait direction

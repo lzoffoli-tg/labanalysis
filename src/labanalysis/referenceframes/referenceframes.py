@@ -540,20 +540,16 @@ class ReferenceFrame:
 
     def _apply_to_timeseries(self, ts: Timeseries, inplace: bool):
         """Apply transformation to Timeseries object."""
-        # Validate 3D data
-        if ts.shape[1] != 3:
-            raise ValueError(
-                f"Timeseries must have 3 columns (3D data), got {ts.shape[1]} columns. "
-                f"Cannot apply 3D reference frame to {ts.shape[1]}D signal."
-            )
 
-        # Transform data
-        transformed = self._apply_to_numpy(ts.to_numpy())
-
-        # Update Timeseries
+        # handle inplace attribute
         out = ts if inplace else ts.copy()
-        out.iloc[:, :] = transformed
 
+        # Validate 3D data
+        if ts.shape[1] == 3:
+            transformed = self._apply_to_numpy(ts.to_numpy())
+            out.iloc[:, :] = transformed
+
+        # return out if required
         if not inplace:
             return out
 

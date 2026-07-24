@@ -2,6 +2,8 @@
 Base Timeseries class for time-indexed data.
 """
 
+from __future__ import annotations
+
 import inspect
 
 import numpy as np
@@ -10,7 +12,6 @@ import pint
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from ..events import Signal
 from ..indexers.timeseries_iloc_indexer import TimeseriesILocIndexer
 from ..indexers.timeseries_loc_indexer import TimeseriesLocIndexer
 from ..signalprocessing import fillna as sp_fillna
@@ -25,6 +26,11 @@ class Timeseries:
     operations, unit conversion, and signal processing capabilities. Designed for
     biomechanical and physiological signals.
     """
+
+    @property
+    def name(self):
+        """name of the class"""
+        return self.__class__.__name__
 
     @property
     def loc(self):
@@ -86,12 +92,12 @@ class Timeseries:
         Parameters
         ----------
         inplace : bool, optional
-            If True, modifies in place. If False, returns a new TimeseriesRecord.
+            If True, modifies in place. If False, returns a new Record.
 
         Returns
         -------
-        TimeseriesRecord or None
-            Stripped TimeseriesRecord if inplace is False, otherwise None.
+        Timeseries
+            Stripped Timeseries if inplace is False, otherwise None.
         """
         if not isinstance(inplace, bool):
             raise ValueError("inplace must be True or False")
@@ -318,6 +324,7 @@ class Timeseries:
         return np.isnan(self._data)
 
     def to_numpy(self):
+        """convert the Timeseries data to a numpy array."""
         return self._data
 
     def is_empty(self):
@@ -330,6 +337,22 @@ class Timeseries:
             True if all data is NaN, False otherwise.
         """
         return bool(np.all(np.isnan(self._data)) or self._data.size == 0)
+
+    def drop(self, key: str | list[str]):
+        """drop columns from the Timeseries"""
+        if isinstance(key, str):
+            key = [key]
+        if not isinstance(key, list) or not all(isinstance(k, str) for k in key):
+            raise TypeError("key must be a string or a list of strings")
+        to_remove = [np.where(k in self.columns)[0][0] for k in key]
+        to_keep = ~np.isin(np.arange(self.shape[1]), to_remove)
+        out = self.iloc[:, to_keep]
+        return Timeseries(
+            out._data,
+            out.index,
+            out.columns,
+            out.unit,
+        )
 
     def _get_object_args(self, attr_map=None):
         """
@@ -802,12 +825,36 @@ class Timeseries:
         self.set_unit(unit)
 
     def copy(self):
-        return Timeseries(
-            self._data.copy(),
-            self.index.copy(),
-            self.columns.copy(),
-            self.unit,
-        )
+        """
+        Create a deep copy preserving the concrete subclass type.
+
+        Returns
+        -------
+        Timeseries or subclass
+            A new instance of the same class with copied data and attributes.
+        """
+        # Get all constructor arguments and internal attributes
+        args = self._get_object_args()
+
+        # Ensure critical arrays are deep copied (not views)
+        if "_data" in args:
+            args["_data"] = self._data.copy()
+        elif "data" in args:
+            args["data"] = self._data.copy()
+
+        if "index" in args:
+            args["index"] = self.index.copy()
+        if "columns" in args:
+            args["columns"] = self.columns.copy()
+
+        # Handle unit separately (pint.Quantity may need special handling)
+        if "unit" in args:
+            args["unit"] = self.unit  # unit is typically immutable
+        elif "_unit" in args:
+            args["_unit"] = self._unit
+
+        # Create new instance of the concrete class
+        return self.__class__(**args)
 
 
 __all__ = ["Timeseries"]

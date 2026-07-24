@@ -21,6 +21,7 @@ __all__ = ["read_tdf", "read_emt"]
 
 import struct
 from io import BufferedReader
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -1271,13 +1272,13 @@ def _read_events(
     return events
 
 
-def read_tdf(path: str):
+def read_tdf(path: str | Path):
     """
     Return the readings from a .tdf file.
 
     Parameters
     ----------
-    path: str
+    path: str | Path
         an existing tdf path.
 
     strip: bool (default = True)

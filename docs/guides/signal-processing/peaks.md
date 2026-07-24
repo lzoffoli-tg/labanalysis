@@ -19,7 +19,7 @@ import labanalysis as laban
 import numpy as np
 
 # Load force signal
-record = laban.TimeseriesRecord.from_tdf("jump.tdf")
+record = laban.Record.from_tdf("jump.tdf")
 fz = record['FP1'].force['Fz'].data
 
 # Find peaks above 500 N, at least 100 samples apart
@@ -218,7 +218,7 @@ import labanalysis as laban
 import numpy as np
 
 # Load force data
-record = laban.TimeseriesRecord.from_tdf("jumps.tdf")
+record = laban.Record.from_tdf("jumps.tdf")
 fz = record['FP1'].force['Fz']
 freq = fz.sampling_frequency
 
@@ -263,7 +263,7 @@ Jump 5: t=23.89s, F=1378.1N (1.87x BW)
 
 ```python
 # Load gait data
-record = laban.TimeseriesRecord.from_tdf("walking.tdf")
+record = laban.Record.from_tdf("walking.tdf")
 fp1 = record['FP1'].force['Fz'].data
 fp2 = record['FP2'].force['Fz'].data
 freq = record['FP1'].sampling_frequency
@@ -303,7 +303,7 @@ print(f"Cadence: {cadence:.1f} steps/min")
 
 ```python
 # Load EMG data
-record = laban.TimeseriesRecord.from_tdf("emg.tdf")
+record = laban.Record.from_tdf("emg.tdf")
 emg = record['EMG']['biceps']
 freq = emg.sampling_frequency
 

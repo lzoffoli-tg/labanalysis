@@ -113,7 +113,7 @@ Core dependencies are automatically installed:
 import labanalysis as laban
 
 # Load a timeseries record from a TDF file (BTS Bioengineering format)
-record = laban.TimeseriesRecord.from_tdf("path/to/file.tdf")
+record = laban.Record.from_tdf("path/to/file.tdf")
 
 # Access signals in the record
 force_plate_data = record['FP1']  # Force platform data
@@ -316,7 +316,7 @@ labanalysis/
 │   ├── test_results.py       # Base results class
 │   └── normativedata.py      # Reference normative data
 ├── records/                  # Data structure classes
-│   ├── _base.py              # Base Record and TimeseriesRecord
+│   ├── _base.py              # Base Record and Record
 │   ├── forceplatform.py      # Ground reaction force data
 │   ├── metabolicrecord.py    # Metabolic data (VO2, VCO2, etc.)
 │   ├── body/                 # Full-body biomechanical model
@@ -544,7 +544,6 @@ Core data structure classes for representing laboratory measurements.
 
 **Main Classes:**
 - [`Record`](docs/api-reference/records/records.md#record) - Dictionary-like container for timeseries data
-- [`TimeseriesRecord`](docs/api-reference/records/records.md#timeseriesrecord) - Specialized record for time-indexed data
 - [`WholeBody`](docs/api-reference/records/bodies.md) - Full body biomechanical model with 42+ anatomical landmarks
   - Supports 4 metatarsal markers (first/fifth bilateral) for precise foot plane calculation
   - Includes thoracic vertebra T5 marker for enhanced spine modeling
@@ -787,9 +786,9 @@ For permission requests, please contact: **Luca Zoffoli** – [lzoffoli@technogy
 
 ## Contact
 
-**Author**: Luca Zoffoli  
-**Email**: [lzoffoli@technogym.com](mailto:lzoffoli@technogym.com)  
-**Organization**: Technogym S.p.A. - Scientific Research Department  
+**Author**: Luca Zoffoli
+**Email**: [lzoffoli@technogym.com](mailto:lzoffoli@technogym.com)
+**Organization**: Technogym S.p.A. - Scientific Research Department
 **Repository**: [https://github.com/lzoffoli-tg/labanalysis](https://github.com/lzoffoli-tg/labanalysis)
 
 ---
@@ -805,5 +804,5 @@ This package integrates and builds upon several excellent open-source libraries:
 
 ---
 
-**Python**: ≥ 3.12  
+**Python**: ≥ 3.12
 **Last Updated**: June 2026

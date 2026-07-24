@@ -1,15 +1,18 @@
 """TestProtocol Protocol for lab test implementations."""
 
+import inspect
 import pickle
 from os import makedirs
 from os.path import dirname, exists
-from typing import Callable, Literal, Protocol, runtime_checkable
-
+from pathlib import Path
+from typing import Callable, Protocol, Self, runtime_checkable
+import copy as copy_module
 import numpy as np
 import pandas as pd
 
 from ..messages import askyesnocancel
-from ..records import TimeseriesRecord
+from ..pipelines.base import ProcessingPipeline
+from ..records import Record
 from ..timeseries import EMGSignal
 from .participant import Participant
 
@@ -47,33 +50,29 @@ class TestProtocol(Protocol):
 
     _normative_data: pd.DataFrame
     _participant: Participant
-    _emg_normalization_references: TimeseriesRecord
-    _emg_activation_references: TimeseriesRecord
+    _emg_normalization_references: Record
+    _emg_activation_references: Record
     _emg_activation_threshold: float
     _emg_normalization_function: Callable
-    _relevant_muscle_map: list[str] | None
+    _relevant_muscle_map: list[str]
 
     def __init__(
         self,
         participant: Participant,
         normative_data: pd.DataFrame,
-        emg_normalization_references: (
-            TimeseriesRecord | str | Literal["self"]
-        ) = TimeseriesRecord(),
+        emg_normalization_references: Record = Record(),
         emg_normalization_function: Callable = np.mean,
-        emg_activation_references: (
-            TimeseriesRecord | str | Literal["self"]
-        ) = TimeseriesRecord(),
+        emg_activation_references: Record = Record(),
         emg_activation_threshold: float = 3,
         relevant_muscle_map: list[str] | None = None,
     ):
         self.set_participant(participant)
         self.set_normative_data(normative_data)
-        self.set_emg_normalization_references(emg_normalization_references)
-        self.set_emg_normalization_function(emg_normalization_function)
-        self.set_emg_activation_references(emg_activation_references)
-        self.set_emg_activation_threshold(emg_activation_threshold)
         self.set_relevant_muscle_map(relevant_muscle_map)
+        self.set_emg_activation_threshold(emg_activation_threshold)
+        self.set_emg_activation_references(emg_activation_references)
+        self.set_emg_normalization_function(emg_normalization_function)
+        self.set_emg_normalization_references(emg_normalization_references)
 
     def __setstate__(self, state):
         """
@@ -83,20 +82,21 @@ class TestProtocol(Protocol):
         self.__dict__.update(state)
         # Ensure all required attributes exist with default values if missing
         if not hasattr(self, "_emg_activation_references"):
-            self._emg_activation_references = TimeseriesRecord()
+            self._emg_activation_references = Record()
         if not hasattr(self, "_emg_normalization_references"):
-            self._emg_normalization_references = TimeseriesRecord()
+            self._emg_normalization_references = Record()
         if not hasattr(self, "_emg_activation_threshold"):
             self._emg_activation_threshold = 3
         if not hasattr(self, "_emg_normalization_function"):
             self._emg_normalization_function = np.mean
         if not hasattr(self, "_relevant_muscle_map"):
-            self._relevant_muscle_map = None
+            self._relevant_muscle_map = []
 
     def set_relevant_muscle_map(self, muscle_map: list[str] | None):
-        if muscle_map is None or (
-            isinstance(muscle_map, list)
-            and all([isinstance(i, str) for i in muscle_map])
+        if muscle_map is None:
+            self._relevant_muscle_map = []
+        elif isinstance(muscle_map, list) and all(
+            [isinstance(i, str) for i in muscle_map]
         ):
             self._relevant_muscle_map = muscle_map
         else:
@@ -115,45 +115,33 @@ class TestProtocol(Protocol):
     def emg_normalization_function(self):
         return self._emg_normalization_function
 
-    def set_emg_normalization_references(
-        self, ref: TimeseriesRecord | str | Literal["self"]
-    ):
-        if isinstance(ref, str):
-            if ref == "self":
-                if isinstance(self, TimeseriesRecord):
-                    self._emg_normalization_references = self.emgsignals.copy()
-                else:
-                    msg = "'self' cannot be used as emg_normalization_reference "
-                    msg += "as it is not a TimeseriesRecord subclass."
-                    raise ValueError(msg)
-        elif isinstance(ref, TimeseriesRecord):
-            self._emg_normalization_references = ref
+    def set_emg_normalization_references(self, ref: Record):
+        """set the Record containing EMG data to be used as normalization references"""
+        if not isinstance(ref, Record):
+            raise ValueError("emg normalization references must be a Record instance.")
+        if len(self.relevant_muscle_map) == 0:
+            muscle_map = ref.emgsignals.keys()
         else:
-            msg = "emg_normalization_references must be: 1) a TimeseriesRecord "
-            msg += " instance with EMGSignal objects contained inside. 2) 'self'."
-            raise ValueError(msg)
+            muscle_map = self.relevant_muscle_map
+        self._emg_normalization_references = Record(
+            **{i: v for i, v in ref.emgsignals.items() if i in muscle_map}
+        )
 
     @property
     def emg_normalization_references(self):
         return self._emg_normalization_references
 
-    def set_emg_activation_references(
-        self, ref: TimeseriesRecord | str | Literal["self"]
-    ):
-        if isinstance(ref, str):
-            if ref == "self":
-                if isinstance(self, TimeseriesRecord):
-                    self._emg_activation_references = self.emgsignals.copy()
-                else:
-                    msg = "'self' cannot be used as emg_activation_reference "
-                    msg += "as it is not a TimeseriesRecord subclass."
-                    raise ValueError(msg)
-        elif isinstance(ref, TimeseriesRecord):
-            self._emg_activation_references = ref
+    def set_emg_activation_references(self, ref: Record):
+        """set the Record containing EMG data to be used as activation references"""
+        if not isinstance(ref, Record):
+            raise ValueError("emg activation references must be a Record instance.")
+        if len(self.relevant_muscle_map) == 0:
+            muscle_map = ref.emgsignals.keys()
         else:
-            msg = "emg_activation_references must be: 1) a TimeseriesRecord "
-            msg += " instance with EMGSignal objects contained inside. 2) 'self'."
-            raise ValueError(msg)
+            muscle_map = self.relevant_muscle_map
+        self._emg_activation_references = Record(
+            **{i: v for i, v in ref.emgsignals.items() if i in muscle_map}
+        )
 
     @property
     def emg_activation_references(self):
@@ -211,32 +199,38 @@ class TestProtocol(Protocol):
     @property
     def emg_normalization_values(self):
         # apply the pipeline to normalization emg data and extract mean values
-        norm = self.processing_pipeline(
-            self.emg_normalization_references,
-            inplace=False,
-        )
-        if not isinstance(norm, TimeseriesRecord):
-            msg = "Something went wrong during data processing."
-            raise ValueError(msg)
+        pipeline = self.processing_pipeline
+        if pipeline is not None:
+            norm = pipeline(self.emg_normalization_references, inplace=False)
+            if not isinstance(norm, Record):
+                msg = "Something went wrong during data processing."
+                raise ValueError(msg)
+        else:
+            norm = self.emg_normalization_references
         norms: dict[tuple[str, str], float] = {}
         for i in norm.emgsignals.values():
             if isinstance(i, EMGSignal):
                 norms[(i.muscle_name, i.side)] = float(
-                    self.emg_normalization_function(i.to_numpy())
+                    self.emg_normalization_function(i.to_numpy().flatten())
                 )
 
         return norms
 
     @property
     def emg_activation_thresholds(self):
-        # get processed activation signals
-        thresh = self.processing_pipeline(
-            self.emg_activation_references,
-            inplace=False,
-        )
-        if not isinstance(thresh, TimeseriesRecord):
-            msg = "Something went wrong during data processing."
-            raise ValueError(msg)
+        pipeline = self.processing_pipeline
+        if pipeline is not None:
+
+            # get processed activation signals
+            thresh = pipeline(
+                self.emg_activation_references,
+                inplace=False,
+            )
+            if not isinstance(thresh, Record):
+                msg = "Something went wrong during data processing."
+                raise ValueError(msg)
+        else:
+            thresh = self.emg_activation_references
         thresh_vals = {
             (i.muscle_name, i.side): i.to_numpy().flatten()
             for i in thresh.emgsignals.values()
@@ -252,7 +246,121 @@ class TestProtocol(Protocol):
 
         return thresholds
 
-    def save(self, file_path: str, force_overwrite: bool = False):
+    def _get_constructor_args(self):
+        """
+        Extract constructor arguments and internal attributes for dynamic instantiation.
+
+        Returns
+        -------
+        dict
+            Dictionary of constructor arguments and internal attributes.
+        """
+        sig = inspect.signature(self.__class__.__init__)
+        args = {}
+
+        # Capture constructor parameters
+        for name, param in sig.parameters.items():
+            if name == "self":
+                continue
+
+            value = None
+            if hasattr(self, name):
+                value = getattr(self, name)
+            elif hasattr(self, f"_{name}"):
+                value = getattr(self, f"_{name}")
+            elif param.default is not inspect.Parameter.empty:
+                value = param.default
+            else:
+                # Skip - may be handled by **kwargs
+                continue
+            args[name] = value
+
+        # Additionally capture internal attributes (like Timeseries._get_object_args does)
+        for attr in dir(self):
+            if attr.startswith("_") and not attr.startswith("__"):
+                # Skip if already captured
+                if attr in args:
+                    continue
+                # Only capture non-callable attributes
+                if hasattr(self.__class__, attr):
+                    value = getattr(self, attr)
+                    if not callable(value):
+                        args[attr] = value
+
+        # remove unnecessary args
+        to_omit = ["_abc_impl", "_is_protocol", "_is_runtime_protocol"]
+        for key in to_omit:
+            if key in list(args.keys()):
+                args.pop(key)
+
+        return args
+
+    def copy(self):
+        """
+        Create a deep copy preserving the concrete subclass type.
+
+        Returns
+        -------
+        TestProtocol or subclass
+            A new instance of the same class with copied attributes.
+
+        Notes
+        -----
+        - Participant objects are deep copied using copy.deepcopy()
+        - DataFrames are copied using df.copy()
+        - Records are copied using their .copy() method
+        - Callable attributes (like emg_normalization_function) are referenced, not copied
+        - Subclass-specific attributes are automatically preserved via introspection
+        """
+        # Get all constructor arguments and internal attributes
+        args = self._get_constructor_args()
+
+        # Deep copy Participant object
+        if "participant" in args or "_participant" in args:
+            participant = args.get("participant", args.get("_participant"))
+            if participant is not None:
+                args["participant"] = copy_module.deepcopy(participant)
+                if "_participant" in args:
+                    args.pop("_participant")
+
+        # Deep copy DataFrame
+        if "normative_data" in args or "_normative_data" in args:
+            norm_data = args.get("normative_data", args.get("_normative_data"))
+            if norm_data is not None and hasattr(norm_data, "copy"):
+                args["normative_data"] = norm_data.copy()
+                if "_normative_data" in args:
+                    args.pop("_normative_data")
+
+        # Copy Record objects using their .copy() method
+        for key in list(args.keys()):
+            if key in [
+                "emg_normalization_references",
+                "emg_activation_references",
+                "_emg_normalization_references",
+                "_emg_activation_references",
+            ]:
+                ref = args[key]
+                if ref is not None and hasattr(ref, "copy") and callable(ref.copy):
+                    param_name = key.replace("_", "", 1) if key.startswith("_") else key
+                    args[param_name] = ref.copy()
+                    if key.startswith("_") and param_name in args:
+                        args.pop(key)
+
+        # Remove internal attribute versions if public parameter exists
+        # (avoid passing both _attr and attr to constructor)
+        for key in list(args.keys()):
+            if key.startswith("_"):
+                public_key = key[1:]
+                if public_key in args:
+                    args.pop(key)
+
+        # Callable attributes (emg_normalization_function) and simple types
+        # (float, str, list) are passed as-is
+
+        # Create new instance of the concrete class
+        return self.__class__(**args)
+
+    def save(self, file_path: str | Path, force_overwrite: bool = False):
         """
         Save the test object to a file.
 
@@ -262,32 +370,34 @@ class TestProtocol(Protocol):
             Path where to save the file. The file extension should match the
             test name. If not, the appropriate extension is appended.
         """
-        if not isinstance(file_path, str):
-            raise ValueError("'file_path' must be a str instance.")
+        if not isinstance(file_path, (str, Path)):
+            raise ValueError("'file_path' must be a str or Path instance.")
         if not isinstance(force_overwrite, bool):
             raise ValueError("force_overwrite must be True or False.")
-        extension = "." + self.__class__.__name__.lower()
-        if not file_path.endswith(extension):
-            file_path += extension
+        if isinstance(file_path, str):
+            file_path = Path(file_path)
+        extension = "." + self.name.lower()
+        if file_path.suffix.lower() != extension:
+            file_path = file_path.with_suffix(extension)
         if exists(file_path) and not force_overwrite:
             overwrite = askyesnocancel(
                 title="File already exists",
                 message="the provided file_path already exist. Overwrite?",
             )
             if not overwrite:
-                file_path = file_path[: len(extension)] + "(1)" + extension
+                file_path = file_path.with_name(file_path.name + "(1)")
         makedirs(dirname(file_path), exist_ok=True)
         with open(file_path, "wb") as buf:
             pickle.dump(self, buf)
 
     @classmethod
-    def load(cls, file_path: str):
+    def load(cls, file_path: str | Path):
         """
         Load a test object from a file.
 
         Parameters
         ----------
-        file_path : str
+        file_path : str | Path
             Path to the file to load. The file extension must match the test name.
 
         Returns
@@ -302,10 +412,13 @@ class TestProtocol(Protocol):
         RuntimeError
             If loading fails.
         """
-        if not isinstance(file_path, str):
-            raise ValueError("'file_path' must be a str instance.")
+        if isinstance(file_path, str):
+            file_path = Path(file_path)
+        if not isinstance(file_path, Path):
+            raise ValueError("'file_path' must be a str or Path instance.")
+
         extension = "." + cls.__name__.lower()
-        if not file_path.endswith(extension):
+        if not file_path.suffix.endswith(extension):
             raise ValueError(f"'file_path' must have {extension}.")
         try:
             with open(file_path, "rb") as buf:
@@ -318,14 +431,14 @@ class TestProtocol(Protocol):
     def get_results(self, include_emg: bool = True): ...
 
     @property
-    def processing_pipeline(self):
+    def processing_pipeline(self) -> ProcessingPipeline:
         """
         exercise data processing pipeline
         """
         ...
 
     @property
-    def processed_data(self): ...
+    def processed_data(self) -> "Self": ...
 
 
 __all__ = ["TestProtocol"]

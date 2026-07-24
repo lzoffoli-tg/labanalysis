@@ -11,31 +11,31 @@ sys.path.append(dirname(dirname(dirname(dirname(abspath(__file__))))))
 
 from src import labanalysis as laban
 
-PARTICIPANT = laban.Participant(
-    "Furlani",
-    "Mattia",
-    "Male",
-    184,
-    67.8,
-    21,
-)
-
-RAW_DATA_PATH = join(
-    dirname(dirname(dirname(dirname(dirname(dirname(abspath(__file__))))))),
-    "t-lab",
-    "test",
-    "furlani_mattia",
-    "2026_06_29",
-    "collected_data",
-    "jumps",
-    "tracked_data",
-)
-
 
 def test_mattia_furlani_jump_tests():
 
-    RESULTS_PATH = "_results"
-    TEST_FILE = join(RESULTS_PATH, "test.jumptest")
+    PARTICIPANT = laban.Participant(
+        "Furlani",
+        "Mattia",
+        "Male",
+        184,
+        67.8,
+        21,
+    )
+
+    RAW_DATA_PATH = join(
+        dirname(dirname(dirname(dirname(dirname(dirname(abspath(__file__))))))),
+        "t-lab",
+        "test",
+        "furlani_mattia",
+        "2026_06_29",
+        "collected_data",
+        "jumps",
+        "tracked_data",
+    )
+
+    RESULTS_PATH = Path(__file__).parent / "results"
+    TEST_FILE = RESULTS_PATH / "test.jumptest"
     if not exists(TEST_FILE):
         makedirs(RESULTS_PATH, exist_ok=True)
 
@@ -101,7 +101,7 @@ def test_mattia_furlani_jump_tests():
     results.save_all(RESULTS_PATH, force_overwrite=True)
 
     # remove temporary files
-    shutil.rmtree(Path(RESULTS_PATH), ignore_errors=True)
+    shutil.rmtree(RESULTS_PATH, ignore_errors=True)
 
 
 if __name__ == "__main__":

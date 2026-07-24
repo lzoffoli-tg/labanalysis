@@ -4,11 +4,11 @@ import numpy as np
 
 from .joint import Joint
 from ....timeseries.point3d import Point3D
-from ...timeseriesrecord import TimeseriesRecord
+from ...record import Record
 from ....events.signal import Signal
 
 
-class Segment(TimeseriesRecord):
+class Segment(Record):
     """base segment class"""
 
     def __init__(self, **points: Point3D | None | Joint):

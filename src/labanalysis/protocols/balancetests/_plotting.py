@@ -7,7 +7,7 @@ from plotly.subplots import make_subplots
 
 from ...constants import RANK_4COLORS
 from ...modelling import Ellipse
-from ...records import TimeseriesRecord
+from ...records import Record
 from ...utils import FloatArray1D
 
 
@@ -15,7 +15,7 @@ def _get_sway_figure(
     cop_x: FloatArray1D,
     cop_y: FloatArray1D,
     normative_data: pd.DataFrame = pd.DataFrame(),
-    emgsignals: TimeseriesRecord = TimeseriesRecord(),
+    emgsignals: Record = Record(),
 ):
 
     def balance_string(left: str, right: str, sep: str = " | "):

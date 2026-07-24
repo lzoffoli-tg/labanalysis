@@ -57,15 +57,15 @@ class Isokinetic1RMTest(TestProtocol):
     normative_data : pd.DataFrame, optional
         Reference normative values
         Default: isok_1rm_normative_values
-    emg_normalization_references : TimeseriesRecord or 'self', optional
+    emg_normalization_references : Record or 'self', optional
         EMG normalization references
-        Default: empty TimeseriesRecord
+        Default: empty Record
     emg_normalization_function : callable, optional
         Function to compute normalization value
         Default: np.mean
-    emg_activation_references : TimeseriesRecord or 'self', optional
+    emg_activation_references : Record or 'self', optional
         References for muscle activation thresholds
-        Default: empty TimeseriesRecord
+        Default: empty Record
     emg_activation_threshold : float, optional
         Threshold multiplier for activation detection
         Default: 3
@@ -177,9 +177,9 @@ def from_files(
     right_emg_filename: str | None = None,
     bilateral_emg_filename: str | None = None,
     normative_data: pd.DataFrame = isok_1rm_normative_values,
-    emg_normalization_references: TimeseriesRecord | str | Literal['self'] = TimeseriesRecord(),
+    emg_normalization_references: Record | str | Literal['self'] = Record(),
     emg_normalization_function: Callable = np.mean,
-    emg_activation_references: TimeseriesRecord | str | Literal['self'] = TimeseriesRecord(),
+    emg_activation_references: Record | str | Literal['self'] = Record(),
     emg_activation_threshold: float = 3,
     relevant_muscle_map: list[str] | None = None
 ) -> 'Isokinetic1RMTest'
@@ -389,15 +389,15 @@ class IsometricTest(TestProtocol):
     normative_data : pd.DataFrame, optional
         Reference normative values
         Default: empty DataFrame
-    emg_normalization_references : TimeseriesRecord or 'self', optional
+    emg_normalization_references : Record or 'self', optional
         EMG normalization references
-        Default: empty TimeseriesRecord
+        Default: empty Record
     emg_normalization_function : callable, optional
         Function to compute normalization value
         Default: np.mean
-    emg_activation_references : TimeseriesRecord or 'self', optional
+    emg_activation_references : Record or 'self', optional
         References for muscle activation thresholds
-        Default: empty TimeseriesRecord
+        Default: empty Record
     emg_activation_threshold : float, optional
         Threshold multiplier for activation detection
         Default: 3
@@ -526,9 +526,9 @@ def from_files(
     right_emg_filename: str | None = None,
     bilateral_emg_filename: str | None = None,
     normative_data: pd.DataFrame = pd.DataFrame(),
-    emg_normalization_references: TimeseriesRecord = TimeseriesRecord(),
+    emg_normalization_references: Record = Record(),
     emg_normalization_function: Callable = np.mean,
-    emg_activation_references: TimeseriesRecord = TimeseriesRecord(),
+    emg_activation_references: Record = Record(),
     emg_activation_threshold: float = 3,
     relevant_muscle_map: list[str] | None = None
 ) -> 'IsometricTest'

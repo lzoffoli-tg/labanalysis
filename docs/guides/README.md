@@ -16,7 +16,7 @@ pip install git+https://github.com/lzoffoli-tg/labanalysis.git
 import labanalysis as laban
 
 # Load data from TDF file
-record = laban.TimeseriesRecord.from_tdf("data.tdf")
+record = laban.Record.from_tdf("data.tdf")
 
 # Access force platform data
 fp = record['FP1']

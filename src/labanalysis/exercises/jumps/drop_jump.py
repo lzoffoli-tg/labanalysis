@@ -44,11 +44,11 @@ class DropJump(SingleJump):
     ----------
     box_height_cm : float
         Drop box height in centimeters.
-    landing_phase : TimeseriesRecord
+    landing_phase : Record
         Data segment from box drop landing to end of initial ground contact.
-    contact_phase : TimeseriesRecord
+    contact_phase : Record
         Data segment from landing to takeoff (full ground contact).
-    flight_phase : TimeseriesRecord
+    flight_phase : Record
         Data segment during aerial phase after propulsion.
     reactive_strength_index : float
         RSI = jump_height / contact_time (unitless performance metric).
@@ -404,7 +404,7 @@ class DropJump(SingleJump):
 
         Notes
         -----
-        This method follows the same pattern as EMGSignal and TimeseriesRecord,
+        This method follows the same pattern as EMGSignal and Record,
         explicitly passing custom non-signal attributes
         (box_height_cm, bodymass_kg, free_hands) to the constructor while
         copying all signal data.
@@ -418,11 +418,12 @@ class DropJump(SingleJump):
 
     @property
     def reactive_strength_index(self):
+        """return rsi in cm/s"""
         jump_height = self.jump_height
         contact_time = self.contact_time
         if jump_height is None or contact_time is None:
             return None
-        return jump_height / contact_time
+        return jump_height * 100 / contact_time
 
 
 __all__ = ["DropJump"]

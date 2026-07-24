@@ -7,13 +7,12 @@ import numpy as np
 from ....referenceframes.referenceframes import ReferenceFrame
 from ....timeseries import Signal1D, Timeseries, Point3D, Signal3D
 from ...record import Record
-from ...timeseriesrecord import TimeseriesRecord
 from ....events.signal import Signal
 
 __all__ = ["Joint"]
 
 
-class Joint(TimeseriesRecord):
+class Joint(Record):
     """
     General Joint class
     """

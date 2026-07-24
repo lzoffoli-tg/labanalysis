@@ -52,13 +52,6 @@ class Signal1D(Timeseries):
             unit=unit,
         )
 
-    def copy(self):
-        return Signal1D(
-            self._data.copy(),
-            self.index.copy(),
-            self.unit,
-        )
-
     def to_dataframe(self):
         df = super().to_dataframe()
         df.columns = pd.Index([self.unit.replace(" ", "")])

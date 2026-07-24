@@ -365,7 +365,7 @@ def analyze_505_test(tdf_file_505, tdf_file_sprint, participant):
     time_505 = pelvis_505['y'].index[turn_idx] + 0.5  # Add return time estimate
     
     # Load straight sprint
-    sprint = laban.TimeseriesRecord.from_tdf(tdf_file_sprint)
+    sprint = laban.Record.from_tdf(tdf_file_sprint)
     pelvis_sprint = sprint.markers['pelvis_center']
     
     # Get 10m sprint time

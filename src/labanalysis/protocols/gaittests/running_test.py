@@ -1,6 +1,7 @@
 """Running test implementation."""
 
-from typing import Any, Callable, Literal
+from pathlib import Path
+from typing import Callable, Literal
 
 import numpy as np
 import pandas as pd
@@ -9,65 +10,50 @@ from ...constants import (
     DEFAULT_MINIMUM_CONTACT_GRF_N,
     DEFAULT_MINIMUM_HEIGHT_PERCENTAGE,
 )
-from ...records import ForcePlatform, TimeseriesRecord
 from ...exercises.gait import RunningExercise
-from ...timeseries import EMGSignal, Point3D, Signal1D, Signal3D
-from ...pipelines import get_default_processing_pipeline
+from ...pipelines.defaults import get_default_processing_pipeline
+from ...records import Record
+from ...referenceframes.referenceframes import ReferenceFrame
 from ..participant import Participant
 from ..test_protocol import TestProtocol
 
 
-class RunningTest(RunningExercise, TestProtocol):
+class RunningTest(TestProtocol):
     """
     Test protocol for running gait analysis and biomechanical assessment.
 
-    RunningTest extends RunningExercise with test protocol capabilities,
-    enabling systematic running gait analysis with participant tracking,
-    cycle detection, and automated metrics extraction. The class combines
-    biomechanical gait analysis with clinical test protocol structure.
+    RunningTest extends TestProtocol to provide systematic running gait analysis
+    with participant tracking, automated step detection, and comprehensive metrics
+    extraction. The class manages multiple running exercise trials and organizes
+    results into structured summaries suitable for clinical reporting and research.
 
-    The test automatically detects individual running steps from continuous
-    data, extracts spatiotemporal parameters, and organizes results into
-    structured summaries and time-series analytics suitable for clinical
-    reporting and research analysis.
+    The test automatically detects individual running steps from continuous data
+    across multiple trials, extracts spatiotemporal and kinetic parameters, and
+    provides interactive visualizations of force profiles.
 
     Parameters
     ----------
+    exercises : list of RunningExercise
+        List of running exercise trials to analyze.
     participant : Participant
         Participant information including demographics and anthropometrics.
     normative_data : pd.DataFrame, optional
         Reference data for performance comparison. Default is empty DataFrame.
-    algorithm : {'kinematics', 'kinetics'}, optional
-        Cycle detection algorithm. 'kinematics' uses marker trajectories,
-        'kinetics' uses force platform data. Default is 'kinematics'.
-    ground_reaction_force_threshold : float or int, optional
-        Minimum vertical ground reaction force (N) for foot contact detection
-        when using kinetics algorithm. Default is DEFAULT_MINIMUM_CONTACT_GRF_N.
-    height_threshold : float or int, optional
-        Maximum normalized height for foot contact detection when using
-        kinematics algorithm. Default is DEFAULT_MINIMUM_HEIGHT_PERCENTAGE.
-    left_foot_ground_reaction_force : ForcePlatform or None, optional
-        Force platform data for left foot. Default is None.
-    right_foot_ground_reaction_force : ForcePlatform or None, optional
-        Force platform data for right foot. Default is None.
-    left_heel : Point3D or None, optional
-        Left heel marker trajectory. Default is None.
-    right_heel : Point3D or None, optional
-        Right heel marker trajectory. Default is None.
-    left_toe : Point3D or None, optional
-        Left toe marker trajectory. Default is None.
-    right_toe : Point3D or None, optional
-        Right toe marker trajectory. Default is None.
-    **extra_signals : Signal1D, Signal3D, EMGSignal, Point3D, ForcePlatform
-        Additional biomechanical signals (joint angles, EMG, etc.).
+    emg_normalization_references : Record or str or 'self', optional
+        Reference data for EMG normalization. Default is empty Record.
+    emg_normalization_function : Callable, optional
+        Function to apply for EMG normalization. Default is np.mean.
+    emg_activation_references : Record or str or 'self', optional
+        Reference data for EMG activation threshold. Default is empty Record.
+    emg_activation_threshold : float, optional
+        Threshold for EMG activation detection. Default is 3.
+    relevant_muscle_map : list of str or None, optional
+        List of relevant muscle names to include in analysis. Default is None.
 
     Attributes
     ----------
-    cycles : list of RunningStep
-        Detected running steps extracted from continuous data.
-    get_results : dict
-        Dictionary containing 'summary' DataFrame with per-cycle metrics
-        and 'analytics' dict with time-series data (COP, GRF).
+    exercises : list of RunningExercise
+        Running exercise trials included in the test.
     participant : Participant
         Participant demographics and anthropometrics.
     normative_data : pd.DataFrame
@@ -88,53 +74,33 @@ class RunningTest(RunningExercise, TestProtocol):
     - Peak vertical force (N): Maximum ground reaction force
     - Lateral displacement (mm): Mediolateral COP excursion
     - Vertical displacement (mm): Vertical COP excursion
+    - Peak braking/propulsion forces (N): Anteroposterior force components
+    - Vertical oscillation (mm): Pelvis vertical displacement
+    - Trunk/pelvis angular metrics (degrees): Peak rotations and tilts
 
-    Algorithm Selection:
+    Algorithm Selection (per exercise):
     - Kinematics: Requires left_heel, right_heel, left_toe, right_toe markers
     - Kinetics: Requires force platform data (left/right_foot_ground_reaction_force)
-
-    The test inherits full-body biomechanical model from WholeBody, enabling
-    joint angle calculations, segment kinematics, and comprehensive movement
-    analysis when appropriate markers are provided.
 
     See Also
     --------
     RunningExercise : Running gait exercise with cycle detection.
     RunningStep : Individual running step with phase segmentation.
-    WalkingTest : Walking gait test protocol.
+    RunningTestResults : Structured results container.
     TestProtocol : Base class for test protocols.
-
-    Examples
-    --------
-    >>> participant = Participant(age=30, weight=70, height=175)
-    >>> test = RunningTest.from_tdf(
-    ...     file='running_trial.tdf',
-    ...     participant=participant,
-    ...     algorithm='kinematics',
-    ...     left_heel='LHEE',
-    ...     right_heel='RHEE',
-    ...     left_toe='LTOE',
-    ...     right_toe='RTOE'
-    ... )
-    >>> results = test.get_results
-    >>> print(results['summary'])  # Spatiotemporal parameters per cycle
-    >>> print(results['analytics']['ground_reaction_force'])  # GRF time-series
     """
 
     def get_results(self, include_emg: bool = False):
         """
         Generate comprehensive running test results.
 
+        Creates structured results including per-step metrics, aggregate statistics,
+        time-series analytics, and interactive force profile visualizations.
+
         Parameters
         ----------
         include_emg : bool, optional
             Include EMG metrics in results. Default is False.
-
-        Returns
-        -------
-        RunningTestResults
-            Complete test results with summary tables (per-step and aggregate),
-            time-series analytics, and interactive force profile figures.
 
         Notes
         -----
@@ -157,7 +123,7 @@ class RunningTest(RunningExercise, TestProtocol):
 
         Examples
         --------
-        >>> test = RunningTest.from_tdf('trial.tdf', participant=p)
+        >>> test = RunningTest.from_files(['trial.tdf'], [3.0], [0.0], participant=p)
         >>> results = test.get_results()
         >>> print(results.summary['per_step'])
         >>> print(results.summary['aggregate'])
@@ -169,110 +135,87 @@ class RunningTest(RunningExercise, TestProtocol):
 
     def __init__(
         self,
+        exercises: list[RunningExercise],
         participant: Participant,
         normative_data: pd.DataFrame = pd.DataFrame(),
-        algorithm: Literal["kinematics", "kinetics"] = "kinematics",
-        ground_reaction_force_threshold: float | int = DEFAULT_MINIMUM_CONTACT_GRF_N,
-        height_threshold: float | int = DEFAULT_MINIMUM_HEIGHT_PERCENTAGE,
-        left_hand_ground_reaction_force: ForcePlatform | None = None,
-        right_hand_ground_reaction_force: ForcePlatform | None = None,
-        left_foot_ground_reaction_force: ForcePlatform | None = None,
-        right_foot_ground_reaction_force: ForcePlatform | None = None,
-        left_heel: Point3D | None = None,
-        right_heel: Point3D | None = None,
-        left_toe: Point3D | None = None,
-        right_toe: Point3D | None = None,
-        left_first_metatarsal_head: Point3D | None = None,
-        left_fifth_metatarsal_head: Point3D | None = None,
-        right_first_metatarsal_head: Point3D | None = None,
-        right_fifth_metatarsal_head: Point3D | None = None,
-        left_ankle_medial: Point3D | None = None,
-        left_ankle_lateral: Point3D | None = None,
-        right_ankle_medial: Point3D | None = None,
-        right_ankle_lateral: Point3D | None = None,
-        left_knee_medial: Point3D | None = None,
-        left_knee_lateral: Point3D | None = None,
-        right_knee_medial: Point3D | None = None,
-        right_knee_lateral: Point3D | None = None,
-        right_trochanter: Point3D | None = None,
-        left_trochanter: Point3D | None = None,
-        left_asis: Point3D | None = None,
-        right_asis: Point3D | None = None,
-        left_psis: Point3D | None = None,
-        right_psis: Point3D | None = None,
-        left_shoulder_anterior: Point3D | None = None,
-        left_shoulder_posterior: Point3D | None = None,
-        right_shoulder_anterior: Point3D | None = None,
-        right_shoulder_posterior: Point3D | None = None,
-        left_elbow_medial: Point3D | None = None,
-        left_elbow_lateral: Point3D | None = None,
-        right_elbow_medial: Point3D | None = None,
-        right_elbow_lateral: Point3D | None = None,
-        left_wrist_medial: Point3D | None = None,
-        left_wrist_lateral: Point3D | None = None,
-        right_wrist_medial: Point3D | None = None,
-        right_wrist_lateral: Point3D | None = None,
-        s2: Point3D | None = None,
-        l2: Point3D | None = None,
-        c7: Point3D | None = None,
-        sc: Point3D | None = None,  # sternoclavicular joint
-        **extra_signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
+        emg_normalization_references: Record | str | Literal["self"] = Record(),
+        emg_normalization_function: Callable = np.mean,
+        emg_activation_references: Record | str | Literal["self"] = Record(),
+        emg_activation_threshold: float = 3,
+        relevant_muscle_map: list[str] | None = None,
     ):
+        """
+        Initialize a RunningTest instance.
+
+        Parameters
+        ----------
+        exercises : list of RunningExercise
+            List of running exercise trials to analyze.
+        participant : Participant
+            Participant information including demographics and anthropometrics.
+        normative_data : pd.DataFrame, optional
+            Reference data for performance comparison. Default is empty DataFrame.
+        emg_normalization_references : Record or str or 'self', optional
+            Reference data for EMG normalization. Default is empty Record.
+        emg_normalization_function : Callable, optional
+            Function to apply for EMG normalization. Default is np.mean.
+        emg_activation_references : Record or str or 'self', optional
+            Reference data for EMG activation threshold. Default is empty Record.
+        emg_activation_threshold : float, optional
+            Threshold for EMG activation detection. Default is 3.
+        relevant_muscle_map : list of str or None, optional
+            List of relevant muscle names to include in analysis. Default is None.
+
+        Raises
+        ------
+        TypeError
+            If any exercise in the list is not a RunningExercise instance.
+        """
         super().__init__(
-            algorithm=algorithm,
-            ground_reaction_force_threshold=ground_reaction_force_threshold,
-            height_threshold=height_threshold,
-            left_hand_ground_reaction_force=left_hand_ground_reaction_force,
-            right_hand_ground_reaction_force=right_hand_ground_reaction_force,
-            left_foot_ground_reaction_force=left_foot_ground_reaction_force,
-            right_foot_ground_reaction_force=right_foot_ground_reaction_force,
-            left_heel=left_heel,
-            right_heel=right_heel,
-            left_toe=left_toe,
-            right_toe=right_toe,
-            left_first_metatarsal_head=left_first_metatarsal_head,
-            left_fifth_metatarsal_head=left_fifth_metatarsal_head,
-            right_first_metatarsal_head=right_first_metatarsal_head,
-            right_fifth_metatarsal_head=right_fifth_metatarsal_head,
-            left_ankle_medial=left_ankle_medial,
-            left_ankle_lateral=left_ankle_lateral,
-            right_ankle_medial=right_ankle_medial,
-            right_ankle_lateral=right_ankle_lateral,
-            left_knee_medial=left_knee_medial,
-            left_knee_lateral=left_knee_lateral,
-            right_knee_medial=right_knee_medial,
-            right_knee_lateral=right_knee_lateral,
-            left_trochanter=left_trochanter,
-            right_trochanter=right_trochanter,
-            left_asis=left_asis,
-            right_asis=right_asis,
-            left_psis=left_psis,
-            right_psis=right_psis,
-            left_shoulder_anterior=left_shoulder_anterior,
-            left_shoulder_posterior=left_shoulder_posterior,
-            right_shoulder_anterior=right_shoulder_anterior,
-            right_shoulder_posterior=right_shoulder_posterior,
-            left_elbow_medial=left_elbow_medial,
-            left_elbow_lateral=left_elbow_lateral,
-            right_elbow_medial=right_elbow_medial,
-            right_elbow_lateral=right_elbow_lateral,
-            left_wrist_medial=left_wrist_medial,
-            left_wrist_lateral=left_wrist_lateral,
-            right_wrist_medial=right_wrist_medial,
-            right_wrist_lateral=right_wrist_lateral,
-            s2=s2,
-            c7=c7,
-            sc=sc,
-            l2=l2,
-            **extra_signals,  # type: ignore
+            participant=participant,
+            normative_data=normative_data,
+            emg_normalization_function=emg_normalization_function,
+            emg_normalization_references=emg_normalization_references,
+            emg_activation_references=emg_activation_references,
+            emg_activation_threshold=emg_activation_threshold,
+            relevant_muscle_map=relevant_muscle_map,
         )
         self.set_participant(participant)
         self.set_normative_data(normative_data)
+        self.set_exercises(exercises)
+
+    def set_exercises(self, exercises: list[RunningExercise]):
+        """
+        Set the running exercises for the test.
+
+        Parameters
+        ----------
+        exercises : list of RunningExercise
+            List of running exercise trials.
+
+        Raises
+        ------
+        TypeError
+            If any exercise is not a RunningExercise instance.
+        """
+        if not all(isinstance(ex, RunningExercise) for ex in exercises):
+            raise TypeError("All exercises must be instances of RunningExercise")
+        exes = [e.strip() for e in exercises]
+        self._exercises = [e for e in exes if e is not None]
+
+    @property
+    def exercises(self):
+        """
+        Get the running exercises for the test.
+        """
+        return self._exercises
 
     @classmethod
-    def from_tdf(
+    def from_files(
         cls,
-        file: str,
+        files: list[str | Path],
+        speeds: list[float | int],
+        grades: list[float | int],
         participant: Participant,
         normative_data: pd.DataFrame = pd.DataFrame(),
         algorithm: Literal["kinematics", "kinetics"] = "kinematics",
@@ -306,8 +249,10 @@ class RunningTest(RunningExercise, TestProtocol):
         right_psis: str | None = None,
         left_shoulder_anterior: str | None = None,
         left_shoulder_posterior: str | None = None,
+        left_acromion: str | None = None,
         right_shoulder_anterior: str | None = None,
         right_shoulder_posterior: str | None = None,
+        right_acromion: str | None = None,
         left_elbow_medial: str | None = None,
         left_elbow_lateral: str | None = None,
         right_elbow_medial: str | None = None,
@@ -327,112 +272,277 @@ class RunningTest(RunningExercise, TestProtocol):
         head_right: str | None = None,
     ):
         """
-        Generate a GaitTest object directly from a .tdf file.
+        Create a RunningTest from multiple .tdf files.
+
+        Reads biomechanical data from BTS Bioengineering .tdf files and creates
+        a complete running test with multiple exercise trials. Each file represents
+        one running trial at a specific speed and grade.
 
         Parameters
         ----------
-        file : str
-            Path to a ".tdf" file.
+        files : list of str or Path
+            Paths to .tdf files, one per trial.
+        speeds : list of float or int
+            Running speeds for each trial (same length as files).
+        grades : list of float or int
+            Running grades (inclines) for each trial (same length as files).
+        participant : Participant
+            Participant information including demographics and anthropometrics.
+        normative_data : pd.DataFrame, optional
+            Reference data for performance comparison. Default is empty DataFrame.
         algorithm : {'kinematics', 'kinetics'}, optional
-            The cycle detection algorithm.
-        left_heel : str or None, optional
-            Name of the left heel marker in the tdf file.
-        right_heel : str or None, optional
-            Name of the right heel marker in the tdf file.
-        left_toe : str or None, optional
-            Name of the left toe marker in the tdf file.
-        right_toe : str or None, optional
-            Name of the right toe marker in the tdf file.
-        left_metatarsal_head : str or None, optional
-            Name of the left metatarsal head marker in the tdf file.
-        right_metatarsal_head : str or None, optional
-            Name of the right metatarsal head marker in the tdf file.
-        ground_reaction_force : str or None, optional
-            Name of the ground reaction force data in the tdf file.
+            Cycle detection algorithm. Default is 'kinematics'.
         ground_reaction_force_threshold : float or int, optional
-            Minimum ground reaction force for contact detection.
+            Minimum ground reaction force (in Newtons) for contact detection.
+            Default is DEFAULT_MINIMUM_CONTACT_GRF_N.
         height_threshold : float or int, optional
-            Maximum vertical height for contact detection.
-        vertical_axis : {'X', 'Y', 'Z'}, optional
-            The vertical axis.
-        antpos_axis : {'X', 'Y', 'Z'}, optional
-            The anterior-posterior axis.
-        process_inputs: bool, optional
-            If True, the ProcessPipeline integrated within this instance is
-            applied. Otherwise raw data are retained.
+            Maximum vertical height (as percentage) for contact detection.
+            Default is DEFAULT_MINIMUM_HEIGHT_PERCENTAGE.
+        left_hand_ground_reaction_force : str or None, optional
+            Name of left hand force platform signal in tdf files.
+        right_hand_ground_reaction_force : str or None, optional
+            Name of right hand force platform signal in tdf files.
+        left_foot_ground_reaction_force : str or None, optional
+            Name of left foot force platform signal in tdf files.
+        right_foot_ground_reaction_force : str or None, optional
+            Name of right foot force platform signal in tdf files.
+        left_heel : str or None, optional
+            Name of left heel marker in tdf files.
+        right_heel : str or None, optional
+            Name of right heel marker in tdf files.
+        left_toe : str or None, optional
+            Name of left toe marker in tdf files.
+        right_toe : str or None, optional
+            Name of right toe marker in tdf files.
+        left_first_metatarsal_head : str or None, optional
+            Name of left first metatarsal head marker in tdf files.
+        left_fifth_metatarsal_head : str or None, optional
+            Name of left fifth metatarsal head marker in tdf files.
+        right_first_metatarsal_head : str or None, optional
+            Name of right first metatarsal head marker in tdf files.
+        right_fifth_metatarsal_head : str or None, optional
+            Name of right fifth metatarsal head marker in tdf files.
+        left_ankle_medial : str or None, optional
+            Name of left ankle medial marker in tdf files.
+        left_ankle_lateral : str or None, optional
+            Name of left ankle lateral marker in tdf files.
+        right_ankle_medial : str or None, optional
+            Name of right ankle medial marker in tdf files.
+        right_ankle_lateral : str or None, optional
+            Name of right ankle lateral marker in tdf files.
+        left_knee_medial : str or None, optional
+            Name of left knee medial marker in tdf files.
+        left_knee_lateral : str or None, optional
+            Name of left knee lateral marker in tdf files.
+        right_knee_medial : str or None, optional
+            Name of right knee medial marker in tdf files.
+        right_knee_lateral : str or None, optional
+            Name of right knee lateral marker in tdf files.
+        left_trochanter : str or None, optional
+            Name of left trochanter marker in tdf files.
+        right_trochanter : str or None, optional
+            Name of right trochanter marker in tdf files.
+        left_asis : str or None, optional
+            Name of left ASIS marker in tdf files.
+        right_asis : str or None, optional
+            Name of right ASIS marker in tdf files.
+        left_psis : str or None, optional
+            Name of left PSIS marker in tdf files.
+        right_psis : str or None, optional
+            Name of right PSIS marker in tdf files.
+        left_shoulder_anterior : str or None, optional
+            Name of left shoulder anterior marker in tdf files.
+        left_shoulder_posterior : str or None, optional
+            Name of left shoulder posterior marker in tdf files.
+        left_acromion : str or None, optional
+            Name of left acromion marker in tdf files.
+        right_shoulder_anterior : str or None, optional
+            Name of right shoulder anterior marker in tdf files.
+        right_shoulder_posterior : str or None, optional
+            Name of right shoulder posterior marker in tdf files.
+        right_acromion : str or None, optional
+            Name of right acromion marker in tdf files.
+        left_elbow_medial : str or None, optional
+            Name of left elbow medial marker in tdf files.
+        left_elbow_lateral : str or None, optional
+            Name of left elbow lateral marker in tdf files.
+        right_elbow_medial : str or None, optional
+            Name of right elbow medial marker in tdf files.
+        right_elbow_lateral : str or None, optional
+            Name of right elbow lateral marker in tdf files.
+        left_wrist_medial : str or None, optional
+            Name of left wrist medial marker in tdf files.
+        left_wrist_lateral : str or None, optional
+            Name of left wrist lateral marker in tdf files.
+        right_wrist_medial : str or None, optional
+            Name of right wrist medial marker in tdf files.
+        right_wrist_lateral : str or None, optional
+            Name of right wrist lateral marker in tdf files.
+        s2 : str or None, optional
+            Name of S2 vertebra marker in tdf files.
+        l2 : str or None, optional
+            Name of L2 vertebra marker in tdf files.
+        c7 : str or None, optional
+            Name of C7 vertebra marker in tdf files.
+        t5 : str or None, optional
+            Name of T5 vertebra marker in tdf files.
+        sc : str or None, optional
+            Name of sternoclavicular joint marker in tdf files.
+        head_anterior : str or None, optional
+            Name of head anterior marker in tdf files.
+        head_posterior : str or None, optional
+            Name of head posterior marker in tdf files.
+        head_left : str or None, optional
+            Name of head left marker in tdf files.
+        head_right : str or None, optional
+            Name of head right marker in tdf files.
 
-        Returns
-        -------
-        GaitTest
+        Raises
+        ------
+        ValueError
+            If files, speeds, and grades lists have different lengths, or if
+            any file is not a string or Path object, or if any speed/grade is
+            not numeric.
         """
-        record = TimeseriesRecord.from_tdf(file)
-        labels = {
-            "left_hand_ground_reaction_force": left_hand_ground_reaction_force,
-            "right_hand_ground_reaction_force": right_hand_ground_reaction_force,
-            "left_foot_ground_reaction_force": left_foot_ground_reaction_force,
-            "right_foot_ground_reaction_force": right_foot_ground_reaction_force,
-            "left_heel": left_heel,
-            "right_heel": right_heel,
-            "left_toe": left_toe,
-            "right_toe": right_toe,
-            "left_first_metatarsal_head": left_first_metatarsal_head,
-            "left_fifth_metatarsal_head": left_fifth_metatarsal_head,
-            "right_first_metatarsal_head": right_first_metatarsal_head,
-            "right_fifth_metatarsal_head": right_fifth_metatarsal_head,
-            "left_ankle_medial": left_ankle_medial,
-            "left_ankle_lateral": left_ankle_lateral,
-            "right_ankle_medial": right_ankle_medial,
-            "right_ankle_lateral": right_ankle_lateral,
-            "left_knee_medial": left_knee_medial,
-            "left_knee_lateral": left_knee_lateral,
-            "right_knee_medial": right_knee_medial,
-            "right_knee_lateral": right_knee_lateral,
-            "left_trochanter": left_trochanter,
-            "right_trochanter": right_trochanter,
-            "left_asis": left_asis,
-            "right_asis": right_asis,
-            "left_psis": left_psis,
-            "right_psis": right_psis,
-            "left_shoulder_anterior": left_shoulder_anterior,
-            "left_shoulder_posterior": left_shoulder_posterior,
-            "right_shoulder_anterior": right_shoulder_anterior,
-            "right_shoulder_posterior": right_shoulder_posterior,
-            "left_elbow_medial": left_elbow_medial,
-            "left_elbow_lateral": left_elbow_lateral,
-            "right_elbow_medial": right_elbow_medial,
-            "right_elbow_lateral": right_elbow_lateral,
-            "left_wrist_medial": left_wrist_medial,
-            "left_wrist_lateral": left_wrist_lateral,
-            "right_wrist_medial": right_wrist_medial,
-            "right_wrist_lateral": right_wrist_lateral,
-            "s2": s2,
-            "c7": c7,
-            "t5": t5,
-            "sc": sc,
-            "l2": l2,
-            "head_anterior": head_anterior,
-            "head_posterior": head_posterior,
-            "head_left": head_left,
-            "head_right": head_right,
-        }
-        objects = {}
-        for key, val in labels.items():
-            if val is not None:
-                read = record.get(val)
-                if read is None:
-                    raise ValueError(f"{key} not found in the provided file.")
-                objects[key] = read
-                record.drop(val, True)
-        others = {i: v for i, v in record.items()}
+        # input check
+        if not all(isinstance(f, (str, Path)) for f in files):
+            raise ValueError("All files must be strings or Path objects.")
+        if not all(isinstance(s, (float, int)) for s in speeds):
+            raise ValueError("All speeds must be numeric values.")
+        if not all(isinstance(g, (float, int)) for g in grades):
+            raise ValueError("All grades must be numeric values.")
+        if len(files) != len(speeds) or len(files) != len(grades):
+            raise ValueError(
+                "The number of files, speeds, and grades must be the same."
+            )
+
+        # read single exercises
+        exercises: list[RunningExercise] = []
+        for file, speed, grade in zip(files, speeds, grades):
+            exercises.append(
+                RunningExercise.from_tdf(
+                    file,
+                    speed,
+                    grade,
+                    algorithm,
+                    ground_reaction_force_threshold,
+                    height_threshold,
+                    left_hand_ground_reaction_force,
+                    right_hand_ground_reaction_force,
+                    left_foot_ground_reaction_force,
+                    right_foot_ground_reaction_force,
+                    left_heel,
+                    right_heel,
+                    left_toe,
+                    right_toe,
+                    left_first_metatarsal_head,
+                    left_fifth_metatarsal_head,
+                    right_first_metatarsal_head,
+                    right_fifth_metatarsal_head,
+                    left_ankle_medial,
+                    left_ankle_lateral,
+                    right_ankle_medial,
+                    right_ankle_lateral,
+                    left_knee_medial,
+                    left_knee_lateral,
+                    right_knee_medial,
+                    right_knee_lateral,
+                    right_trochanter,
+                    left_trochanter,
+                    left_asis,
+                    right_asis,
+                    left_psis,
+                    right_psis,
+                    left_shoulder_anterior,
+                    left_shoulder_posterior,
+                    left_acromion,
+                    right_shoulder_anterior,
+                    right_shoulder_posterior,
+                    right_acromion,
+                    left_elbow_medial,
+                    left_elbow_lateral,
+                    right_elbow_medial,
+                    right_elbow_lateral,
+                    left_wrist_medial,
+                    left_wrist_lateral,
+                    right_wrist_medial,
+                    right_wrist_lateral,
+                    s2,
+                    l2,
+                    c7,
+                    t5,
+                    sc,
+                    head_anterior,
+                    head_posterior,
+                    head_left,
+                    head_right,
+                )
+            )
 
         return cls(
-            participant=participant,
-            normative_data=normative_data,
-            algorithm=algorithm,
-            ground_reaction_force_threshold=ground_reaction_force_threshold,
-            height_threshold=height_threshold,
-            **objects,  # type: ignore
-            **others,  # type: ignore
+            exercises,
+            participant,
+            normative_data,
+        )
+
+    @property
+    def processing_pipeline(self):
+        """return the processing pipeline"""
+        return get_default_processing_pipeline()
+
+    @property
+    def processed_data(self):
+        """
+        return a Test copy with processed data
+        """
+
+        def _change_rf(exe: RunningExercise):
+            """
+            Change the reference frame for the given running exercise.
+            """
+            plv = exe.pelvis
+            if plv is None:
+                raise RuntimeError("pelvis not found within the current exercise.")
+            am = plv.asis_midpoint
+            am[am.vertical_axis] = 0
+            pm = plv.pelvis_midpoint
+            pm[pm.vertical_axis] = 0
+            ap = (am - pm).to_numpy().mean(axis=0)
+            ap = ap / np.linalg.norm(ap)
+            vt = np.array([0, 1, 0])
+            pc = plv.center.to_numpy().mean(axis=0)
+            rf = ReferenceFrame(
+                pc,
+                None,
+                vt,
+                ap,
+            )
+            return rf.apply(exe)
+
+        pro = self.copy()
+        pipeline = self.processing_pipeline
+        exes = [_change_rf(pipeline(e)) for e in self.exercises]  # type: ignore
+        pro.set_exercises(exes)  # type: ignore
+
+        return pro
+
+    def get_results(self, include_emg: bool = True, limit_steps: int | None= None):
+        """
+        return test results
+
+        Parameters
+        ----------
+        include_emg: bool
+            if True, EMG data is returned (where available)
+        limit_steps: int | None
+            if provided, limits the number of steps included in the results.
+        """
+        from .running_test_results import RunningTestResults
+
+        return RunningTestResults(
+            self.processed_data,
+            include_emg,
+            limit_steps,
         )
 
 

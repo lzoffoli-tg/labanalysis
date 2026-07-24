@@ -7,7 +7,7 @@ import numpy as np
 from labanalysis.io.read.biostrength import PRODUCTS as BIOSTRENGTH_PRODUCTS_MAP
 
 from ....constants import G
-from ....records.timeseriesrecord import TimeseriesRecord
+from ....records.record import Record
 from ....signalprocessing import *
 from ....timeseries import EMGSignal, Signal1D
 from .biostrength_repetition import BiostrengthRepetition
@@ -15,7 +15,7 @@ from .biostrength_repetition import BiostrengthRepetition
 __all__ = ["BiostrengthExercise"]
 
 
-class BiostrengthExercise(TimeseriesRecord):
+class BiostrengthExercise(Record):
     """
     Isokinetic Test 1RM instance
 
@@ -92,7 +92,7 @@ class BiostrengthExercise(TimeseriesRecord):
         if len(muscles) != 0:
 
             # get emg data
-            emgs = TimeseriesRecord(
+            emgs = Record(
                 **{i: v.copy() for i, v in muscles.items()},
             )
             m_time = np.round(np.array(emgs.index) * 1000).astype(int)

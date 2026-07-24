@@ -122,7 +122,7 @@ class WalkingExercise(GaitExercise):
                 ]
 
         # sort the cycles
-        cycle_index = np.argsort([i.init_s for i in cycles])
+        cycle_index = np.argsort([i.init_time for i in cycles])
         return [cycles[i] for i in cycle_index]
 
     def _find_cycles_kinetics(self):
@@ -204,7 +204,7 @@ class WalkingExercise(GaitExercise):
                 ]
 
         # sort the cycles
-        idx = np.argsort([i.init_s for i in cycles])
+        idx = np.argsort([i.init_time for i in cycles])
         return [cycles[i] for i in idx]
 
     def _get_cycle(

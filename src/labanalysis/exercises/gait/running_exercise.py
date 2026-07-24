@@ -9,10 +9,9 @@ from ...constants import (
     DEFAULT_MINIMUM_CONTACT_GRF_N,
     DEFAULT_MINIMUM_HEIGHT_PERCENTAGE,
 )
-from ...signalprocessing import find_peaks
-from ...timeseries import Signal1D, Signal3D, EMGSignal, Point3D
 from ...records.forceplatform import ForcePlatform
-
+from ...signalprocessing import find_peaks
+from ...timeseries import EMGSignal, Point3D, Signal1D, Signal3D
 from .gait_exercise import GaitExercise
 from .running_step import RunningStep
 
@@ -21,62 +20,87 @@ __all__ = ["RunningExercise"]
 
 class RunningExercise(GaitExercise):
     """
-    Represents a running test.
+    Represents a running exercise with automatic step detection.
+
+    RunningExercise extends GaitExercise to provide running-specific cycle
+    detection algorithms. It automatically identifies individual running steps
+    from continuous data using either kinematic (marker-based) or kinetic
+    (force platform-based) methods.
+
+    The class handles flight phases characteristic of running gait and provides
+    specialized algorithms for detecting toe-off and footstrike events.
 
     Parameters
     ----------
-    frame : StateFrame
-        A stateframe object containing all the available kinematic, kinetic
-        and EMG data related to the test.
-    algorithm : Literal['kinematics', 'kinetics'], optional
-        Algorithm used for gait cycle detection. 'kinematics' uses marker data,
-        'kinetics' uses force platform data.
+    speed : int or float
+        Running speed value.
+    grade : int or float
+        Running grade (incline) value.
+    algorithm : {'kinematics', 'kinetics'}, optional
+        Cycle detection algorithm to use. Default is 'kinematics'.
+    ground_reaction_force_threshold : float or int, optional
+        Minimum ground reaction force (in Newtons) for contact detection.
+        Default is DEFAULT_MINIMUM_CONTACT_GRF_N.
+    height_threshold : float or int, optional
+        Maximum vertical height (as percentage) for contact detection.
+        Default is DEFAULT_MINIMUM_HEIGHT_PERCENTAGE.
+    left_hand_ground_reaction_force : ForcePlatform or None, optional
+        Force platform data for left hand contact.
+    right_hand_ground_reaction_force : ForcePlatform or None, optional
+        Force platform data for right hand contact.
+    left_foot_ground_reaction_force : ForcePlatform or None, optional
+        Force platform data for left foot contact.
+    right_foot_ground_reaction_force : ForcePlatform or None, optional
+        Force platform data for right foot contact.
     left_heel : Point3D or None, optional
-        The left heel marker data.
+        Left heel marker trajectory.
     right_heel : Point3D or None, optional
-        The right heel marker data.
+        Right heel marker trajectory.
     left_toe : Point3D or None, optional
-        The left toe marker data.
+        Left toe marker trajectory.
     right_toe : Point3D or None, optional
-        The right toe marker data.
-    left_first_metatarsal_head : Point3D or None
+        Right toe marker trajectory.
+    left_first_metatarsal_head : Point3D or None, optional
         Left first metatarsal head marker.
-    left_fifth_metatarsal_head : Point3D or None
+    left_fifth_metatarsal_head : Point3D or None, optional
         Left fifth metatarsal head marker.
-    right_first_metatarsal_head : Point3D or None
+    right_first_metatarsal_head : Point3D or None, optional
         Right first metatarsal head marker.
     right_fifth_metatarsal_head : Point3D or None, optional
-        The left metatarsal head marker data.
-    right_metatarsal_head : Point3D or None, optional
-        The right metatarsal head marker data.
-    ground_reaction_force : ForcePlatform or None, optional
-        Ground reaction force data.
-    ground_reaction_force_threshold : float or int, optional
-        Minimum ground reaction force for contact detection.
-    height_threshold : float or int, optional
-        Maximum vertical height for contact detection.
-    vertical_axis : Literal['X', 'Y', 'Z'], optional
-        The vertical axis.
-    antpos_axis : Literal['X', 'Y', 'Z'], optional
-        The anterior-posterior axis.
+        Right fifth metatarsal head marker.
+    **extra_signals : Signal1D, Signal3D, EMGSignal, Point3D, ForcePlatform
+        Additional signals (e.g., joint angles, EMG channels, other markers).
+
+    Attributes
+    ----------
+    steps : list of RunningStep
+        Detected running steps extracted from the exercise data.
+
+    See Also
+    --------
+    GaitExercise : Parent class for gait exercises.
+    RunningStep : Represents individual running steps.
+    WalkingExercise : Exercise class for walking gait.
     """
 
     def _find_cycles_kinematics(self):
         """
-        Find the gait cycles using the kinematics algorithm.
+        Find running steps using toe marker trajectories.
 
-        Returns
-        -------
-        None
+        Detects toe-off events by analyzing vertical position of toe markers.
+        For each toe marker, identifies peaks in the vertical trajectory and
+        determines toe-off as the last sample below the height threshold before
+        each peak. Steps are extracted between consecutive toe-off events.
 
         Raises
         ------
         ValueError
-            If any required marker is missing or no toe-offs are found.
+            If left_toe or right_toe markers are missing, or if no toe-offs are found.
+
         Warns
         -----
         UserWarning
-            If left-right steps alternation is not guaranteed.
+            If left-right step alternation is not guaranteed.
         """
 
         # get toe-off times
@@ -126,7 +150,7 @@ class RunningExercise(GaitExercise):
             warnings.warn("Left-Right steps alternation not guaranteed.")
 
         # extract the cycles
-        cycles = []
+        cycles: list[RunningStep] = []
         for t0, t1, side in zip(starts, stops, sides):
             cycles += [self._get_cycle(t0, t1, side)]
 
@@ -135,11 +159,12 @@ class RunningExercise(GaitExercise):
 
     def _find_cycles_kinetics(self):
         """
-        Find the gait cycles using the kinetics algorithm.
+        Find running steps using ground reaction force data.
 
-        Returns
-        -------
-        None
+        Detects contact and flight phases from vertical ground reaction force.
+        Identifies toe-off and footstrike events around force peaks, then
+        determines step side based on medio-lateral center of pressure position.
+        Steps are extracted between consecutive toe-off events.
 
         Raises
         ------
@@ -207,19 +232,59 @@ class RunningExercise(GaitExercise):
         stop: float,
         side: Literal["left", "right"],
     ):
+        """
+        Extract a single running step from the exercise data.
+
+        Creates a RunningStep instance by slicing all signals between start
+        and stop times and preserving algorithm parameters.
+
+        Parameters
+        ----------
+        start : float
+            Start time in seconds (toe-off).
+        stop : float
+            Stop time in seconds (next toe-off).
+        side : {'left', 'right'}
+            Side of the body for this step.
+        """
         args = {
             "side": side,
+            "speed": self.speed,
+            "grade": self.grade,
             "ground_reaction_force_threshold": self.ground_reaction_force_threshold,
             "height_threshold": self.height_threshold,
             "algorithm": self.algorithm,
         }
-        args.update(**{i: v.copy()[start:stop] for i, v in self.items()})  # type: ignore
+        for i, v in self.items():
+            sub = v.copy().loc[(v.index >= start) & (v.index <= stop)]
+            args[i] = sub
         return RunningStep(**args)  # type: ignore
 
-    # * constructor
+    @property
+    def steps(self):
+        """
+        Get the detected running steps.
+
+        Type-safe accessor for cycles that ensures all elements are RunningStep instances.
+
+        Raises
+        ------
+        TypeError
+            If any cycle is not a RunningStep instance.
+        """
+        steps: list[RunningStep] = []
+        for cycle in self.cycles:
+            if not isinstance(cycle, RunningStep):
+                raise TypeError(
+                    f"Element in 'cycles' must be an instance of 'RunningStep', got {type(cycle)}"
+                )
+            steps.append(cycle)
+        return steps
 
     def __init__(
         self,
+        speed: int | float,
+        grade: int | float,
         algorithm: Literal["kinematics", "kinetics"] = "kinematics",
         ground_reaction_force_threshold: float | int = DEFAULT_MINIMUM_CONTACT_GRF_N,
         height_threshold: float | int = DEFAULT_MINIMUM_HEIGHT_PERCENTAGE,
@@ -275,40 +340,126 @@ class RunningExercise(GaitExercise):
         **extra_signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
     ):
         """
-            Initialize a RunningTest instance.
+        Initialize a RunningExercise instance.
 
-            Parameters
-            ----------
-            algorithm : {'kinematics', 'kinetics'}, optional
-                Algorithm used for gait cycle detection. 'kinematics' uses marker data, 'kinetics' uses force platform data.
-            left_heel, right_heel, left_toe, right_toe : Point3D or None, optional
-                Marker data for the respective anatomical points.
-            left_first_metatarsal_head : Point3D or None
+        Parameters
+        ----------
+        speed : int or float
+            Running speed value.
+        grade : int or float
+            Running grade (incline) value.
+        algorithm : {'kinematics', 'kinetics'}, optional
+            Cycle detection algorithm to use. Default is 'kinematics'.
+        ground_reaction_force_threshold : float or int, optional
+            Minimum ground reaction force (in Newtons) for contact detection.
+            Default is DEFAULT_MINIMUM_CONTACT_GRF_N.
+        height_threshold : float or int, optional
+            Maximum vertical height (as percentage) for contact detection.
+            Default is DEFAULT_MINIMUM_HEIGHT_PERCENTAGE.
+        left_hand_ground_reaction_force : ForcePlatform or None, optional
+            Force platform data for left hand contact.
+        right_hand_ground_reaction_force : ForcePlatform or None, optional
+            Force platform data for right hand contact.
+        left_foot_ground_reaction_force : ForcePlatform or None, optional
+            Force platform data for left foot contact.
+        right_foot_ground_reaction_force : ForcePlatform or None, optional
+            Force platform data for right foot contact.
+        left_heel : Point3D or None, optional
+            Left heel marker trajectory.
+        right_heel : Point3D or None, optional
+            Right heel marker trajectory.
+        left_toe : Point3D or None, optional
+            Left toe marker trajectory.
+        right_toe : Point3D or None, optional
+            Right toe marker trajectory.
+        left_first_metatarsal_head : Point3D or None, optional
             Left first metatarsal head marker.
-        left_fifth_metatarsal_head : Point3D or None
+        left_fifth_metatarsal_head : Point3D or None, optional
             Left fifth metatarsal head marker.
-        right_first_metatarsal_head : Point3D or None
+        right_first_metatarsal_head : Point3D or None, optional
             Right first metatarsal head marker.
         right_fifth_metatarsal_head : Point3D or None, optional
-                Marker data for the left metatarsal head.
-            right_metatarsal_head : Point3D or None, optional
-                Marker data for the right metatarsal head.
-            ground_reaction_force : ForcePlatform or None, optional
-                Ground reaction force data.
-            ground_reaction_force_threshold : float or int, optional
-                Minimum ground reaction force for contact detection.
-            height_threshold : float or int, optional
-                Maximum vertical height for contact detection.
-            vertical_axis : {'X', 'Y', 'Z'}, optional
-                The vertical axis.
-            antpos_axis : {'X', 'Y', 'Z'}, optional
-                The anterior-posterior axis.
-            process_inputs : bool, optional
-                If True, process the input data.
-            **extra_signals : Signal1D, Signal3D, EMGSignal, Point3D, ForcePlatform
-                Additional signals to include.
+            Right fifth metatarsal head marker.
+        left_ankle_medial : Point3D or None, optional
+            Left ankle medial malleolus marker.
+        left_ankle_lateral : Point3D or None, optional
+            Left ankle lateral malleolus marker.
+        right_ankle_medial : Point3D or None, optional
+            Right ankle medial malleolus marker.
+        right_ankle_lateral : Point3D or None, optional
+            Right ankle lateral malleolus marker.
+        left_knee_medial : Point3D or None, optional
+            Left knee medial epicondyle marker.
+        left_knee_lateral : Point3D or None, optional
+            Left knee lateral epicondyle marker.
+        right_knee_medial : Point3D or None, optional
+            Right knee medial epicondyle marker.
+        right_knee_lateral : Point3D or None, optional
+            Right knee lateral epicondyle marker.
+        left_trochanter : Point3D or None, optional
+            Left greater trochanter marker.
+        right_trochanter : Point3D or None, optional
+            Right greater trochanter marker.
+        left_asis : Point3D or None, optional
+            Left anterior superior iliac spine marker.
+        right_asis : Point3D or None, optional
+            Right anterior superior iliac spine marker.
+        left_psis : Point3D or None, optional
+            Left posterior superior iliac spine marker.
+        right_psis : Point3D or None, optional
+            Right posterior superior iliac spine marker.
+        left_shoulder_anterior : Point3D or None, optional
+            Left shoulder anterior marker.
+        left_shoulder_posterior : Point3D or None, optional
+            Left shoulder posterior marker.
+        left_acromion : Point3D or None, optional
+            Left acromion (shoulder tip) marker.
+        right_shoulder_anterior : Point3D or None, optional
+            Right shoulder anterior marker.
+        right_shoulder_posterior : Point3D or None, optional
+            Right shoulder posterior marker.
+        right_acromion : Point3D or None, optional
+            Right acromion (shoulder tip) marker.
+        left_elbow_medial : Point3D or None, optional
+            Left elbow medial epicondyle marker.
+        left_elbow_lateral : Point3D or None, optional
+            Left elbow lateral epicondyle marker.
+        right_elbow_medial : Point3D or None, optional
+            Right elbow medial epicondyle marker.
+        right_elbow_lateral : Point3D or None, optional
+            Right elbow lateral epicondyle marker.
+        left_wrist_medial : Point3D or None, optional
+            Left wrist medial marker.
+        left_wrist_lateral : Point3D or None, optional
+            Left wrist lateral marker.
+        right_wrist_medial : Point3D or None, optional
+            Right wrist medial marker.
+        right_wrist_lateral : Point3D or None, optional
+            Right wrist lateral marker.
+        s2 : Point3D or None, optional
+            Second sacral vertebra marker.
+        l2 : Point3D or None, optional
+            Second lumbar vertebra marker.
+        c7 : Point3D or None, optional
+            Seventh cervical vertebra marker.
+        t5 : Point3D or None, optional
+            Fifth thoracic vertebra marker.
+        sc : Point3D or None, optional
+            Sternoclavicular joint marker.
+        head_anterior : Point3D or None, optional
+            Head anterior marker.
+        head_posterior : Point3D or None, optional
+            Head posterior marker.
+        head_left : Point3D or None, optional
+            Head left side marker.
+        head_right : Point3D or None, optional
+            Head right side marker.
+        **extra_signals : Signal1D, Signal3D, EMGSignal, Point3D, ForcePlatform
+            Additional signals (e.g., joint angles, EMG channels, other markers).
         """
         super().__init__(
+            speed=speed,
+            grade=grade,
             algorithm=algorithm,
             ground_reaction_force_threshold=ground_reaction_force_threshold,
             height_threshold=height_threshold,

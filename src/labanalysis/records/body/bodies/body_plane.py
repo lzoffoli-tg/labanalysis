@@ -4,12 +4,12 @@ import numpy as np
 
 from ....events.signal import Signal
 from ....timeseries import Point3D, Plane3D
-from ...timeseriesrecord import TimeseriesRecord
+from ...record import Record
 
 __all__ = ["BodyPlane"]
 
 
-class BodyPlane(TimeseriesRecord):
+class BodyPlane(Record):
     """
     General Body Plane class
     """
@@ -80,7 +80,7 @@ class BodyPlane(TimeseriesRecord):
     @property
     def points_projected(self):
         """return the original points projected on the plane"""
-        return TimeseriesRecord(
+        return Record(
             **{
                 lbl: self.get_projected_point(pnt)  # type: ignore
                 for lbl, pnt in self.points_raw.items()

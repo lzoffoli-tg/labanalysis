@@ -71,16 +71,6 @@ class Signal3D(Timeseries):
             raise ValueError(f"anteroposterior_axis must be any of {self.columns}")
         self._anteroposterior_axis = str(axis)
 
-    def copy(self):
-        return Signal3D(
-            self._data.copy(),
-            self.index.copy(),
-            self.unit,
-            self.columns.copy(),
-            self.vertical_axis,
-            self.anteroposterior_axis,
-        )
-
     def _copy_view_attributes(self, view_obj):
         """
         Copy Signal3D-specific attributes to view object.

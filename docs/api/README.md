@@ -17,7 +17,7 @@ Data structures for time-series and biomechanical data:
 
 - **[Records](records/records.md)** - Container classes
   - `Record` - Basic signal container
-  - `TimeseriesRecord` - Extended container
+  - `Record` - Extended container
   - `ForcePlatform` - Force platform data
   - `MetabolicRecord` - Metabolic measurements
 
@@ -191,7 +191,7 @@ General utilities and constants:
 
 **Loading Data:**
 - [I/O Read Functions](io/read.md)
-- [TimeseriesRecord.from_tdf()](records/records.md#timeseriesrecord)
+- [Record.from_tdf()](records/records.md#timeseriesrecord)
 
 **Processing Signals:**
 - [Signal Processing Functions](signalprocessing.md)

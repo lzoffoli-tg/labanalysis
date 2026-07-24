@@ -252,6 +252,7 @@ class SingleJump(WholeBody):
 
     @property
     def contact_time(self):
+        """return the contact time of the jump in seconds"""
         index = self.contact_phase
         if index is None:
             return None
@@ -378,7 +379,7 @@ class SingleJump(WholeBody):
         rf = cf.resultant_force
         if rf is None:
             return None
-        vgrf = rf.force[self.vertical_axis].copy()
+        vgrf = rf.force[self.vertical_axis].copy().fillna()
         body_weight = self.bodymass_kg * G
         vgrf = vgrf - body_weight  # type: ignore
         vacc = vgrf.to_numpy().flatten() / self.bodymass_kg
@@ -435,7 +436,7 @@ class SingleJump(WholeBody):
 
         Notes
         -----
-        This method follows the same pattern as EMGSignal and TimeseriesRecord,
+        This method follows the same pattern as EMGSignal and Record,
         explicitly passing custom non-signal attributes (bodymass_kg, free_hands,
         straight_legs) to the constructor while copying all signal data.
         """

@@ -161,7 +161,7 @@ import labanalysis as laban
 import numpy as np
 
 # Load jump data
-record = laban.TimeseriesRecord.from_tdf("cmj.tdf")
+record = laban.Record.from_tdf("cmj.tdf")
 fp = record['FP1']
 participant_mass = 75  # kg
 

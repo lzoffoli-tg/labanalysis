@@ -136,7 +136,7 @@ import labanalysis as laban
 import numpy as np
 
 # Load isometric trial (e.g., isometric mid-thigh pull)
-record = laban.TimeseriesRecord.from_tdf("isometric_pull.tdf")
+record = laban.Record.from_tdf("isometric_pull.tdf")
 fp = record.forceplatforms['FP1']
 
 # Get vertical force
@@ -450,7 +450,7 @@ def analyze_isometric_test(tdf_file, participant):
     import numpy as np
     
     # Load data
-    record = laban.TimeseriesRecord.from_tdf(tdf_file)
+    record = laban.Record.from_tdf(tdf_file)
     fp = record.forceplatforms['FP1']
     
     fz = fp.force['Fz'].data

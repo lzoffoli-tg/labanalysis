@@ -9,7 +9,7 @@ High-level record classes for organizing related signals.
 The `records` module provides container classes for organizing related timeseries data:
 
 - **Record**: Base container for any collection of signals
-- **TimeseriesRecord**: Container for time-synchronized signals
+- **Record**: Container for time-synchronized signals
 - **ForcePlatform**: Force platform with forces, moments, and COP
 - **MetabolicRecord**: Metabolic measurements (VO2, VCO2, HR, etc.)
 
@@ -53,12 +53,12 @@ class Record(dict):
 - `copy()`: Create shallow copy
 - `update()`: Update with another record
 
-### TimeseriesRecord
+### Record
 
 Container for time-synchronized timeseries data.
 
 ```python
-class TimeseriesRecord(Record):
+class Record(Record):
     """
     Container for time-synchronized signals.
     
@@ -78,7 +78,7 @@ class TimeseriesRecord(Record):
     Examples
     --------
     >>> # Load from TDF file
-    >>> record = laban.TimeseriesRecord.from_tdf("trial.tdf")
+    >>> record = laban.Record.from_tdf("trial.tdf")
     >>> 
     >>> # Access by group
     >>> fp1 = record.forceplatforms['FP1']
@@ -98,19 +98,19 @@ Load from BTS TDF file with automatic signal grouping.
 
 ```python
 @classmethod
-def from_tdf(cls, file_path: str) -> TimeseriesRecord
+def from_tdf(cls, file_path: str) -> Record
 ```
 
 **Parameters:**
 - `file_path` (str): Path to TDF file
 
 **Returns:**
-- `TimeseriesRecord`: Loaded record with grouped signals
+- `Record`: Loaded record with grouped signals
 
 **Example:**
 ```python
 # Load complete file
-record = laban.TimeseriesRecord.from_tdf("trial.tdf")
+record = laban.Record.from_tdf("trial.tdf")
 
 # Check what was loaded
 print(f"Force platforms: {list(record.forceplatforms.keys())}")
@@ -213,7 +213,7 @@ print(f"Total vertical force: {fz_total.data.max():.1f} N")
 Remove leading/trailing NaN from all signals.
 
 ```python
-def strip(self, axis: int = 0, inplace: bool = False) -> TimeseriesRecord
+def strip(self, axis: int = 0, inplace: bool = False) -> Record
 ```
 
 **Parameters:**
@@ -221,7 +221,7 @@ def strip(self, axis: int = 0, inplace: bool = False) -> TimeseriesRecord
 - `inplace` (bool): Modify in place
 
 **Returns:**
-- `TimeseriesRecord`: Stripped record
+- `Record`: Stripped record
 
 **Example:**
 ```python
@@ -263,7 +263,7 @@ class ForcePlatform:
     Examples
     --------
     >>> # Load force platform
-    >>> record = laban.TimeseriesRecord.from_tdf("trial.tdf")
+    >>> record = laban.Record.from_tdf("trial.tdf")
     >>> fp = record['FP1']
     >>> 
     >>> # Access components
@@ -496,7 +496,7 @@ print(f"VO2max: {vo2_max:.1f} ml/kg/min at {time_at_max:.1f} s")
 import labanalysis as laban
 
 # Load TDF file
-record = laban.TimeseriesRecord.from_tdf("trial.tdf")
+record = laban.Record.from_tdf("trial.tdf")
 
 # Check contents
 print("=== Trial Contents ===")
@@ -542,7 +542,7 @@ print(f"Impulse: {impulse:.1f} N·s")
 
 ```python
 # Load record with two platforms
-record = laban.TimeseriesRecord.from_tdf("gait.tdf")
+record = laban.Record.from_tdf("gait.tdf")
 
 # Get individual platforms
 fp1 = record['FP1']
@@ -596,7 +596,7 @@ print(f"Sway velocity: {sway_velocity:.2f} mm/s")
 
 ```python
 # Load trial with quiet periods at start/end
-record = laban.TimeseriesRecord.from_tdf("trial.tdf")
+record = laban.Record.from_tdf("trial.tdf")
 
 # Check original length
 fp = record['FP1']

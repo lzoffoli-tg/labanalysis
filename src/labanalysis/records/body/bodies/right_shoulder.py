@@ -74,7 +74,7 @@ class RightShoulder(Joint):
     @property
     def _elbow_medial(self):
         """return the elbow medial marker in the local joint reference frame"""
-        out: Point3D = self.apply(self["knee_medial"])  # type: ignore
+        out: Point3D = self.apply(self["elbow_medial"])  # type: ignore
         return out
 
     @property
@@ -101,7 +101,7 @@ class RightShoulder(Joint):
         return self.get_angle_by_point(
             self.apply(self._elbow_center),  # type: ignore
             self.vertical_axis,  # type: ignore
-            self.anteriorposterior_axis,  # type: ignore
+            self.anteroposterior_axis,  # type: ignore
         )
 
     @property
@@ -124,7 +124,7 @@ class RightShoulder(Joint):
             self.vertical_axis,  # type: ignore
             self.lateral_axis,  # type: ignore
         )
-        return out
+        return (-1) * out
 
     @property
     def internalexternalrotation(self):

@@ -18,7 +18,7 @@ All components are automatically synchronized and can be filtered, transformed, 
 import labanalysis as laban
 
 # Load force platform data from TDF file
-record = laban.TimeseriesRecord.from_tdf("jump_trial.tdf")
+record = laban.Record.from_tdf("jump_trial.tdf")
 force_platform = record['FP1']  # Access force platform by name
 
 # Access components
@@ -60,7 +60,7 @@ All three components share the same axis convention.
 import labanalysis as laban
 
 # Load TDF file containing force platform data
-record = laban.TimeseriesRecord.from_tdf("trial.tdf")
+record = laban.Record.from_tdf("trial.tdf")
 
 # Check available force platforms
 print(record.keys())
@@ -156,7 +156,7 @@ cop_z = cop[fp.anteroposterior_axis]
 import labanalysis as laban
 
 # Load data
-record = laban.TimeseriesRecord.from_tdf("gait.tdf")
+record = laban.Record.from_tdf("gait.tdf")
 fp = record['FP1']
 
 # Get vertical force
@@ -317,7 +317,7 @@ force_pelvis = force_global.change_reference_frame(
 
 ```python
 # Load data with two force platforms
-record = laban.TimeseriesRecord.from_tdf("bilateral_jump.tdf")
+record = laban.Record.from_tdf("bilateral_jump.tdf")
 
 fp_left = record['FP1']
 fp_right = record['FP2']

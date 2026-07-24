@@ -116,7 +116,9 @@ class GaitObject(WholeBody):
 
     def __init__(
         self,
-        algorithm: Literal["kinematics", "kinetics"],
+        speed: float | int,
+        grade: float | int,
+        algorithm: Literal["kinematics", "kinetics"] = "kinetics",
         ground_reaction_force_threshold: float | int = DEFAULT_MINIMUM_CONTACT_GRF_N,
         height_threshold: float | int = DEFAULT_MINIMUM_HEIGHT_PERCENTAGE,
         left_hand_ground_reaction_force: ForcePlatform | None = None,
@@ -171,42 +173,122 @@ class GaitObject(WholeBody):
         **extra_signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
     ):
         """
-            Initialize a GaitObject.
+        Initialize a GaitObject.
 
-            Parameters
-            ----------
-            algorithm : {'kinematics', 'kinetics'}
-                The cycle detection algorithm to use.
-            left_heel : Point3D or None, optional
-                Left heel marker data.
-            right_heel : Point3D or None, optional
-                Right heel marker data.
-            left_toe : Point3D or None, optional
-                Left toe marker data.
-            right_toe : Point3D or None, optional
-                Right toe marker data.
-            left_first_metatarsal_head : Point3D or None
+        Parameters
+        ----------
+        speed : float or int
+            Gait speed value.
+        grade : float or int
+            Gait grade (incline) value.
+        algorithm : {'kinematics', 'kinetics'}
+            Cycle detection algorithm to use.
+        ground_reaction_force_threshold : float or int, optional
+            Minimum ground reaction force (in Newtons) for contact detection when
+            using kinetics algorithm. Default is DEFAULT_MINIMUM_CONTACT_GRF_N.
+        height_threshold : float or int, optional
+            Maximum vertical height (as percentage) for contact detection when
+            using kinematics algorithm. Default is DEFAULT_MINIMUM_HEIGHT_PERCENTAGE.
+        left_hand_ground_reaction_force : ForcePlatform or None, optional
+            Force platform data for left hand contact.
+        right_hand_ground_reaction_force : ForcePlatform or None, optional
+            Force platform data for right hand contact.
+        left_foot_ground_reaction_force : ForcePlatform or None, optional
+            Force platform data for left foot contact.
+        right_foot_ground_reaction_force : ForcePlatform or None, optional
+            Force platform data for right foot contact.
+        left_heel : Point3D or None, optional
+            Left heel marker trajectory.
+        right_heel : Point3D or None, optional
+            Right heel marker trajectory.
+        left_toe : Point3D or None, optional
+            Left toe marker trajectory.
+        right_toe : Point3D or None, optional
+            Right toe marker trajectory.
+        left_first_metatarsal_head : Point3D or None, optional
             Left first metatarsal head marker.
-        left_fifth_metatarsal_head : Point3D or None
+        left_fifth_metatarsal_head : Point3D or None, optional
             Left fifth metatarsal head marker.
-        right_first_metatarsal_head : Point3D or None
+        right_first_metatarsal_head : Point3D or None, optional
             Right first metatarsal head marker.
         right_fifth_metatarsal_head : Point3D or None, optional
-                Left metatarsal head marker data.
-            right_metatarsal_head : Point3D or None, optional
-                Right metatarsal head marker data.
-            ground_reaction_force : ForcePlatform or None
-                Ground reaction force data.
-            ground_reaction_force_threshold : float or int, optional
-                Minimum ground reaction force for contact detection.
-            height_threshold : float or int, optional
-                Maximum vertical height for contact detection.
-            vertical_axis : {'X', 'Y', 'Z'}, optional
-                The vertical axis.
-            antpos_axis : {'X', 'Y', 'Z'}, optional
-                The anterior-posterior axis.
-            **extra_signals : Signal1D, Signal3D, EMGSignal, Point3D, ForcePlatform
-                Additional signals to include.
+            Right fifth metatarsal head marker.
+        left_ankle_medial : Point3D or None, optional
+            Left ankle medial malleolus marker.
+        left_ankle_lateral : Point3D or None, optional
+            Left ankle lateral malleolus marker.
+        right_ankle_medial : Point3D or None, optional
+            Right ankle medial malleolus marker.
+        right_ankle_lateral : Point3D or None, optional
+            Right ankle lateral malleolus marker.
+        left_knee_medial : Point3D or None, optional
+            Left knee medial epicondyle marker.
+        left_knee_lateral : Point3D or None, optional
+            Left knee lateral epicondyle marker.
+        right_knee_medial : Point3D or None, optional
+            Right knee medial epicondyle marker.
+        right_knee_lateral : Point3D or None, optional
+            Right knee lateral epicondyle marker.
+        left_trochanter : Point3D or None, optional
+            Left greater trochanter marker.
+        right_trochanter : Point3D or None, optional
+            Right greater trochanter marker.
+        left_asis : Point3D or None, optional
+            Left anterior superior iliac spine marker.
+        right_asis : Point3D or None, optional
+            Right anterior superior iliac spine marker.
+        left_psis : Point3D or None, optional
+            Left posterior superior iliac spine marker.
+        right_psis : Point3D or None, optional
+            Right posterior superior iliac spine marker.
+        left_shoulder_anterior : Point3D or None, optional
+            Left shoulder anterior marker.
+        left_shoulder_posterior : Point3D or None, optional
+            Left shoulder posterior marker.
+        left_acromion : Point3D or None, optional
+            Left acromion (shoulder tip) marker.
+        right_shoulder_anterior : Point3D or None, optional
+            Right shoulder anterior marker.
+        right_shoulder_posterior : Point3D or None, optional
+            Right shoulder posterior marker.
+        right_acromion : Point3D or None, optional
+            Right acromion (shoulder tip) marker.
+        left_elbow_medial : Point3D or None, optional
+            Left elbow medial epicondyle marker.
+        left_elbow_lateral : Point3D or None, optional
+            Left elbow lateral epicondyle marker.
+        right_elbow_medial : Point3D or None, optional
+            Right elbow medial epicondyle marker.
+        right_elbow_lateral : Point3D or None, optional
+            Right elbow lateral epicondyle marker.
+        left_wrist_medial : Point3D or None, optional
+            Left wrist medial marker.
+        left_wrist_lateral : Point3D or None, optional
+            Left wrist lateral marker.
+        right_wrist_medial : Point3D or None, optional
+            Right wrist medial marker.
+        right_wrist_lateral : Point3D or None, optional
+            Right wrist lateral marker.
+        s2 : Point3D or None, optional
+            Second sacral vertebra marker.
+        l2 : Point3D or None, optional
+            Second lumbar vertebra marker.
+        c7 : Point3D or None, optional
+            Seventh cervical vertebra marker.
+        t5 : Point3D or None, optional
+            Fifth thoracic vertebra marker.
+        sc : Point3D or None, optional
+            Sternoclavicular joint marker.
+        head_anterior : Point3D or None, optional
+            Head anterior marker.
+        head_posterior : Point3D or None, optional
+            Head posterior marker.
+        head_left : Point3D or None, optional
+            Head left side marker.
+        head_right : Point3D or None, optional
+            Head right side marker.
+        **extra_signals : Signal1D, Signal3D, EMGSignal, Point3D, ForcePlatform
+            Additional signals (e.g., joint angles, EMG channels, other markers).
         """
         signals = {
             **extra_signals,
@@ -271,37 +353,85 @@ class GaitObject(WholeBody):
         # set the algorithm
         self.set_algorithm(algorithm)
 
+        # set the speed and grade properties
+        self.set_speed(speed)
+        self.set_grade(grade)
+
+    def set_speed(self, speed: float | int):
+        """
+        Set the gait speed.
+
+        Parameters
+        ----------
+        speed : float or int
+            Gait speed value.
+
+        Raises
+        ------
+        ValueError
+            If speed is not a float or int.
+        """
+        if not isinstance(speed, (int, float)):
+            raise ValueError("'speed' must be a float or int")
+        self._speed = float(speed)
+
+    @property
+    def speed(self):
+        """
+        Get the gait speed.
+        """
+        return self._speed
+
+    @property
+    def pace(self):
+        """
+        Get the pace of the cycle in minutes per kilometer.
+        """
+        return 60 / self.speed
+
+    @property
+    def grade(self):
+        """
+        Get the gait grade (incline).
+        """
+        return self._grade
+
+    def set_grade(self, grade: float | int):
+        """
+        Set the gait grade (incline).
+
+        Parameters
+        ----------
+        grade : float or int
+            Gait grade (incline) value.
+
+        Raises
+        ------
+        ValueError
+            If grade is not a float or int.
+        """
+        if not isinstance(grade, (int, float)):
+            raise ValueError("'grade' must be a float or int")
+        self._grade = float(grade)
+
     @property
     def algorithm(self):
         """
         Get the selected cycle detection algorithm.
-
-        Returns
-        -------
-        str
-            The algorithm label.
         """
         return self._algorithm
 
     @property
     def ground_reaction_force_threshold(self):
         """
-        Get the ground reaction force threshold.
-
-        Returns
-        -------
-        float
+        Get the ground reaction force threshold (in Newtons).
         """
         return self._grf_threshold
 
     @property
     def height_threshold(self):
         """
-        Get the height threshold.
-
-        Returns
-        -------
-        float
+        Get the height threshold (as percentage).
         """
         return self._height_threshold
 
@@ -312,7 +442,12 @@ class GaitObject(WholeBody):
         Parameters
         ----------
         threshold : float or int
-            Threshold value.
+            Threshold value in Newtons.
+
+        Raises
+        ------
+        ValueError
+            If threshold is not a float or int.
         """
         if not isinstance(threshold, (int, float)):
             raise ValueError("'threshold' must be a float or int")
@@ -325,7 +460,12 @@ class GaitObject(WholeBody):
         Parameters
         ----------
         threshold : float or int
-            Threshold value.
+            Threshold value as percentage.
+
+        Raises
+        ------
+        ValueError
+            If threshold is not a float or int.
         """
         if not isinstance(threshold, (int, float)):
             raise ValueError("'threshold' must be a float or int")
@@ -335,10 +475,26 @@ class GaitObject(WholeBody):
         """
         Set the gait cycle detection algorithm.
 
+        Automatically falls back to an alternative algorithm if the requested one
+        cannot be used based on available data. The kinetics algorithm requires
+        force platform data, while the kinematics algorithm requires heel and toe
+        marker trajectories for both feet.
+
         Parameters
         ----------
         algorithm : {'kinematics', 'kinetics'}
-            Algorithm label.
+            Requested cycle detection algorithm.
+
+        Raises
+        ------
+        ValueError
+            If algorithm is not 'kinematics' or 'kinetics', or if neither
+            algorithm can be used based on available data.
+
+        Warns
+        -----
+        UserWarning
+            If the requested algorithm cannot be used and fallback occurs.
         """
         algorithms = ["kinematics", "kinetics"]
         if not isinstance(algorithm, str) or algorithm not in algorithms:

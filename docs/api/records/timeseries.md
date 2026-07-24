@@ -471,7 +471,7 @@ print(f"Total displacement: {displacement:.1f} mm")
 import labanalysis as laban
 
 # Load complete record
-record = laban.TimeseriesRecord.from_tdf("trial.tdf")
+record = laban.Record.from_tdf("trial.tdf")
 
 # Access force platform (returns Signal3D for forces)
 fp = record['FP1']

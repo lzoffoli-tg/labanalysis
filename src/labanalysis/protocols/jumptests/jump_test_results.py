@@ -5,14 +5,16 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
+from pandas import isna
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.express as px
 from ...utils import hex_to_rgba
 
+
 from ..test_protocol import TestProtocol
 
-from ...constants import G, RANK_3COLORS, RANK_5COLORS
+from ...constants import G, RANK_3COLORS, RANK_5COLORS, SIDE_COLORS
 from ...signalprocessing import continuous_batches, cubicspline_interp
 from ...timeseries import EMGSignal
 from ...exercises import DropJump, SingleJump
@@ -238,7 +240,7 @@ class JumpTestResults(TestResults):
                     if rsi:
                         rsi = float(round(rsi, 1))
                     for side in sides:
-                        out.loc["reactive strength index", side] = rsi
+                        out.loc["rsi (cm/s)", side] = rsi
 
                 # convert index in column
                 out.insert(0, "parameter", out.index)
@@ -247,7 +249,7 @@ class JumpTestResults(TestResults):
                 # add jump conditions
                 out.insert(0, "free hands", jump.free_hands)
                 if isinstance(jump, DropJump):
-                    out.insert(0, "box height (cm)", jump.box_height)
+                    out.insert(0, "box height (cm)", jump.box_height_cm)
 
                 # Add jump number and side
                 jump_num = sides_counter[jump.side]
@@ -729,7 +731,7 @@ class JumpTestResults(TestResults):
         self,
         metric: str,
         test: "JumpTest",
-        bilateral_is_unique: bool = True,
+        # bilateral_is_unique: bool = True,
         ranks: dict[str, str] = RANK_5COLORS,
         symmetric_ranks: bool = False,
         reversed_ranks: bool = False,
@@ -738,70 +740,92 @@ class JumpTestResults(TestResults):
         # retrieve the data of the required metric from summary
         metric_df = self.summary
         if not isinstance(metric_df, pd.DataFrame):
-            raise ValueError(f"summary was expected to be a pandas.DataFrame. {type(metric_df)} was found.") 
+            raise ValueError(
+                f"summary was expected to be a pandas.DataFrame. {type(metric_df)} was found."
+            )
         params: list[str] = metric_df.parameter.to_list()
 
         idx = [i for i, v in enumerate(params) if v.endswith(metric)]
         metric_df = metric_df.iloc[idx]
         # metric_df = metric_df.loc[metric_df["free hands"] == free_hands]
         metric_df.drop(["symmetry (%)"], axis=1, inplace=True)
+        indices = ["type", "side", "parameter", "free hands", "jump"]
+        if "box height (cm)" in metric_df.columns:
+            indices.append("box height (cm)")
         metric_df = metric_df.melt(
-            id_vars=["type", "side", "parameter", "free hands", "jump"],
+            id_vars=indices,
             var_name="limb",
             value_name="value",
         )
-        if bilateral_is_unique:
-            idx = (metric_df.side != "bilateral") | (metric_df.limb == "left")
-            metric_df = metric_df.loc[idx]
-            new_limbs = metric_df[["side", "limb"]].apply(
-                lambda x: x.side if x.side == "bilateral" else x.limb,
-                axis=1,
-            )
-            metric_df.loc[metric_df.index, "limb"] = new_limbs
-        metric_df.reset_index(drop=True, inplace=True)
+
+        # aggiusto i limb
+        metric_df["limb"] = (
+            metric_df["limb"]
+            .str.replace("right", "unilateral")
+            .replace("left", "unilateral")
+        )
+        # idx = (metric_df.side != "bilateral") | (metric_df.limb == "left")
+        # metric_df = metric_df.loc[idx]
+        # new_limbs = metric_df[["side", "limb"]].apply(
+        #         lambda x: x.side if x.side == "bilateral" else x.limb,
+        #         axis=1,
+        #     )
+        # metric_df.loc[metric_df.index, "limb"] = new_limbs
+        metric_df = metric_df.dropna().reset_index(drop=True)
 
         # get the data sorted according to the subplots to be rendered
         data: dict[tuple[str, str], dict[str, dict[str, list[float]]]] = {}
-        for (t, s, f), dfr in metric_df.groupby(["type", "side", "free hands"]):
-            key = (f"{t} - free hands" if f else str(t), str(s))
+        norms: dict[
+            tuple[str, str], tuple[list[float], list[float], list[str], list[str]]
+        ] = {}
+        indices = ["type", "limb", "free hands"]
+        if "box height (cm)" in metric_df.columns:
+            indices.append("box height (cm)")
+        for g, dfr in metric_df.groupby(indices):
+            if "box height (cm)" in metric_df.columns:
+                t, l, f, b = g
+            else:
+                t, l, f = g
+                b = ""
+            key = str(t) + ("" if b == "" else f" ({b}cm)")
+            key += " - free hands" if f else ""
             val: dict[str, dict[str, list[float]]] = {}
-            dfr = dfr.loc[dfr['free hands'] == f]
+            # dfr = dfr.loc[dfr["free hands"] == f]
             for param, dfp in dfr.groupby("parameter"):
                 dct: dict[str, list[float]] = {}
-                for side, dfs in dfp.groupby("limb"):
+                for side, dfs in dfp.groupby("side"):
                     k = str(side)
                     v = dfs.sort_values("jump").value.to_numpy().flatten().tolist()
                     dct[k] = v
                 val[str(param)] = dct
-            data[key] = val
+            if l != "bilateral":
+                l = "unilateral"
+            data[(key, str(l))] = val
 
-        # get the normative data sorted according to the subplots to be rendered
-        norms: dict[
-            tuple[str, str], tuple[list[float], list[float], list[str], list[str]]
-        ] = {}
-        combs = metric_df[["type", "side", "free hands"]].drop_duplicates().values.tolist()
-        if not test.normative_data.empty:
-            gender = test.participant.gender
-            if gender is None:
-                raise ValueError("Normative Data require gender being specified.")
-            gender = gender.lower()[0]
-            norm = test.normative_data.copy()
-            params: list[str] = norm.parameter.to_list()
-            idx = [i for i, v in enumerate(params) if v.endswith(metric)]
-            norm = norm.iloc[idx]
-            types = norm["type"].str.lower().tolist()
-            types = [t.lower().rsplit(" (", 1)[0] for t in types]
-            sides = norm["side"].str.lower().tolist()
-            genders = [i.lower()[0] for i in norm["gender"]]
-            for t, s, f in combs:
-                k = t.lower().rsplit(" (", 1)[0]
-                if f:
+            # get the normative data sorted according to the subplots to be rendered
+            if not test.normative_data.empty:
+                gender = test.participant.gender
+                if gender is None:
+                    raise ValueError("Normative Data require gender being specified.")
+                gender = gender.lower()[0]
+                norm = test.normative_data.copy()
+                params: list[str] = norm.parameter.to_list()
+                idx = [i for i, v in enumerate(params) if v.endswith(metric)]
+                norm = norm.iloc[idx]
+
+                types = norm["type"].str.lower().tolist()
+                types = [t.lower().rsplit(" (", 1)[0] for t in types]
+                limbs = norm["side"].str.lower().tolist()
+                genders = [i.lower()[0] for i in norm["gender"]]
+
+                k = str(t).lower().rsplit(" (", 1)[0]
+                if f and t == "counter movement jump":
                     k += " - free hands"
                 types_idx = [k == v for v in types]
                 types_idx = np.array(types_idx)
-                sides_idx = np.array([s in v for v in sides])
+                limbs_idx = np.array([str(l) in v for v in limbs])
                 gender_idx = np.array([gender == v for v in genders])
-                mask = types_idx & sides_idx & gender_idx
+                mask = types_idx & limbs_idx & gender_idx
                 tnorm = norm.loc[mask]
                 if tnorm.shape[0] > 1:
                     msg = "Multiple normative values found for jump elevation."
@@ -828,7 +852,7 @@ class JumpTestResults(TestResults):
                     rank_vals = np.unique(rank_vals)[::-1]
                     rank_lows = rank_vals[1:].copy().tolist()
                     rank_tops = rank_vals[:-1].copy().tolist()
-                    norms[(k, s)] = (rank_lows, rank_tops, rank_lbls, rank_clrs)
+                    norms[(key, str(l))] = (rank_lows, rank_tops, rank_lbls, rank_clrs)
 
         return data, norms
 
@@ -861,7 +885,7 @@ class JumpTestResults(TestResults):
             width=1000,
             height=400,
             bargroupgap=0.25,
-            #margin = dict(t = 100, r = 100, b=50, l=100), 
+            # margin = dict(t = 100, r = 100, b=50, l=100),
         )
         fig.update_xaxes(
             showgrid=False,
@@ -948,31 +972,31 @@ class JumpTestResults(TestResults):
                 tickmode="array",
                 ticktext=[str(i).capitalize() for i in list(performance_data.keys())],
             )
-        
+
         # plot average line
         avg = round(np.mean(values), 1)
         fig.add_hline(
-            y=avg, 
-            col = 1, #type: ignore
-            line_dash = "dash", 
-            line_color="red", 
-            line_width = 1.5, 
-            opacity = 0.7,
+            y=avg,
+            col=1,  # type: ignore
+            line_dash="dash",
+            line_color="red",
+            line_width=1.5,
+            opacity=0.7,
         )
         fig.add_annotation(
-            col = 1, 
-            row = 1,  
-            x = 0, 
-            y = avg, 
-            text = f"media<br>{avg} cm", 
-            font = dict(color = "red"), 
+            col=1,
+            row=1,
+            x=0,
+            y=avg,
+            text=f"media<br>{avg} cm",
+            font=dict(color="red"),
             xanchor="left",
             yanchor="middle",
             showarrow=False,
             xref="x",
             yref="y",
         )
-        
+
         # plot the norms as colored boxes behind the bars
         zipped = zip(rank_lows, rank_tops, rank_lbls, rank_clrs)
         for rlow, rtop, rlbl, rclr in zipped:
@@ -1306,8 +1330,7 @@ class JumpTestResults(TestResults):
 
         # retrieve the jump height data
         performance_data, performance_norms = self._get_data_and_norms(
-            "elevation (cm)",
-            test
+            "elevation (cm)", test
         )
 
         # since we have just one parameter (elevation), we remove the layer
@@ -1315,8 +1338,17 @@ class JumpTestResults(TestResults):
         performance_data = {i: list(v.values())[0] for i, v in performance_data.items()}
 
         # retrieve the force balance data
-        balance_df:pd.DataFrame = self.summary.copy()  # type: ignore
-        balance_df.loc[balance_df.index, "type"] = balance_df.apply(lambda x: f"{x["type"]} - free hands" if x['free hands'] else x["type"], axis=1)
+        balance_df: pd.DataFrame = self.summary.copy()  # type: ignore
+
+        def get_name(row: pd.Series):
+            x = str(row["type"])
+            if "box height (cm)" in row.index:
+                x += f" ({row["box height (cm)"]}cm)"
+            if row["free hands"]:
+                x += " - free hands"
+            return x
+
+        balance_df.loc[balance_df.index, "type"] = balance_df.apply(get_name, axis=1)
         balance_df = balance_df.loc[balance_df.parameter == "vertical force (N)"]
         balance_data: dict[tuple[str, str], list[float]] = {}
         for t, s in performance_data.keys():
@@ -1325,7 +1357,13 @@ class JumpTestResults(TestResults):
                 balance = balance.loc[balance["side"] == s]
                 balance = balance.loc[balance["free hands"] == ("free hands" in t)]
                 balance.sort_values("jump", inplace=True)
-                balance = 100 * (balance["right"] / (balance["right"]+balance["left"])).to_numpy().flatten() - 50
+                balance = (
+                    100
+                    * (balance["right"] / (balance["right"] + balance["left"]))
+                    .to_numpy()
+                    .flatten()
+                    - 50
+                )
                 balance_data[(t, s)] = balance.tolist()
 
         # prepare the balance norms
@@ -1343,7 +1381,7 @@ class JumpTestResults(TestResults):
             p_norms = performance_norms.get((t, s))
             b_data = balance_data.get((t, s))
             b_norms = balance_norms.get((t, s))
-            titolo = f"{t}-{s}".capitalize()
+            titolo = f"{t} - {s}".capitalize()
             if p_data is not None:
                 fig = self._get_performance_figure(
                     p_data,
@@ -1358,13 +1396,13 @@ class JumpTestResults(TestResults):
 
         return figures
 
-    def _get_contact_time_figure(self, test: "JumpTest"):
+    def _get_contact_time_figure(self, test: "JumpTest", reversed_ranks: bool = False):
 
         # retrieve the contact time data
         performance_data, performance_norms = self._get_data_and_norms(
             "contact time (ms)",
             test,
-            reversed_ranks=True,
+            reversed_ranks=reversed_ranks,
         )
 
         # since we have just one parameter (contact time), we remove the layer
@@ -1389,12 +1427,11 @@ class JumpTestResults(TestResults):
 
         return figures
 
-    def _get_rsi_figure(self, test: "JumpTest"):
+    def _get_rsi_figure(self, test: "JumpTest", reversed_ranks: bool = False):
 
         # retrieve the rsi data
         performance_data, performance_norms = self._get_data_and_norms(
-            "rsi (cm/s)",
-            test
+            "rsi (cm/s)", test, reversed_ranks=reversed_ranks,
         )
 
         # since we have just one parameter (rsi), we remove the layer
@@ -1423,11 +1460,7 @@ class JumpTestResults(TestResults):
 
         # retrieve the activation ratio data
         data_raw, norms = self._get_data_and_norms(
-            "activation ratio",
-            test,
-            False,
-            RANK_3COLORS,
-            True
+            "activation ratio", test, False, RANK_3COLORS, True
         )
 
         # we turn the name of the parameters layer into the muscle names
@@ -1520,31 +1553,31 @@ class JumpTestResults(TestResults):
 
     def _get_figures(self, test: "JumpTest"):
         out: dict[str, go.Figure] = {}
-
-        out["ground_reaction_forces"] = self._get_grf_figure(test) 
-
+        out["ground_reaction_forces"] = self._get_grf_figure(test)
         out["elevation"] = self._get_elevation_figure(test)
 
         if len(test.drop_jumps) > 0 or len(test.repeated_jumps) > 0:
 
-            out["contact_time"] = self._get_contact_time_figure(test, False)
-            out["contact_time free hands"] = self._get_contact_time_figure(test, True)
+            out["contact_time"] = self._get_contact_time_figure(test, True)
+            # out["contact_time free hands"] = self._get_contact_time_figure(test, True)
 
             out["rsi"] = self._get_rsi_figure(test, False)
-            out["rsi free hands"] = self._get_rsi_figure(test, True)
+            
+
+            # out["rsi free hands"] = self._get_rsi_figure(test, True)
 
         if len(test.drop_jumps) > 0 and self.include_emg:
 
             macr = self._get_muscle_activation_ratio_figure(test, False)
             out["muscle_activation_ratio"] = macr
-            macr = self._get_muscle_activation_ratio_figure(test, True)
-            out["muscle_activation_ratio free hands"] = macr
+            # macr = self._get_muscle_activation_ratio_figure(test, True)
+            # out["muscle_activation_ratio free hands"] = macr
 
             mact = self._get_muscle_activation_time_figure(test, False)
-            orut["muscle_activation_time"] = mact
-            mact = self._get_muscle_activation_time_figure(test, True)
-            out["muscle_activation_time free hands"] = mact
-       
+            out["muscle_activation_time"] = mact
+            # mact = self._get_muscle_activation_time_figure(test, True)
+            # out["muscle_activation_time free hands"] = mact
+
         return out
 
 

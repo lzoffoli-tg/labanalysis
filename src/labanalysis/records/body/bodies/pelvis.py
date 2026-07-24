@@ -209,7 +209,7 @@ class Pelvis(Joint, BodyPlane, Segment):
         """
         return self.get_angle_by_point(
             self.asis_midpoint - self.psis_midpoint,  # type: ignore
-            self.anteriorposterior_axis,  # type: ignore
+            self.anteroposterior_axis,  # type: ignore
             self.vertical_axis,  # type: ignore
         )
 

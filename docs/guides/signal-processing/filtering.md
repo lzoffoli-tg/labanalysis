@@ -26,7 +26,7 @@ import labanalysis as laban
 import numpy as np
 
 # Load signal
-record = laban.TimeseriesRecord.from_tdf("force_data.tdf")
+record = laban.Record.from_tdf("force_data.tdf")
 fp = record['FP1']
 fz = fp.force['Fz']
 
@@ -289,7 +289,7 @@ import labanalysis as laban
 import numpy as np
 
 # Load force data
-record = laban.TimeseriesRecord.from_tdf("jump.tdf")
+record = laban.Record.from_tdf("jump.tdf")
 fp = record['FP1']
 fz_raw = fp.force['Fz']
 

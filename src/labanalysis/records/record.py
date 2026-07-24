@@ -1,6 +1,9 @@
 """Record base class module."""
 
+from __future__ import annotations
+
 import inspect
+from pathlib import Path
 from warnings import warn
 
 import numpy as np
@@ -10,8 +13,9 @@ from plotly.subplots import make_subplots
 
 from ..indexers.record_iloc_indexer import RecordILocIndexer
 from ..indexers.record_loc_indexer import RecordLocIndexer
+from ..io.read.btsbioengineering import read_tdf
 from ..signalprocessing import fillna as sp_fillna
-from ..timeseries import EMGSignal, Point3D, Signal1D, Signal3D, Timeseries, Plane3D
+from ..timeseries import *
 
 
 class Record:
@@ -30,7 +34,7 @@ class Record:
     reset_time : bool, optional
         If True, reset the time index to start at zero for all contained objects (default True).
     **signals : dict
-        Key-value pairs of Timeseries subclasses, TimeseriesRecord, or ForcePlatform to include in the record.
+        Key-value pairs of Timeseries subclasses, Record, or ForcePlatform to include in the record.
 
     Attributes
     ----------
@@ -42,7 +46,7 @@ class Record:
     Methods
     -------
     copy()
-        Return a deep copy of the TimeseriesRecord.
+        Return a deep copy of the Record.
     strip(axis=0, inplace=False, independent=False)
         Remove leading/trailing rows or columns that are all NaN from all contained objects.
         When independent=False (default), all elements share a common timeframe based on
@@ -56,8 +60,13 @@ class Record:
     to_dataframe()
         Convert the record to a pandas DataFrame with MultiIndex columns.
     from_tdf(filename)
-        Create a TimeseriesRecord from a TDF file.
+        Create a Record from a TDF file.
     """
+
+    @property
+    def name(self):
+        """name of the class"""
+        return self.__class__.__name__
 
     @property
     def index(self):
@@ -132,22 +141,10 @@ class Record:
         if not isinstance(key, str):
             raise ValueError("key must be a str")
 
-        if isinstance(
-            value, (Timeseries, Signal1D, Signal3D, EMGSignal, Point3D, Plane3D)
-        ):
-            allowed = True
-        else:
-            try:
-                from .forceplatform import ForcePlatform
-
-                allowed = isinstance(value, ForcePlatform)
-            except Exception:
-                allowed = False
-
-        if not allowed:
+        if not isinstance(value, (Timeseries, Record)):
             raise ValueError("value must be a Timeseries or Record")
-        if key in self.keys() and hasattr(self, key):
-            raise ValueError(f"{key} is a property of this Record.")
+        # if key in self.keys() and hasattr(self, key):
+        #     raise ValueError(f"{key} is a property of this Record.")
         self._data[key] = value
 
     def __getattr__(self, name):
@@ -169,14 +166,8 @@ class Record:
     def __repr__(self):
         return self._data.__repr__()
 
-    def __init__(
-        self,
-        **signals: Timeseries | Signal1D | Signal3D | EMGSignal | Point3D | Plane3D,
-    ):
-        self._data: dict[
-            str,
-            Timeseries | Signal1D | Signal3D | EMGSignal | Point3D | Plane3D,
-        ] = {}
+    def __init__(self, **signals: Timeseries | Record):
+        self._data: dict[str, Timeseries | Record] = {}
         for key, value in signals.items():
             self[key] = value
 
@@ -196,7 +187,7 @@ class Record:
         Returns
         -------
         pd.DataFrame
-            A DataFrame containing all the data from the TimeseriesRecord.
+            A DataFrame containing all the data from the Record.
         """
         if len(self._data) == 0:
             return pd.DataFrame()
@@ -212,39 +203,67 @@ class Record:
 
     def _get_constructor_args(self):
         """
-        Extracts constructor arguments from the current instance to allow
-        dynamic instantiation of self.__class__.
+        Extracts constructor arguments and internal attributes from the current
+        instance to allow dynamic instantiation of self.__class__.
+
+        Returns
+        -------
+        dict
+            A dictionary of constructor arguments and internal attributes.
         """
         sig = inspect.signature(self.__class__.__init__)
         args = {}
+
+        # Capture constructor parameters
         for name, param in sig.parameters.items():
-            try:
-                if name == "self":
+            if name == "self":
+                continue
+
+            value = None
+            if hasattr(self, name):
+                value = getattr(self, name)
+            elif hasattr(self, f"_{name}"):
+                value = getattr(self, f"_{name}")
+            elif param.default is not inspect.Parameter.empty:
+                value = param.default
+            else:
+                # Don't raise, just skip - may be handled by **kwargs
+                continue
+
+            args[name] = value
+
+        # Additionally capture internal attributes (like Timeseries._get_object_args does)
+        for attr in dir(self):
+            if attr.startswith("_") and not attr.startswith("__"):
+                # Skip if already captured or if it's _data (handled separately)
+                if attr in args or attr == "_data":
                     continue
-                if hasattr(self, name):
-                    args[name] = getattr(self, name)
-                elif hasattr(self, f"_{name}"):
-                    args[name] = getattr(self, f"_{name}")
-                elif param.default is not inspect.Parameter.empty:
-                    args[name] = param.default
-                else:
-                    raise AttributeError(
-                        f"Missing required constructor argument: '{name}'"
-                    )
-            except Exception as exc:
-                pass
+                # Only capture non-callable attributes
+                if hasattr(self.__class__, attr):
+                    value = getattr(self, attr)
+                    if not callable(value):
+                        args[attr] = value
+
         return args
 
     def copy(self):
         """
-        Return a deep copy of the TimeseriesRecord.
+        Return a deep copy of the Record, preserving the concrete subclass type.
 
         Returns
         -------
-        TimeseriesRecord
-            A new TimeseriesRecord object with the same data.
+        Record or subclass
+            A new instance of the same class with copied data and attributes.
         """
-        return Record(**{i: v.copy() for i, v in self._data.items()})
+        # Get constructor arguments and internal attributes
+        constructor_args = self._get_constructor_args()
+
+        # Deep copy the _data dictionary
+        data_copy = {key: val.copy() for key, val in self._data.items()}
+
+        # Merge constructor args with data copy
+        # Data copy takes precedence to ensure we have the latest state
+        return self.__class__(**{**constructor_args, **data_copy})
 
     def strip(
         self, axis: int | None = None, inplace: bool = False, independent: bool = False
@@ -282,7 +301,7 @@ class Record:
 
                 Examples
                 --------
-                >>> from records.records import Record, TimeseriesRecord
+                >>> from records.records import Record
         from records.timeseries import Signal1D
                 >>> import numpy as np
                 >>> # Create two signals with different NaN patterns
@@ -397,12 +416,12 @@ class Record:
         Parameters
         ----------
         inplace : bool, optional
-            If True, modify in place. If False, return a new TimeseriesRecord.
+            If True, modify in place. If False, return a new Record.
 
         Returns
         -------
-        TimeseriesRecord or None
-            A TimeseriesRecord with reset time if inplace is False, otherwise
+        Record or None
+            A Record with reset time if inplace is False, otherwise
             None.
         """
         if not isinstance(inplace, bool):
@@ -519,6 +538,321 @@ class Record:
             fig.update_yaxes(row=i + 1, col=1, title=unit)
         fig.update_layout(title=fig.__class__.__name__, template="simple_white")
         return fig
+
+    @property
+    def vertical_axis(self):
+        for val in self.values():
+            if hasattr(val, "vertical_axis"):
+                axis = val.vertical_axis
+                if axis is not None:
+                    return str(axis)
+        return None
+
+    @property
+    def anteroposterior_axis(self):
+        for val in self.values():
+            if hasattr(val, "anteroposterior_axis"):
+                axis = val.anteroposterior_axis
+                if axis is not None:
+                    return str(axis)
+        return None
+
+    @property
+    def lateral_axis(self):
+        for val in self.values():
+            if hasattr(val, "lateral_axis"):
+                axis = val.lateral_axis
+                if axis is not None:
+                    return str(axis)
+        return None
+
+    @property
+    def points3d(self):
+        """
+        Get all Point3D objects.
+
+        Returns
+        -------
+        Record
+        """
+        return self._filter_by_type(Point3D)
+
+    @property
+    def signals3d(self):
+        """
+        Get all Signal3D objects.
+
+        Returns
+        -------
+        Record
+        """
+        return self._filter_by_type(Signal3D)
+
+    @property
+    def signals1d(self):
+        """
+        Get all Signal1D objects.
+
+        Returns
+        -------
+        Record
+        """
+        return self._filter_by_type(Signal1D)
+
+    @property
+    def emgsignals(self):
+        """
+        Get all EMGSignal objects.
+
+        Returns
+        -------
+        Record
+        """
+        return self._filter_by_type(EMGSignal)
+
+    @property
+    def forceplatforms(self):
+        """
+        Get all ForcePlatform objects.
+
+        Returns
+        -------
+        Record
+        """
+        from .forceplatform import ForcePlatform
+
+        return self._filter_by_type(ForcePlatform)
+
+    @property
+    def metabolicrecords(self):
+        """
+        Get all MetabolicRecord objects.
+
+        Returns
+        -------
+        Record
+        """
+        from .metabolicrecord import MetabolicRecord
+
+        return self._filter_by_type(MetabolicRecord)
+
+    @property
+    def planes3d(self):
+        """
+        Get all Plane3D objects.
+
+        Returns
+        -------
+        Record
+        """
+        return self._filter_by_type(Plane3D)
+
+    @property
+    def resultant_force(self):
+        """
+        return a forceplatform object representing the resultant of all
+        available forceplatforms
+        """
+        platforms = list(self.forceplatforms.values())
+        if len(platforms) == 0:
+            raise ValueError("No forceplatforms found within the Record.")
+
+        # Indice temporale comune a tutte le piattaforme
+        common_times = list(
+            dict.fromkeys([t for platform in platforms for t in platform.index])
+        )
+        common_time_to_idx = {t: i for i, t in enumerate(common_times)}
+        n_samples = len(common_times)
+
+        force_accum = np.zeros((n_samples, 3), dtype=float)
+        torque_accum = np.zeros((n_samples, 3), dtype=float)
+        origin_weighted = np.zeros((n_samples, 3), dtype=float)
+        weight_accum = np.zeros(n_samples, dtype=float)
+        valid_count = np.zeros(n_samples, dtype=int)
+
+        axes = []
+        units = {}
+
+        for platform in platforms:
+            force = platform.force
+            origin = platform.origin
+            torque = platform.torque
+
+            f_arr = np.asarray(force.to_numpy(), dtype=float)
+            o_arr = np.asarray(origin.to_numpy(), dtype=float)
+            m_arr = np.asarray(torque.to_numpy(), dtype=float)
+
+            if f_arr.ndim != 2 or f_arr.shape[1] != 3:
+                continue
+            if o_arr.shape != f_arr.shape or m_arr.shape != f_arr.shape:
+                continue
+
+            platform_times = list(platform.index)
+            platform_ids = np.fromiter(
+                (common_time_to_idx[t] for t in platform_times),
+                dtype=int,
+                count=len(platform_times),
+            )
+
+            v_axis_idx = next(
+                (
+                    i
+                    for i, col in enumerate(force.columns)
+                    if col == force.vertical_axis
+                ),
+                None,
+            )
+            if v_axis_idx is None:
+                weights = np.linalg.norm(f_arr, axis=1)
+            else:
+                weights = np.abs(f_arr[:, v_axis_idx]).reshape(-1)
+
+            valid_mask = (
+                np.isfinite(f_arr).all(axis=1)
+                & np.isfinite(o_arr).all(axis=1)
+                & np.isfinite(m_arr).all(axis=1)
+                & np.isfinite(weights)
+            )
+
+            if not np.any(valid_mask):
+                continue
+
+            ids = platform_ids[valid_mask]
+            f_valid = f_arr[valid_mask]
+            o_valid = o_arr[valid_mask]
+            m_valid = m_arr[valid_mask]
+            w_valid = weights[valid_mask]
+
+            moments = m_valid + np.cross(o_valid, f_valid)
+
+            np.add.at(force_accum, ids, f_valid)
+            np.add.at(torque_accum, ids, moments)
+            np.add.at(origin_weighted, ids, o_valid * w_valid[:, None])
+            np.add.at(weight_accum, ids, w_valid)
+            np.add.at(valid_count, ids, 1)
+
+            if not units:
+                units["origin"] = origin.unit
+                units["force"] = force.unit
+                units["torque"] = torque.unit
+                axes = list(origin.columns)
+
+        force_out = np.full((n_samples, 3), np.nan, dtype=float)
+        torque_out = np.full((n_samples, 3), np.nan, dtype=float)
+        origin_out = np.full((n_samples, 3), np.nan, dtype=float)
+
+        valid_samples = valid_count > 0
+        force_out[valid_samples] = force_accum[valid_samples]
+        torque_out[valid_samples] = torque_accum[valid_samples]
+
+        with np.errstate(divide="ignore", invalid="ignore"):
+            nonzero_weight = valid_samples & (weight_accum != 0)
+            origin_out[nonzero_weight] = (
+                origin_weighted[nonzero_weight] / weight_accum[nonzero_weight, None]
+            )
+
+        cop = Point3D(origin_out, common_times, units["origin"], axes)
+        force = Signal3D(force_out, common_times, units["force"], axes)
+        torque = Signal3D(torque_out, common_times, units["torque"], axes)
+
+        from .forceplatform import ForcePlatform
+
+        return ForcePlatform(cop, force, torque)
+
+    def _filter_by_type(self, cls):
+        """
+        Internal: Filter contained items by type.
+
+        Parameters
+        ----------
+        cls : type
+
+        Returns
+        -------
+        Record
+            A view (not a copy) of the filtered items.
+            Changes to elements affect the original Record.
+        """
+
+        return Record(
+            **{k: v for k, v in self.items() if type(v) == cls},
+        )
+
+    @classmethod
+    def from_tdf(cls, filename: str | Path):
+        """
+        Create a Record from a TDF file.
+
+        Parameters
+        ----------
+        filename : str
+            Path to the TDF file.
+
+        Returns
+        -------
+        Record
+            A Record populated with the data from the TDF file.
+        """
+        data = read_tdf(filename)
+        vals = {}
+
+        # Handle 3D points from CAMERA TRACKED
+        if data.get("CAMERA") and data["CAMERA"].get("TRACKED"):  # type: ignore
+            df = data["CAMERA"]["TRACKED"]["TRACKS"]  # type: ignore
+            for label in df.columns.get_level_values(0).unique():
+                sub_df: pd.DataFrame = df[label]
+                vals[label] = Point3D(
+                    data=sub_df.values,
+                    index=sub_df.index.tolist(),
+                    columns=sub_df.columns.get_level_values(0).tolist(),
+                    unit=sub_df.columns[0][-1],
+                )
+
+        # Handle EMG signals
+        if data.get("EMG") and data["EMG"].get("TRACKS") is not None:  # type: ignore
+            df = data["EMG"]["TRACKS"]  # type: ignore
+            for col in df.columns:
+                signal: pd.Series = df[col]
+                muscle_name, side, unit = col
+                vals[f"{side}_{muscle_name}".lower()] = EMGSignal(
+                    data=signal.to_numpy().astype(float).flatten(),
+                    index=df.index.tolist(),
+                    muscle_name=muscle_name.lower(),
+                    side=side.lower(),
+                    unit=unit,
+                )
+
+        # Handle Force Platforms
+        from .forceplatform import ForcePlatform
+
+        if data.get("FORCE_PLATFORM") and data["FORCE_PLATFORM"].get("TRACKED"):  # type: ignore
+            df = data["FORCE_PLATFORM"]["TRACKED"]["TRACKS"]  # type: ignore
+            for label in df.columns.get_level_values("LABEL").unique():
+                origin: pd.DataFrame = df[label]["ORIGIN"]
+                force: pd.DataFrame = df[label]["FORCE"]
+                torque: pd.DataFrame = df[label]["TORQUE"]
+                vals[label] = ForcePlatform(
+                    origin=Point3D(
+                        data=origin.values,
+                        index=origin.index.tolist(),
+                        columns=origin.columns.get_level_values(0).tolist(),
+                        unit=origin.columns[0][-1],
+                    ),
+                    force=Signal3D(
+                        data=force.values,
+                        index=force.index.tolist(),
+                        columns=force.columns.get_level_values(0).tolist(),
+                        unit=force.columns[0][-1],
+                    ),
+                    torque=Signal3D(
+                        data=torque.values,
+                        index=torque.index.tolist(),
+                        columns=torque.columns.get_level_values(0).tolist(),
+                        unit=torque.columns[0][-1],
+                    ),
+                )
+
+        return cls(**vals)
 
 
 __all__ = ["Record"]

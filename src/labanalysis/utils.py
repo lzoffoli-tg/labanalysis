@@ -23,12 +23,13 @@ split_data
 
 from os import walk
 from os.path import exists, join
+from pathlib import Path
 from tkinter import Tk
 from typing import Annotated, Any
-import pint
 
 import numpy as np
 import pandas as pd
+import pint
 from numpy.typing import NDArray
 
 from .messages import askyesno
@@ -273,7 +274,7 @@ def check_writing_file(
 
 
 def assert_file_extension(
-    path: str,
+    path: str | Path,
     ext: str,
 ):
     """
@@ -294,9 +295,9 @@ def assert_file_extension(
         in case the file is not a str or it does not exist or it does not have
         the provided extension.
     """
-    assert isinstance(path, str), "path must be a str object."
-    msg = path + f' must have "{ext}" extension.'
-    assert path.rsplit(".", 1)[-1] == f"{ext}", msg
+    assert isinstance(path, (str, Path)), "path must be a str object."
+    msg = str(path) + f' must have "{ext}" extension.'
+    assert str(path).rsplit(".", 1)[-1] == f"{ext}", msg
 
 
 def hex_to_rgba(hex_color: str, alpha: float = 1.0):

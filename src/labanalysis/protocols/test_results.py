@@ -2,6 +2,7 @@
 
 from os import makedirs
 from os.path import dirname, exists, join
+from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 import numpy as np
@@ -9,7 +10,7 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from ..messages import askyesnocancel
-from ..records import TimeseriesRecord
+from ..records import Record
 from ..timeseries import EMGSignal
 
 
@@ -37,10 +38,10 @@ class TestResults(Protocol):
     def include_emg(self):
         return self._include_emg
 
-    def save_all(self, path: str, force_overwrite: bool = False):
+    def save_all(self, path: str | Path, force_overwrite: bool = False):
 
         # check the inputs
-        if not isinstance(path, str):
+        if not isinstance(path, (str, Path)):
             msg = "path must be a string defining the root folder where to "
             msg += "save the results of the test."
             raise ValueError(msg)
@@ -96,7 +97,7 @@ class TestResults(Protocol):
         line.loc[line.index, line.columns] = line.values.astype(float) / norm * 100
         return line
 
-    def _get_muscle_symmetry(self, test: TimeseriesRecord):
+    def _get_muscle_symmetry(self, test: Record):
         """
         Returns coordination and balance metrics from EMG signals.
 

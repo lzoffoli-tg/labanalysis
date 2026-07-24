@@ -53,11 +53,11 @@ class ChangeOfDirectionExercise(WholeBody):
         Participant body mass.
     side : str
         Which foot contacted platform ("left", "right", or "bilateral").
-    contact_phase : TimeseriesRecord
+    contact_phase : Record
         Data segment during full ground contact.
-    loading_phase : TimeseriesRecord
+    loading_phase : Record
         Data segment during deceleration (entry to direction change).
-    propulsion_phase : TimeseriesRecord
+    propulsion_phase : Record
         Data segment during acceleration (exit from direction change).
     inversion_time : float
         Time instant when COM velocity reverses direction (s).
@@ -74,11 +74,11 @@ class ChangeOfDirectionExercise(WholeBody):
     ----------
     side : str
         Execution side based on force platform contact.
-    contact_phase : TimeseriesRecord
+    contact_phase : Record
         Full ground contact segment.
-    loading_phase : TimeseriesRecord
+    loading_phase : Record
         Deceleration phase segment.
-    propulsion_phase : TimeseriesRecord
+    propulsion_phase : Record
         Acceleration phase segment.
     inversion_time : float
         Velocity reversal time point.
@@ -184,7 +184,7 @@ class ChangeOfDirectionExercise(WholeBody):
 
         Returns
         -------
-        TimeseriesRecord
+        Record
             Data for the concentric phase.
 
         Procedure

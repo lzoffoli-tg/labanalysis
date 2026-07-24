@@ -56,7 +56,7 @@ def my_fp_processor(fp):
 pipeline['ForcePlatform'] = [my_fp_processor]
 
 # Apply to record
-record = laban.TimeseriesRecord()
+record = laban.Record()
 # ... populate record ...
 pipeline(record, inplace=True)
 ```
@@ -283,7 +283,7 @@ body = WholeBody.from_tdf("motion.tdf", bodymass_kg=75)
 # - All Point3D markers (40+ markers)
 # - All ForcePlatform objects
 # - All EMGSignal objects
-# - Nested TimeseriesRecord structures
+# - Nested Record structures
 
 pipeline = get_default_processing_pipeline()
 pipeline(body, inplace=True)

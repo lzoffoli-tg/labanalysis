@@ -57,15 +57,5 @@ class Point3D(Signal3D):
         self[:, :] = self.to_numpy() * magnitude
         self._unit = meters
 
-    def copy(self):
-        return Point3D(
-            self._data.copy(),
-            self.index.copy(),
-            self.unit,
-            self.columns.copy(),
-            self.vertical_axis,
-            self.anteroposterior_axis,
-        )
-
 
 __all__ = ["Point3D"]

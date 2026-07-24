@@ -24,7 +24,7 @@ Most common use case - loading BTS Bioengineering TDF files:
 import labanalysis as laban
 
 # Load complete TDF file
-record = laban.TimeseriesRecord.from_tdf("path/to/file.tdf")
+record = laban.Record.from_tdf("path/to/file.tdf")
 
 # Access force platforms
 fp1 = record['FP1']
@@ -75,7 +75,7 @@ Use the appropriate reader for your file format:
 
 ```python
 # For TDF files (most common)
-record = laban.TimeseriesRecord.from_tdf("file.tdf")
+record = laban.Record.from_tdf("file.tdf")
 
 # For OpenSim
 from labanalysis.io import read_opensim
@@ -157,7 +157,7 @@ print(f"Range: {signal.data.min():.2f} to {signal.data.max():.2f} {signal.unit}"
 
 ```python
 # Load data
-record = laban.TimeseriesRecord.from_tdf("file.tdf")
+record = laban.Record.from_tdf("file.tdf")
 
 # Apply filtering to all signals
 filtered_record = record.apply(
@@ -177,7 +177,7 @@ For TDF files, you can load specific channels:
 
 ```python
 # Load only force platform 1
-record = laban.TimeseriesRecord.from_tdf(
+record = laban.Record.from_tdf(
     "file.tdf",
     channels=['FP1']  # Only load FP1
 )
@@ -197,7 +197,7 @@ tdf_files = Path("data/").glob("*.tdf")
 # Load all files
 records = {}
 for file in tdf_files:
-    records[file.stem] = laban.TimeseriesRecord.from_tdf(file)
+    records[file.stem] = laban.Record.from_tdf(file)
 
 print(f"Loaded {len(records)} files")
 ```
@@ -259,7 +259,7 @@ FileNotFoundError: [Errno 2] No such file or directory
 import os
 file_path = os.path.abspath("data/file.tdf")
 print(f"Loading from: {file_path}")
-record = laban.TimeseriesRecord.from_tdf(file_path)
+record = laban.Record.from_tdf(file_path)
 ```
 
 ### Unsupported File Format

@@ -24,7 +24,7 @@ Use absolute path:
 ```python
 import os
 file_path = os.path.abspath("path/to/data.tdf")
-record = laban.TimeseriesRecord.from_tdf(file_path)
+record = laban.Record.from_tdf(file_path)
 ```
 
 Check file exists:
@@ -33,7 +33,7 @@ from pathlib import Path
 
 file_path = Path("data.tdf")
 if file_path.exists():
-    record = laban.TimeseriesRecord.from_tdf(file_path)
+    record = laban.Record.from_tdf(file_path)
 else:
     print(f"File not found: {file_path}")
 ```
@@ -74,7 +74,7 @@ KeyError: 'FP1'
 
 Check available keys:
 ```python
-record = laban.TimeseriesRecord.from_tdf("data.tdf")
+record = laban.Record.from_tdf("data.tdf")
 print(f"Available keys: {list(record.keys())}")
 ```
 
@@ -144,7 +144,7 @@ FileNotFoundError: [Errno 2] No such file or directory: 'data.tdf'
 
 **Code:**
 import labanalysis as laban
-record = laban.TimeseriesRecord.from_tdf("data.tdf")
+record = laban.Record.from_tdf("data.tdf")
 
 **Environment:**
 - Python 3.12.0

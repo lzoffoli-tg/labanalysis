@@ -1,5 +1,7 @@
 """WholeBody class - Full body biomechanical model."""
 
+from pathlib import Path
+
 from ...timeseries.emgsignal import EMGSignal
 from ...timeseries.point3d import Point3D
 from ...timeseries.signal1d import Signal1D
@@ -7,7 +9,6 @@ from ...timeseries.signal3d import Signal3D
 from ...timeseries.timeseries import Timeseries
 from ..forceplatform import ForcePlatform
 from ..record import Record
-from ..timeseriesrecord import TimeseriesRecord
 from .bodies.head import Head
 from .bodies.left_ankle import LeftAnkle
 from .bodies.left_arm import LeftArm
@@ -36,7 +37,7 @@ from .bodies.trunk import Trunk
 __all__ = ["WholeBody"]
 
 
-class WholeBody(TimeseriesRecord):
+class WholeBody(Record):
     """
     Full body biomechanical model with 42+ anatomical markers.
 
@@ -284,7 +285,7 @@ class WholeBody(TimeseriesRecord):
     @classmethod
     def from_tdf(
         cls,
-        filename: str,
+        filename: str | Path,
         left_hand_ground_reaction_force: str | None = None,
         right_hand_ground_reaction_force: str | None = None,
         left_foot_ground_reaction_force: str | None = None,
@@ -446,7 +447,7 @@ class WholeBody(TimeseriesRecord):
         WholeBody
             Instance created from TDF data
         """
-        tdf = TimeseriesRecord.from_tdf(filename)
+        tdf = Record.from_tdf(filename)
         points = {
             "left_heel": left_heel,
             "right_heel": right_heel,
@@ -1145,8 +1146,6 @@ class WholeBody(TimeseriesRecord):
             if (
                 self.c7 is not None
                 and self.sc is not None
-                and self.l2 is not None
-                and self.t5 is not None
                 and self.pelvis is not None
                 and self.left_hip is not None
                 and self.right_hip is not None

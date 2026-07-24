@@ -1,7 +1,7 @@
 """FreeWeightExercise module."""
 
 from ....records.forceplatform import ForcePlatform
-from ....records.timeseriesrecord import TimeseriesRecord
+from ....records.record import Record
 from ....timeseries import EMGSignal, Point3D, Signal1D, Signal3D
 from .default_freeweight_object import DefaultFreeWeightObject
 from .freeweight_repetition import FreeWeightRepetition
@@ -223,7 +223,7 @@ class FreeWeightExercise(DefaultFreeWeightObject):
 
         obj = cls(total_load_kg=total_load_kg)
 
-        tdf = TimeseriesRecord.from_tdf(filename)
+        tdf = Record.from_tdf(filename)
 
         inputs = {
             "left_dumbbell_medial": left_dumbbell_medial,

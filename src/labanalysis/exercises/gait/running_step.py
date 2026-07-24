@@ -1,18 +1,17 @@
 """Running step (gait cycle) module."""
 
 from typing import Literal
-import warnings
+
 import numpy as np
 
 from ...constants import (
     DEFAULT_MINIMUM_CONTACT_GRF_N,
     DEFAULT_MINIMUM_HEIGHT_PERCENTAGE,
 )
-from ...timeseries import Signal1D, Signal3D, EMGSignal, Point3D
-from ...records.forceplatform import ForcePlatform
-from ...records.timeseriesrecord import TimeseriesRecord
 from ...records.body import WholeBody
-
+from ...records.forceplatform import ForcePlatform
+from ...records.record import Record
+from ...timeseries import EMGSignal, Point3D, Signal1D, Signal3D
 from .gait_cycle import GaitCycle
 
 __all__ = ["RunningStep"]
@@ -72,18 +71,29 @@ class RunningStep(GaitCycle):
     """
 
     @property
+    def _temporal_metrics(self):
+        """private property to describe temporal metrics"""
+        metrics = super()._temporal_metrics
+        metrics.extend(
+            ["contact_time", "flight_time", "loadingresponse_time", "propulsion_time"]
+        )
+        return metrics
+
+    @property
+    def _spatial_metrics(self):
+        """private property to describe spatial metrics"""
+        metrics = super()._spatial_metrics
+        metrics.extend(["overstride"])
+        return metrics
+
+    @property
     def flight_phase(self):
         """
-        Extract data during the flight phase.
-
-        Returns
-        -------
-        WholeBody
-            All signals sliced from toeoff (init_s) to footstrike.
+        Get data during the flight phase (toe-off to footstrike).
         """
-        sliced = self.copy()[self.init_s : self.footstrike_s]
+        sliced = self.copy()[self.init_time : self.footstrike_time]
         out = WholeBody()
-        if isinstance(sliced, TimeseriesRecord):
+        if isinstance(sliced, Record):
             for i, v in sliced.items():
                 out[i] = v
         return out
@@ -91,16 +101,11 @@ class RunningStep(GaitCycle):
     @property
     def contact_phase(self):
         """
-        Extract data during the contact phase.
-
-        Returns
-        -------
-        WholeBody
-            All signals sliced from footstrike to next toeoff (end_s).
+        Get data during the contact phase (footstrike to toe-off).
         """
-        sliced = self.copy()[self.footstrike_s : self.end_s]
+        sliced = self.copy()[self.footstrike_time : self.end_time]
         out = WholeBody()
-        if isinstance(sliced, TimeseriesRecord):
+        if isinstance(sliced, Record):
             for i, v in sliced.items():
                 out[i] = v
         return out
@@ -108,16 +113,11 @@ class RunningStep(GaitCycle):
     @property
     def loading_response_phase(self):
         """
-        Extract data during the loading response phase.
-
-        Returns
-        -------
-        WholeBody
-            All signals sliced from footstrike to midstance.
+        Get data during the loading response phase (footstrike to midstance).
         """
-        sliced = self.copy()[self.footstrike_s : self.midstance_s]
+        sliced = self.copy()[self.footstrike_time : self.midstance_time]
         out = WholeBody()
-        if isinstance(sliced, TimeseriesRecord):
+        if isinstance(sliced, Record):
             for i, v in sliced.items():
                 out[i] = v
         return out
@@ -125,16 +125,11 @@ class RunningStep(GaitCycle):
     @property
     def propulsion_phase(self):
         """
-        Extract data during the propulsion phase.
-
-        Returns
-        -------
-        WholeBody
-            All signals sliced from midstance to toeoff (end_s).
+        Get data during the propulsion phase (midstance to toe-off).
         """
-        sliced = self.copy()[self.midstance_s : self.end_s]
+        sliced = self.copy()[self.midstance_time : self.end_time]
         out = WholeBody()
-        if isinstance(sliced, TimeseriesRecord):
+        if isinstance(sliced, Record):
             for i, v in sliced.items():
                 out[i] = v
         return out
@@ -142,234 +137,59 @@ class RunningStep(GaitCycle):
     @property
     def flight_time(self):
         """
-        Get the flight time in seconds.
-
-        Returns
-        -------
-        float
-            The flight time in seconds.
+        Get the flight phase duration in seconds.
         """
-        return self.footstrike_s - self.init_s
+        return self.footstrike_time - self.init_time
 
     @property
     def loadingresponse_time(self):
         """
-        Get the loading response time in seconds.
-
-        Returns
-        -------
-        float
-            The loading response time in seconds.
+        Get the loading response phase duration in seconds.
         """
-        return self.midstance_s - self.footstrike_s
+        return self.midstance_time - self.footstrike_time
 
     @property
     def propulsion_time(self):
         """
-        Get the propulsion time in seconds.
-
-        Returns
-        -------
-        float
-            The propulsion time in seconds.
+        Get the propulsion phase duration in seconds.
         """
-        return self.end_s - self.midstance_s
+        return self.end_time - self.midstance_time
 
     @property
     def contact_time(self):
         """
-        Get the contact time in seconds.
+        Get the contact phase duration in seconds.
+        """
+        return self.end_time - self.footstrike_time
+
+    @property
+    def overstride(self):
+        """
+        Get the overstride distance defined as the difference between the
+        horizontal position of the center of mass and the horizontal position
+        of the foot at footstrike.
 
         Returns
         -------
         float
-            The contact time in seconds.
+            The overstride distance.
         """
-        return self.end_s - self.footstrike_s
-
-    @property
-    def peak_braking_force(self):
-        """
-        Get the peak braking force during loading response phase.
-
-        The braking force is the negative (backward) component of the
-        anteroposterior ground reaction force during the loading response
-        phase (footstrike to midstance).
-
-        Returns
-        -------
-        Signal1D or None
-            Peak braking force in Newtons, or None if no force data available.
-        """
-        phase = self.loading_response_phase
-        res = phase.resultant_force
-        if res is None:
-            return None
-        try:
-            norm: ForcePlatform = self.pelvis.apply(res)  # type: ignore
-        except Exception:
-            warnings.warn(
-                "Error occurred while applying pelvis transformation."
-                + "\nData are provided under the global reference frame orientation."
-            )
-            norm: ForcePlatform = res
-        ap_force = norm.force[self.anteroposterior_axis].to_numpy().flatten()
-
-        # Braking = negative values (backward direction)
-        braking = ap_force[ap_force < 0]
-        if len(braking) == 0:
-            return None
-
-        return float(np.abs(np.min(braking)))
-
-    @property
-    def peak_propulsion_force(self):
-        """
-        Get the peak propulsion force during propulsion phase.
-
-        The propulsion force is the positive (forward) component of the
-        anteroposterior ground reaction force during the propulsion phase
-        (midstance to toe-off).
-
-        Returns
-        -------
-        Signal1D or None
-            Peak propulsion force in Newtons, or None if no force data available.
-        """
-        phase = self.propulsion_phase
-        res = phase.resultant_force
-        if res is None:
-            return None
-        try:
-            norm: ForcePlatform = self.pelvis.apply(res)  # type: ignore
-        except Exception:
-            warnings.warn(
-                "Error occurred while applying pelvis transformation."
-                + "\nData are provided under the global reference frame orientation."
-            )
-            norm: ForcePlatform = res
-        ap_force = norm.force[self.anteroposterior_axis].to_numpy().flatten()
-
-        # Propulsion = positive values (forward direction)
-        propulsion = ap_force[ap_force > 0]
-        if len(propulsion) == 0:
-            return None
-
-        return float(np.max(propulsion))
-
-    @property
-    def vertical_oscillation(self):
-        """
-        Get the vertical oscillation of the pelvis center during the cycle.
-
-        Vertical oscillation is calculated as the difference between the
-        maximum and minimum vertical position of the pelvis center marker
-        during the running step.
-
-        Returns
-        -------
-        Signal1D or None
-            Vertical oscillation in meters or millimeters (depending on marker
-            unit), or None if pelvis_center is not available.
-        """
-        pelvis = self.pelvis
-        if pelvis is None:
-            return None
-        com = pelvis.center
-        vertical_data = com[self.vertical_axis].to_numpy().flatten()
-        return float(np.max(vertical_data) - np.min(vertical_data))
-
-    @property
-    def peak_trunk_lateral_flexion(self):
-        """
-        Get the peak trunk lateral flexion during the cycle.
-
-        Peak lateral flexion is the maximum absolute value of trunk
-        lateral flexion angle (in the local reference frame) during
-        the running step.
-
-        Returns
-        -------
-        Signal1D or None
-            Peak trunk lateral flexion in degrees, or None if
-            trunk_lateralflexion_local is not available.
-        """
-        trunk = self.trunk
-        if trunk is None:
-            return None
-        trunk_lat = trunk.lateralflexion
-        angles = trunk_lat.to_numpy().flatten()
-        return float(np.max(np.abs(angles)))
-
-    @property
-    def peak_pelvis_lateral_tilt(self):
-        """
-        Get the peak pelvis lateral tilt during the cycle.
-
-        Peak lateral tilt is the maximum absolute value of pelvis
-        lateral tilt angle (in the global reference frame) during
-        the running step.
-
-        Returns
-        -------
-        Signal1D or None
-            Peak pelvis lateral tilt in degrees, or None if
-            pelvis_lateral_tilt_global is not available.
-        """
-        pelvis = self.pelvis
-        if pelvis is None:
-            return None
-        angles = pelvis.frontal_plane_tilt.to_numpy().flatten()
-        return float(np.max(np.abs(angles)))
-
-    @property
-    def peak_trunk_rotation(self):
-        """
-        Get the peak trunk rotation during the cycle.
-
-        Peak trunk rotation is the maximum absolute value of trunk
-        rotation angle during the running step.
-
-        Returns
-        -------
-        Signal1D or None
-            Peak trunk rotation in degrees, or None if
-            trunk_rotation is not available.
-        """
-        trunk = self.trunk
-        if trunk is None:
-            return None
-        angles = trunk.rotation.to_numpy().flatten()
-        return float(np.max(np.abs(angles)))
-
-    @property
-    def peak_pelvis_rotation(self):
-        """
-        Get the peak pelvis rotation during the cycle.
-
-        Peak pelvis rotation is the maximum absolute value of pelvis
-        rotation angle during the running step.
-
-        Returns
-        -------
-        Signal1D or None
-            Peak pelvis rotation in degrees, or None if
-            pelvis_rotation is not available.
-        """
-        pelvis = self.pelvis
-        if pelvis is None:
-            return None
-        angles = pelvis.transverse_plane_tilt.to_numpy().flatten()
-        return float(np.max(np.abs(angles)))
+        res = self.resultant_force
+        plv = self.pelvis
+        fs = self.footstrike_time
+        if res is None or plv is None or fs is None:
+            raise ValueError("Required data for overstride calculation is missing.")
+        mask = plv.index >= fs
+        com = plv.loc[mask].center[plv.anteroposterior_axis]
+        res = res.loc[com.index].origin[res.anteroposterior_axis]
+        return float((res.to_numpy()[0][0] - com.to_numpy()[0][0]))
 
     def _footstrike_kinetics(self):
         """
-        Find the footstrike time using the kinetics algorithm.
+        Detect footstrike time using ground reaction force data.
 
-        Returns
-        -------
-        float
-            The footstrike time in seconds.
+        Identifies footstrike as the last sample below the height threshold
+        before the peak vertical ground reaction force.
 
         Raises
         ------
@@ -394,17 +214,16 @@ class RunningStep(GaitCycle):
 
     def _footstrike_kinematics(self):
         """
-        Find the footstrike time using the kinematics algorithm.
+        Detect footstrike time using marker trajectory data.
 
-        Returns
-        -------
-        float
-            The footstrike time in seconds.
+        Identifies footstrike by finding the first sample below the height
+        threshold for heel and/or metatarsal head markers. Returns the
+        earliest footstrike time if multiple markers are available.
 
         Raises
         ------
         ValueError
-            If no footstrike has been found.
+            If no footstrike has been found or required markers are missing.
         """
 
         # get the relevant vertical coordinates
@@ -434,12 +253,9 @@ class RunningStep(GaitCycle):
 
     def _midstance_kinetics(self):
         """
-        Find the midstance time using the kinetics algorithm.
+        Detect midstance time using ground reaction force data.
 
-        Returns
-        -------
-        float
-            The midstance time in seconds.
+        Identifies midstance as the time of peak vertical ground reaction force.
 
         Raises
         ------
@@ -456,12 +272,15 @@ class RunningStep(GaitCycle):
 
     def _midstance_kinematics(self):
         """
-        Find the midstance time using the kinematics algorithm.
+        Detect midstance time using marker trajectory data.
 
-        Returns
-        -------
-        float
-            The midstance time in seconds.
+        Identifies midstance as the time of minimum vertical position of
+        the mean of available foot markers (heel, toe, metatarsal head).
+
+        Raises
+        ------
+        ValueError
+            If none of the required markers are available.
         """
 
         # get the available markers
@@ -487,6 +306,8 @@ class RunningStep(GaitCycle):
 
     def __init__(
         self,
+        speed: int | float,
+        grade: int | float,
         side: Literal["right", "left"],
         algorithm: Literal["kinematics", "kinetics"],
         ground_reaction_force_threshold: float | int = DEFAULT_MINIMUM_CONTACT_GRF_N,
@@ -542,7 +363,129 @@ class RunningStep(GaitCycle):
         head_right: Point3D | None = None,
         **extra_signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
     ):
+        """
+        Initialize a RunningStep instance.
+
+        Parameters
+        ----------
+        speed : int or float
+            Running speed value.
+        grade : int or float
+            Running grade (incline) value.
+        side : {'left', 'right'}
+            Side of the body this step represents.
+        algorithm : {'kinematics', 'kinetics'}
+            Cycle detection algorithm to use.
+        ground_reaction_force_threshold : float or int, optional
+            Minimum ground reaction force (in Newtons) for contact detection.
+            Default is DEFAULT_MINIMUM_CONTACT_GRF_N.
+        height_threshold : float or int, optional
+            Maximum vertical height (as percentage) for contact detection.
+            Default is DEFAULT_MINIMUM_HEIGHT_PERCENTAGE.
+        left_hand_ground_reaction_force : ForcePlatform or None, optional
+            Force platform data for left hand contact.
+        right_hand_ground_reaction_force : ForcePlatform or None, optional
+            Force platform data for right hand contact.
+        left_foot_ground_reaction_force : ForcePlatform or None, optional
+            Force platform data for left foot contact.
+        right_foot_ground_reaction_force : ForcePlatform or None, optional
+            Force platform data for right foot contact.
+        left_heel : Point3D or None, optional
+            Left heel marker trajectory.
+        right_heel : Point3D or None, optional
+            Right heel marker trajectory.
+        left_toe : Point3D or None, optional
+            Left toe marker trajectory.
+        right_toe : Point3D or None, optional
+            Right toe marker trajectory.
+        left_first_metatarsal_head : Point3D or None, optional
+            Left first metatarsal head marker.
+        left_fifth_metatarsal_head : Point3D or None, optional
+            Left fifth metatarsal head marker.
+        right_first_metatarsal_head : Point3D or None, optional
+            Right first metatarsal head marker.
+        right_fifth_metatarsal_head : Point3D or None, optional
+            Right fifth metatarsal head marker.
+        left_ankle_medial : Point3D or None, optional
+            Left ankle medial malleolus marker.
+        left_ankle_lateral : Point3D or None, optional
+            Left ankle lateral malleolus marker.
+        right_ankle_medial : Point3D or None, optional
+            Right ankle medial malleolus marker.
+        right_ankle_lateral : Point3D or None, optional
+            Right ankle lateral malleolus marker.
+        left_knee_medial : Point3D or None, optional
+            Left knee medial epicondyle marker.
+        left_knee_lateral : Point3D or None, optional
+            Left knee lateral epicondyle marker.
+        right_knee_medial : Point3D or None, optional
+            Right knee medial epicondyle marker.
+        right_knee_lateral : Point3D or None, optional
+            Right knee lateral epicondyle marker.
+        left_trochanter : Point3D or None, optional
+            Left greater trochanter marker.
+        right_trochanter : Point3D or None, optional
+            Right greater trochanter marker.
+        left_asis : Point3D or None, optional
+            Left anterior superior iliac spine marker.
+        right_asis : Point3D or None, optional
+            Right anterior superior iliac spine marker.
+        left_psis : Point3D or None, optional
+            Left posterior superior iliac spine marker.
+        right_psis : Point3D or None, optional
+            Right posterior superior iliac spine marker.
+        left_shoulder_anterior : Point3D or None, optional
+            Left shoulder anterior marker.
+        left_shoulder_posterior : Point3D or None, optional
+            Left shoulder posterior marker.
+        left_acromion : Point3D or None, optional
+            Left acromion (shoulder tip) marker.
+        right_shoulder_anterior : Point3D or None, optional
+            Right shoulder anterior marker.
+        right_shoulder_posterior : Point3D or None, optional
+            Right shoulder posterior marker.
+        right_acromion : Point3D or None, optional
+            Right acromion (shoulder tip) marker.
+        left_elbow_medial : Point3D or None, optional
+            Left elbow medial epicondyle marker.
+        left_elbow_lateral : Point3D or None, optional
+            Left elbow lateral epicondyle marker.
+        right_elbow_medial : Point3D or None, optional
+            Right elbow medial epicondyle marker.
+        right_elbow_lateral : Point3D or None, optional
+            Right elbow lateral epicondyle marker.
+        left_wrist_medial : Point3D or None, optional
+            Left wrist medial marker.
+        left_wrist_lateral : Point3D or None, optional
+            Left wrist lateral marker.
+        right_wrist_medial : Point3D or None, optional
+            Right wrist medial marker.
+        right_wrist_lateral : Point3D or None, optional
+            Right wrist lateral marker.
+        s2 : Point3D or None, optional
+            Second sacral vertebra marker.
+        l2 : Point3D or None, optional
+            Second lumbar vertebra marker.
+        c7 : Point3D or None, optional
+            Seventh cervical vertebra marker.
+        t5 : Point3D or None, optional
+            Fifth thoracic vertebra marker.
+        sc : Point3D or None, optional
+            Sternoclavicular joint marker.
+        head_anterior : Point3D or None, optional
+            Head anterior marker.
+        head_posterior : Point3D or None, optional
+            Head posterior marker.
+        head_left : Point3D or None, optional
+            Head left side marker.
+        head_right : Point3D or None, optional
+            Head right side marker.
+        **extra_signals : Signal1D, Signal3D, EMGSignal, Point3D, ForcePlatform
+            Additional signals (e.g., joint angles, EMG channels, other markers).
+        """
         super().__init__(
+            speed=speed,
+            grade=grade,
             side=side,
             algorithm=algorithm,
             ground_reaction_force_threshold=ground_reaction_force_threshold,

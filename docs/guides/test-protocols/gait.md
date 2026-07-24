@@ -39,7 +39,7 @@ import labanalysis as laban
 import numpy as np
 
 # Load force platform data
-record = laban.TimeseriesRecord.from_tdf("walking.tdf")
+record = laban.Record.from_tdf("walking.tdf")
 fp = record.forceplatforms['FP1']
 
 # Get vertical force
@@ -555,7 +555,7 @@ print(f"  Peak GRF: {force_SI:.1f}%")
 # Running-specific parameters
 
 # Load running trial
-record_run = laban.TimeseriesRecord.from_tdf("running.tdf")
+record_run = laban.Record.from_tdf("running.tdf")
 fp_run = record_run.forceplatforms['FP1']
 
 fz_run = fp_run.force['Fz'].data
@@ -673,7 +673,7 @@ def analyze_gait_trial(tdf_file, participant, protocol='walking'):
     import numpy as np
     
     # Load data
-    record = laban.TimeseriesRecord.from_tdf(tdf_file)
+    record = laban.Record.from_tdf(tdf_file)
     fp = record.forceplatforms['FP1']
     
     # Get vertical force

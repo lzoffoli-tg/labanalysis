@@ -354,9 +354,9 @@ class ProcessedEMG(EMGSignal):
 ### Adding Custom Signals to Records
 
 ```python
-from labanalysis.records.records import TimeseriesRecord
+from labanalysis.records.records import Record
 
-class CustomGaitRecord(TimeseriesRecord):
+class CustomGaitRecord(Record):
     """
     Gait record with custom foot markers.
     

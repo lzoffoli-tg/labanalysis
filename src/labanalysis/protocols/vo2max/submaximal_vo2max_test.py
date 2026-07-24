@@ -149,13 +149,6 @@ class SubmaximalVO2MaxTest(TestProtocol):
     def metabolic_record(self):
         return self._metabolic_record
 
-    def copy(self):
-        return SubmaximalVO2MaxTest(
-            participant=self.participant.copy(),
-            normative_data=self.normative_data,
-            metabolic_record=self.metabolic_record,
-        )
-
     @classmethod
     def from_files(
         cls,

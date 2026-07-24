@@ -7,7 +7,7 @@ import pandas as pd
 
 from ...exercises.strength import IsometricExercise
 from ...pipelines import get_default_processing_pipeline
-from ...records import TimeseriesRecord
+from ...records import Record
 from ...signalprocessing import butterworth_filt
 from ...timeseries import EMGSignal, Signal1D
 from ..participant import Participant
@@ -44,15 +44,15 @@ class IsometricTest(TestProtocol):
     normative_data : pd.DataFrame, optional
         Reference data for performance ranking and comparison.
         Default is empty DataFrame.
-    emg_normalization_references : TimeseriesRecord, optional
+    emg_normalization_references : Record, optional
         Reference signals for EMG amplitude normalization.
-        Default is empty TimeseriesRecord.
+        Default is empty Record.
     emg_normalization_function : callable, optional
         Function to compute normalization value from reference (e.g., np.mean,
         np.max). Default is np.mean.
-    emg_activation_references : TimeseriesRecord, optional
+    emg_activation_references : Record, optional
         Reference signals for determining muscle activation thresholds.
-        Default is empty TimeseriesRecord.
+        Default is empty Record.
     emg_activation_threshold : float, optional
         Threshold multiplier for detecting muscle activation onset.
         Default is 3 (3x reference level).
@@ -135,9 +135,9 @@ class IsometricTest(TestProtocol):
         bilateral: IsometricExercise | None,
         participant: Participant,
         normative_data: pd.DataFrame = pd.DataFrame(),
-        emg_normalization_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_normalization_references: Record = Record(),
         emg_normalization_function: Callable = np.mean,
-        emg_activation_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_activation_references: Record = Record(),
         emg_activation_threshold: float = 3,
         relevant_muscle_map: list[str] | None = None,
     ):
@@ -153,20 +153,6 @@ class IsometricTest(TestProtocol):
         self.set_left_test(left)
         self.set_right_test(right)
         self.set_bilateral_test(bilateral)
-
-    def copy(self):
-        return IsometricTest(
-            participant=self.participant.copy(),
-            normative_data=self.normative_data,
-            left=self.left,
-            right=self.right,
-            bilateral=self.bilateral,
-            emg_normalization_references=self.emg_normalization_references,
-            emg_normalization_function=self.emg_normalization_function,
-            emg_activation_references=self.emg_activation_references,
-            emg_activation_threshold=self.emg_activation_threshold,
-            relevant_muscle_map=self.relevant_muscle_map,
-        )
 
     def get_results(self, include_emg: bool = True):
         return IsometricTestResults(
@@ -291,9 +277,9 @@ class IsometricTest(TestProtocol):
         max_time_s: int | None = None,
         time_points: list[int] = [100, 200, 500, 1000],
         normative_data: pd.DataFrame = pd.DataFrame(),
-        emg_normalization_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_normalization_references: Record = Record(),
         emg_normalization_function: Callable = np.mean,
-        emg_activation_references: TimeseriesRecord = TimeseriesRecord(),
+        emg_activation_references: Record = Record(),
         emg_activation_threshold: float = 3,
         relevant_muscle_map: list[str] | None = None,
     ):
@@ -308,7 +294,7 @@ class IsometricTest(TestProtocol):
             )
             left.update({i: bio[i] for i in ["force", "position"]})
         if left_emg_filename is not None:
-            emg = TimeseriesRecord.from_tdf(left_emg_filename)
+            emg = Record.from_tdf(left_emg_filename)
             left.update(emg.emgsignals)
         if len(left) > 0:
             left = IsometricExercise(
@@ -331,7 +317,7 @@ class IsometricTest(TestProtocol):
             )
             right.update({i: bio[i] for i in ["force", "position"]})
         if right_emg_filename is not None:
-            emg = TimeseriesRecord.from_tdf(right_emg_filename)
+            emg = Record.from_tdf(right_emg_filename)
             right.update(emg.emgsignals)
         if len(right) > 0:
             right = IsometricExercise(
@@ -354,7 +340,7 @@ class IsometricTest(TestProtocol):
             )
             bilateral.update({i: bio[i] for i in ["force", "position"]})
         if bilateral_emg_filename is not None:
-            emg = TimeseriesRecord.from_tdf(bilateral_emg_filename)
+            emg = Record.from_tdf(bilateral_emg_filename)
             bilateral.update(emg.emgsignals)
         if len(bilateral) > 0:
             bilateral = IsometricExercise(

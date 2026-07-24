@@ -7,7 +7,7 @@ import pandas as pd
 
 from ...exercises import PronePosture
 from ...pipelines import get_default_processing_pipeline
-from ...records import ForcePlatform, TimeseriesRecord
+from ...records import ForcePlatform, Record
 from ...referenceframes import ReferenceFrame
 from ...timeseries.emgsignal import EMGSignal
 from ...timeseries.point3d import Point3D
@@ -36,12 +36,12 @@ class PlankBalanceTest(TestProtocol):
         Visual condition during the test.
     normative_data : pandas.DataFrame, optional
         Normative reference data for comparison (default uses built-in plank balance norms).
-    emg_normalization_references : TimeseriesRecord or str or 'self', optional
-        Reference data for EMG normalization (default is empty TimeseriesRecord).
+    emg_normalization_references : Record or str or 'self', optional
+        Reference data for EMG normalization (default is empty Record).
     emg_normalization_function : callable, optional
         Function to compute normalization value from reference data (default is np.mean).
-    emg_activation_references : TimeseriesRecord or str or 'self', optional
-        Reference data for EMG activation threshold (default is empty TimeseriesRecord).
+    emg_activation_references : Record or str or 'self', optional
+        Reference data for EMG activation threshold (default is empty Record).
     emg_activation_threshold : float or int, optional
         Threshold multiplier for EMG activation detection (default is 3).
     relevant_muscle_map : list of str or None, optional
@@ -144,12 +144,12 @@ class PlankBalanceTest(TestProtocol):
         eyes: Literal["open", "closed"],
         normative_data: pd.DataFrame = plankbalance_normative_values,
         emg_normalization_references: (
-            TimeseriesRecord | str | Literal["self"]
-        ) = TimeseriesRecord(),
+            Record | str | Literal["self"]
+        ) = Record(),
         emg_normalization_function: Callable = np.mean,
         emg_activation_references: (
-            TimeseriesRecord | str | Literal["self"]
-        ) = TimeseriesRecord(),
+            Record | str | Literal["self"]
+        ) = Record(),
         emg_activation_threshold: float | int = 3,
         relevant_muscle_map: list[str] | None = None,
     ):
@@ -164,27 +164,6 @@ class PlankBalanceTest(TestProtocol):
         )
         self.set_eyes(eyes)
         self.set_exercise(exercise)
-
-    def copy(self):
-        """
-        Create a deep copy of the PlankBalanceTest object.
-
-        Returns
-        -------
-        PlankBalanceTest
-            A new PlankBalanceTest instance with copied data.
-        """
-        return PlankBalanceTest(
-            participant=self.participant,
-            exercise=self.exercise,
-            eyes=self.eyes,  # type: ignore
-            normative_data=self.normative_data,
-            emg_normalization_references=self.emg_normalization_references,
-            emg_activation_references=self.emg_activation_references,
-            emg_activation_threshold=self.emg_activation_threshold,
-            emg_normalization_function=self.emg_normalization_function,
-            relevant_muscle_map=self.relevant_muscle_map,
-        )
 
     def set_exercise(self, exercise: PronePosture):
         """
@@ -228,12 +207,12 @@ class PlankBalanceTest(TestProtocol):
         right_hand_ground_reaction_force: str = "right_hand",
         normative_data: pd.DataFrame = plankbalance_normative_values,
         emg_normalization_references: (
-            TimeseriesRecord | str | Literal["self"]
-        ) = TimeseriesRecord(),
+            Record | str | Literal["self"]
+        ) = Record(),
         emg_normalization_function: Callable = np.mean,
         emg_activation_references: (
-            TimeseriesRecord | str | Literal["self"]
-        ) = TimeseriesRecord(),
+            Record | str | Literal["self"]
+        ) = Record(),
         emg_activation_threshold: float | int = 3,
         relevant_muscle_map: list[str] | None = None,
     ):
