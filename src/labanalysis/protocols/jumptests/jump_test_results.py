@@ -122,6 +122,15 @@ class JumpTestResults(TestResults):
         # remove rows with nans in value
         summary = summary.loc[summary.value.notna()].reset_index(drop=True)
 
+        # set non defined options
+        opts = ["free hands", "box height", "straight leg"]
+        for opt in opts:
+            if opt in summary.columns:
+                if opt == "box height":
+                    summary.loc[summary[opt].isna(), opt] = 0
+                else:
+                    summary.loc[summary[opt].isna(), opt] = False
+
         # add jump number
         summary.insert(summary.shape[1] - 1, "jump", 0)
         for grp, dfr in summary.groupby([i for i in summary.columns if i != "value"]):
