@@ -3,7 +3,6 @@
 # %% SETUP
 import shutil
 import sys
-from os import makedirs
 from os.path import abspath, dirname, exists, join, sep
 from pathlib import Path
 
@@ -62,8 +61,9 @@ def test_erika_furlani_jump_tests():
             right_foot_ground_reaction_force="right_frz",
             s2="S2",
             drop_jump_files=dropjump_files,
-            drop_jump_heights_cm=box_height,
+            drop_jump_box_heights_cm=box_height,
             drop_jump_free_hands=free_hands,
+            keep_all_data=False,
         )
 
         # save the test
@@ -80,6 +80,9 @@ def test_erika_furlani_jump_tests():
     # get the results
     results_dj = test_dj.get_results(include_emg=False)
     results_dj.save_all(RESULTS_PATH, force_overwrite=True)
+
+    # remove all
+    shutil.rmtree(RESULTS_PATH, ignore_errors=True)
 
 
 if __name__ == "__main__":

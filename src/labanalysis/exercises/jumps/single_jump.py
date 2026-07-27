@@ -1,36 +1,179 @@
-"""Single jump exercise module."""
+"""
+Single vertical jump analysis module.
 
-import numpy as np
+This module provides the SingleJump class for analyzing individual vertical
+jump performance from force platform and motion capture data. SingleJump
+extends CounterMovementJump to provide comprehensive jump analysis capabilities
+including phase detection, kinetic/kinematic metrics, and reactive strength
+index calculation.
 
-from ...constants import MINIMUM_CONTACT_FORCE_N, MINIMUM_FLIGHT_TIME_S, G
+SingleJump is primarily used as the base class for individual jumps within
+repeated jump protocols, providing full analysis capabilities for each jump
+in a continuous sequence.
+"""
+
+from pathlib import Path
+from typing import Literal
+
+import pandas as pd
+
 from ...records import ForcePlatform
 from ...records.body import WholeBody
-from ...signalprocessing import continuous_batches
 from ...timeseries import Point3D
+from .counter_movement_jump import CounterMovementJump
 
 
-class SingleJump(WholeBody):
+class SingleJump(CounterMovementJump):
     """
-    Represents a single jump trial, providing methods and properties to analyze
-    phases, forces, and performance metrics of the jump.
+    Single vertical jump analysis from force platform and motion capture data.
+
+    Analyzes individual jump performance by detecting contact and flight phases,
+    computing kinetic and kinematic metrics, and estimating jump height using
+    multiple methods (flight time, takeoff velocity, marker trajectory).
+
+    SingleJump extends CounterMovementJump, inheriting all countermovement
+    analysis capabilities (loading response and propulsion phases, SSC metrics)
+    while adding reactive strength index (RSI) calculation. This class is
+    primarily used for individual jumps within repeated jump protocols.
 
     Parameters
     ----------
-    bodymass_kg : float
-        The subject's body mass in kilograms (required).
-    left_foot_ground_reaction_force : ForcePlatform, optional
-        ForcePlatform object for the left foot.
-    right_foot_ground_reaction_force : ForcePlatform, optional
-        ForcePlatform object for the right foot.
+    bodymass_kg : float or None, optional
+        Participant's body mass in kilograms. Required for kinetic metrics
+        (takeoff velocity, forces relative to body weight) (default: None).
+    side : {"left", "right", "bilateral"} or None, optional
+        Jump execution side. If None, automatically determined from available
+        force platforms (default: None).
+    straight_leg : bool, optional
+        Whether the jump uses straight leg technique (ankle-dominant)
+        (default: False).
+    free_hands : bool, optional
+        Whether the jump allows free arm swing (default: True).
+    left_foot_ground_reaction_force : ForcePlatform or None, optional
+        Force platform data for left foot. Default is None.
+    right_foot_ground_reaction_force : ForcePlatform or None, optional
+        Force platform data for right foot. Default is None.
+    left_hand_ground_reaction_force : ForcePlatform or None, optional
+        Force platform data for left hand (if applicable). Default is None.
+    right_hand_ground_reaction_force : ForcePlatform or None, optional
+        Force platform data for right hand (if applicable). Default is None.
+    **markers : Point3D or None, optional
+        3D marker trajectories for kinematic analysis. Common markers include:
+        s2 (sacrum), left_heel, right_heel, left_toe, right_toe, left_ankle_*,
+        right_ankle_*, left_knee_*, right_knee_*, left_trochanter,
+        right_trochanter, pelvis landmarks (asis, psis), spine (c7, t5, l2),
+        and head markers.
     **kwargs
-        Additional keyword arguments passed to WholeBody parent class.
+        Additional keyword arguments passed to WholeBody base class.
+
+    Attributes
+    ----------
+    bodymass_kg : float or None
+        Participant's body mass in kg.
+    side : str
+        Jump execution side ("left", "right", or "bilateral").
+    straight_leg : bool
+        Whether straight leg technique is used.
+    free_hands : bool
+        Whether free arm swing is allowed.
+    contact_phase : WholeBody or None
+        Data segment from ground contact to takeoff.
+    flight_phase : WholeBody or None
+        Data segment during aerial phase.
+    loading_response_phase : WholeBody or None
+        Eccentric phase of countermovement (inherited from CounterMovementJump).
+    propulsion_phase : WholeBody or None
+        Concentric push-off phase (inherited from CounterMovementJump).
+    contact_time : float or None
+        Ground contact duration in seconds.
+    flight_time : float or None
+        Flight phase duration in seconds.
+    jump_height : float or None
+        Best estimate of jump height in meters.
+    jump_height_from_s2 : float or None
+        Jump height from S2 marker trajectory (meters).
+    jump_height_from_ft : float or None
+        Jump height from flight time (meters).
+    jump_height_from_tov : float or None
+        Jump height from takeoff velocity (meters).
+    takeoff_velocity : float or None
+        Vertical velocity at takeoff (m/s).
+    peak_vertical_force : float or None
+        Maximum vertical GRF during contact (N).
+    reactive_strength_index : float or None
+        RSI in cm/s (jump height / contact time).
+
+    Raises
+    ------
+    ValueError
+        If neither left nor right foot force platform is provided.
+
+    Notes
+    -----
+    **Phase Detection:**
+
+    - Contact phase: Force >= 30N threshold from first contact to takeoff
+    - Flight phase: Force < 30N for minimum duration (typically 0.1s)
+    - Longest valid flight phase is selected if multiple are detected
+    - Loading response: Eccentric phase (inherited from CounterMovementJump)
+    - Propulsion: Concentric push-off (inherited from CounterMovementJump)
+
+    **Jump Height Methods:**
+
+    1. S2 marker: Direct measurement of center of mass elevation
+    2. Flight time: h = (g × t²) / 8 (tends to overestimate)
+    3. Takeoff velocity: h = v² / (2g) (from force integration)
+
+    The `jump_height` property returns the S2 method if available,
+    otherwise the minimum of flight time and takeoff velocity methods
+    for a conservative estimate.
+
+    **Reactive Strength Index (RSI):**
+
+    RSI = jump_height (cm) / contact_time (s)
+
+    This metric is particularly relevant for repeated jump protocols to
+    assess fatigue-induced changes in reactive strength.
+
+    Examples
+    --------
+    Create a SingleJump from TDF file:
+
+    >>> jump = SingleJump.from_tdf(
+    ...     "trial.tdf",
+    ...     bodymass_kg=75,
+    ...     side="bilateral",
+    ...     left_foot_ground_reaction_force="FP1",
+    ...     right_foot_ground_reaction_force="FP2",
+    ...     s2="S2"
+    ... )
+    >>> print(f"Jump height: {jump.jump_height:.3f} m")
+    >>> print(f"Contact time: {jump.contact_time:.3f} s")
+    >>> print(f"RSI: {jump.reactive_strength_index:.2f} cm/s")
+
+    Access phase data:
+
+    >>> contact = jump.contact_phase
+    >>> flight = jump.flight_phase
+    >>> loading = jump.loading_response_phase  # eccentric
+    >>> propulsion = jump.propulsion_phase  # concentric
+
+    See Also
+    --------
+    CounterMovementJump : Parent class with SSC analysis.
+    SquatJump : Concentric-only jump from static position.
+    DropJump : Plyometric jump from elevated surface.
+    RepeatedJumps : Continuous jumping sequence using SingleJump.
+    WholeBody : Base class for whole-body biomechanical data.
+    ForcePlatform : Force platform data structure.
     """
 
     def __init__(
         self,
         bodymass_kg: float | None = None,
-        free_hands: bool = False,
-        straight_legs: bool = False,
+        side: Literal["left", "right", "bilateral"] | None = None,
+        straight_leg: bool = False,
+        free_hands: bool = True,
         left_foot_ground_reaction_force: ForcePlatform | None = None,
         right_foot_ground_reaction_force: ForcePlatform | None = None,
         left_hand_ground_reaction_force: ForcePlatform | None = None,
@@ -82,14 +225,10 @@ class SingleJump(WholeBody):
         head_right: Point3D | None = None,
         **kwargs,
     ):
-        if (
-            right_foot_ground_reaction_force is None
-            and left_foot_ground_reaction_force is None
-        ):
-            raise ValueError(
-                "at least one of 'right_foot_ground_reaction_force' or 'left_foot_ground_reaction_force' must be provided."
-            )
         super().__init__(
+            bodymass_kg=bodymass_kg,
+            side=side,
+            free_hands=free_hands,
             left_hand_ground_reaction_force=left_hand_ground_reaction_force,
             right_hand_ground_reaction_force=right_hand_ground_reaction_force,
             left_foot_ground_reaction_force=left_foot_ground_reaction_force,
@@ -141,319 +280,136 @@ class SingleJump(WholeBody):
             head_right=head_right,
             **kwargs,
         )
-        self.set_bodymass_kg(bodymass_kg)
-        self.set_free_hands(free_hands)
-        self.set_straight_legs(straight_legs)
-
-    def set_bodymass_kg(self, value: float | None):
-        """
-        Set the bodymass in kg of the participant.
-
-        Parameters
-        ----------
-        value : float | None
-            The bodymass in kg.
-
-        Raises
-        ------
-        ValueError
-            IIn case a non positive float is provided.
-        """
-        if value is None:
-            self._bodymass_kg = value
-        try:
-            self._bodymass_kg = float(value)  # type: ignore
-            assert self._bodymass_kg > 0
-        except Exception:
-            raise ValueError("bodymass must be a positive float or None")
-
-    def set_free_hands(self, value: bool):
-        """
-        Set the free hands property of the jump.
-
-        Parameters
-        ----------
-        value : bool
-            The free hands status
-
-        Raises
-        ------
-        ValueError
-            IIn case a non positive float is provided.
-        """
-        if not isinstance(value, bool):
-            raise ValueError("free_hands must be True or False")
-        self._free_hands = value
+        self.set_straight_legs(straight_leg)
 
     def set_straight_legs(self, value: bool):
         """
-        Set the straight legs property of the jump.
+        Set whether legs were kept straight during countermovement.
 
         Parameters
         ----------
         value : bool
-            The free hands status
+            True if legs were kept relatively straight (emphasizing ankle
+            plantarflexion), False if normal knee/hip flexion allowed.
 
         Raises
         ------
         ValueError
-            IIn case a non positive float is provided.
+            If value is not a boolean.
+
+        Notes
+        -----
+        Straight-leg jumps reduce contribution from knee extensors and
+        emphasize ankle plantarflexors. This variation is sometimes used
+        to assess calf muscle power or to modify SSC demands.
         """
         if not isinstance(value, bool):
             raise ValueError("straight_legs must be True or False")
         self._straight_legs = value
 
     @property
-    def bodymass_kg(self):
-        """Return the body mass in kilograms."""
-        return self._bodymass_kg
-
-    @property
-    def free_hands(self):
-        """Return whether hands were free during the jump."""
-        return self._free_hands
-
-    @property
     def straight_legs(self):
-        """Return whether legs were kept straight during the jump."""
+        """
+        Get whether legs were kept straight during countermovement.
+
+        Returns
+        -------
+        bool
+            True if legs were kept relatively straight, False otherwise.
+
+        See Also
+        --------
+        set_straight_legs : Set the straight legs status.
+        """
         return self._straight_legs
 
     @property
-    def side(self):
+    def reactive_strength_index(self):
         """
-        Determine jump laterality from available force platforms.
+        Calculate reactive strength index (RSI).
 
         Returns
         -------
-        str
-            "left", "right", or "bilateral"
-        """
-        has_left = self.left_foot_ground_reaction_force is not None
-        has_right = self.right_foot_ground_reaction_force is not None
-
-        if has_left and has_right:
-            return "bilateral"
-        elif has_left:
-            return "left"
-        elif has_right:
-            return "right"
-        else:
-            # Default to bilateral if no force platforms
-            return "bilateral"
-
-    @property
-    def flight_time(self):
-        """return the flight time of the jump in seconds."""
-        index = self.flight_phase
-        if index is None:
-            return None
-        index = index.index
-        return float(index[-1] - index[0])
-
-    @property
-    def contact_time(self):
-        """return the contact time of the jump in seconds"""
-        index = self.contact_phase
-        if index is None:
-            return None
-        index = index.index
-        return float(index[-1] - index[0])
-
-    @property
-    def contact_phase(self):
-        """
-        Returns the ground contact phase as a WholeBody record.
-
-        Returns
-        -------
-        WholeBody or SingleJump (or subclass)
-            Data segment from first ground contact to takeoff.
+        float or None
+            RSI in cm/s (jump height in cm / contact time in seconds),
+            or None if jump height or contact time cannot be determined.
 
         Notes
         -----
-        For jumps with multiple contact phases (e.g., drop jumps), this returns
-        the primary propulsive contact phase (typically the last one).
+        RSI is the primary performance metric for drop jumps, representing
+        the ability to rapidly produce force during fast SSC actions:
+
+            RSI = jump_height (cm) / contact_time (s)
+
+        Higher RSI indicates:
+        - Superior reactive strength
+        - Better elastic energy utilization
+        - More effective fast SSC performance
+
+        Typical RSI values:
+        - <1.0: Untrained/rehabilitation
+        - 1.0-2.0: Recreational athletes
+        - 2.0-3.0: Trained athletes
+        - >3.0: Elite power athletes
+
+        RSI is maximized at an individual-specific optimal drop height.
+        Testing across multiple heights (e.g., 20, 30, 40, 50cm) identifies
+        this optimum.
+
+        RSI is sensitive to both jump height (performance) and contact time
+        (speed), making it more comprehensive than jump height alone for
+        plyometric assessment.
+
+        Examples
+        --------
+        >>> dj = DropJump.from_tdf("trial.tdf", bodymass_kg=75, box_height_cm=40)
+        >>> rsi = dj.reactive_strength_index
+        >>> print(f"RSI: {rsi:.2f} cm/s")
+        RSI: 2.35 cm/s
+
+        See Also
+        --------
+        jump_height : Numerator of RSI calculation.
+        contact_time : Denominator of RSI calculation.
+        box_height_cm : Drop height affecting RSI.
         """
-        vgrf = self.resultant_force
-        if vgrf is None:
-            return None
-        module = vgrf.force[self.vertical_axis].to_numpy().flatten()
+        return self.elevation / self.contact_time * 100
 
-        # l'inizio del tempo di contatto
-        contact = module >= MINIMUM_CONTACT_FORCE_N
-        if not np.any(contact):
-            return None
-        t0 = vgrf.index[np.where(contact)[0][0]]
-
-        # fine del tempo di contatto
-        fp = self.flight_phase
-        if fp is None:
-            return None
-        t1 = fp.index[0]
-
-        # ritorno l'oggetto corrispondente all'intervallo di tempo tra l'avvio
-        # della fase di contatto e l'inizio della fase di volo
-        return WholeBody(
-            **{
-                i: v.copy().loc[(v.index >= t0) & (v.index < t1), :]
-                for i, v in self.items()
-            }
+    @property
+    def output_metrics(self):
+        new = pd.DataFrame(
+            [
+                {
+                    "type": self.name,
+                    "free hands": self.free_hands,
+                    "side": self.side,
+                    "metric": "contact time",
+                    "unit": "ms",
+                    "value": self.contact_time * 1000,
+                },
+                {
+                    "side": self.side,
+                    "metric": "reactive strength index",
+                    "unit": "cm/s",
+                    "value": self.reactive_strength_index,
+                },
+            ]
         )
-
-    @property
-    def flight_phase(self):
-        """
-        Returns the flight (aerial) phase as a WholeBody record.
-
-        Returns
-        -------
-        WholeBody or SingleJump (or subclass)
-            Data segment during aerial phase after takeoff.
-
-        Notes
-        -----
-        For jumps with multiple flight phases, this returns the primary
-        flight phase (typically the longest one meeting minimum duration).
-        """
-        vgrf = self.resultant_force
-        if vgrf is None:
-            return None
-        module = vgrf.force[self.vertical_axis].to_numpy().flatten()
-
-        # identifico i batch relativi alla fase di volo
-        flight = module < MINIMUM_CONTACT_FORCE_N
-        batches = continuous_batches(flight)
-
-        # rimuovo i batch di durata non ragionevole
-        i = 0
-        while i < len(batches):
-            batch = batches[i]
-            duration = vgrf.index[batch[-1]] - vgrf.index[batch[0]]
-            if duration < MINIMUM_FLIGHT_TIME_S:
-                batches.pop(i)
-            else:
-                i += 1
-        if len(batches) == 0:
-            raise ValueError("No valid flight phases have been discovered.")
-
-        # ottengo l'ordinamento dei batch per durata
-        index = np.argsort([len(i) for i in batches])
-
-        # ritorno l'oggetto corrispondente al batch più lungo
-        batch = batches[index[-1]]
-        t0, t1 = vgrf.iloc[batch].index[[0, -1]]
-        return WholeBody(
-            **{
-                i: v.loc[(v.index >= t0) & (v.index <= t1), :].copy()
-                for i, v in self.items()
-            }
-        )
-
-    @property
-    def jump_height_from_s2(self):
-        """return the jump height in meters calculated from the s2 marker"""
-        ff = self.flight_phase
-        if ff is None:
-            return None
-        s2: Point3D = ff["s2"]  # type: ignore
-        if s2 is None:
-            return None
-        vt = s2[self.vertical_axis].to_numpy().flatten()
-        return float(vt.max() - vt[0])
-
-    @property
-    def jump_height_from_ft(self):
-        """return the jump height in meters calculated from the flight time"""
-        flight_time = self.flight_time
-        if flight_time is None:
-            return None
-        return float(G / 8 * flight_time**2)
-
-    @property
-    def takeoff_velocity(self):
-        if self.bodymass_kg is None:
-            return None
-        cf = self.contact_phase
-        if cf is None:
-            return None
-        rf = cf.resultant_force
-        if rf is None:
-            return None
-        vgrf = rf.force[self.vertical_axis].copy().fillna()
-        body_weight = self.bodymass_kg * G
-        vgrf = vgrf - body_weight  # type: ignore
-        vacc = vgrf.to_numpy().flatten() / self.bodymass_kg
-        vacc -= vacc[0]  # assumo che v0 = 0
-        time = vgrf.index
-        return float(np.trapezoid(vacc, time))  # type: ignore
-
-    @property
-    def jump_height_from_tov(self):
-        tv = self.takeoff_velocity
-        if tv is None:
-            return None
-        return (tv**2) / (2 * G)
-
-    @property
-    def jump_height(self):
-        """
-        return the jump height defined as follows:
-
-        If S2 marker is available --> return the jump height measured from it.
-        Else return the minimum height estimated using the flight time and
-        the height from take-off velocity methods.
-        """
-        s2 = self.jump_height_from_s2
-        if s2:
-            return s2
-        ft = self.jump_height_from_ft or 0
-        tov = self.jump_height_from_tov or 0
-        if any([ft, tov]) > 0:
-            return min(ft, tov)
-        return None
-
-    @property
-    def peak_vertical_force(self):
-        """
-        return the peak vertical force during the contact phase
-        """
-        cp = self.contact_phase
-        if cp is None:
-            return None
-        grf = cp.resultant_force
-        if grf is None:
-            return None
-        return float(grf.force[self.vertical_axis].to_numpy().max())
-
-    def copy(self):
-        """
-        Create a deep copy of this SingleJump, preserving custom attributes.
-
-        Returns
-        -------
-        SingleJump
-            A new SingleJump instance with copies of all signals and attributes.
-
-        Notes
-        -----
-        This method follows the same pattern as EMGSignal and Record,
-        explicitly passing custom non-signal attributes (bodymass_kg, free_hands,
-        straight_legs) to the constructor while copying all signal data.
-        """
-        return SingleJump(
-            bodymass_kg=self.bodymass_kg,
-            free_hands=self.free_hands,
-            straight_legs=self.straight_legs,
-            **{k: v.copy() for k, v in self._data.items()},  # type: ignore
-        )
+        out = pd.concat([super().output_metrics, new], ignore_index=True)
+        out.insert(1, "straight legs", self.straight_legs)
+        out.loc[out.index, "free hands"] = self.free_hands
+        out.loc[out.index, "side"] = self.side
+        out.loc[out.index, "type"] = self.name
+        return out.sort_values(["metric", "side", "free hands", "straight legs"])
 
     @classmethod
     def from_tdf(
         cls,
-        filename: str,
+        filename: str | Path,
         bodymass_kg: float | int,
-        free_hands: bool = False,
-        straight_legs: bool = False,
+        side: Literal["left", "right", "bilateral"] | None = None,
+        straight_leg: bool = False,
+        free_hands: bool = True,
         left_foot_ground_reaction_force: str | None = None,
         right_foot_ground_reaction_force: str | None = None,
         left_hand_ground_reaction_force: str | None = None,
@@ -504,7 +460,74 @@ class SingleJump(WholeBody):
         head_left: str | None = None,
         head_right: str | None = None,
     ):
-        """Create a DropJump object from a TDF file."""
+        """
+        Create SingleJump instance from BTS Bioengineering TDF file.
+
+        Parameters
+        ----------
+        filename : str or Path
+            Path to the TDF file containing jump trial data.
+        bodymass_kg : float or int
+            Participant's body mass in kilograms (required for kinetic analysis).
+        side : {"left", "right", "bilateral"} or None, optional
+            Jump execution side. If None, automatically determined from
+            available force platform data (default: None).
+        straight_leg : bool, optional
+            Whether the jump uses straight leg technique (default: False).
+        free_hands : bool, optional
+            Whether the jump allows free arm swing (default: True).
+        left_foot_ground_reaction_force : str or None, optional
+            Label for left foot force platform in TDF file. Default is None.
+        right_foot_ground_reaction_force : str or None, optional
+            Label for right foot force platform in TDF file. Default is None.
+        left_hand_ground_reaction_force : str or None, optional
+            Label for left hand force platform in TDF file (if applicable).
+            Default is None.
+        right_hand_ground_reaction_force : str or None, optional
+            Label for right hand force platform in TDF file (if applicable).
+            Default is None.
+        **marker_labels : str or None, optional
+            Labels for anatomical markers in TDF file (e.g., s2, left_heel,
+            right_knee_medial). See Parameters section for complete list.
+
+        Returns
+        -------
+        SingleJump
+            Initialized SingleJump instance with data loaded from TDF file.
+
+        Notes
+        -----
+        TDF files are binary files from BTS Bioengineering systems containing
+        synchronized force platform and 3D motion capture data.
+
+        At least one force platform (left or right foot) must be specified
+        for jump analysis.
+
+        Marker labels should match the marker names used in the TDF file.
+        Common markers include:
+        - Pelvis: s2, l2, left_asis, right_asis, left_psis, right_psis
+        - Lower limb: left_heel, left_toe, left_ankle_*, left_knee_*, left_trochanter
+        - Spine: c7, t5, sc
+        - Head: head_anterior, head_posterior, head_left, head_right
+
+        See Also
+        --------
+        WholeBody.from_tdf : Base class TDF loading method.
+
+        Examples
+        --------
+        >>> jump = SingleJump.from_tdf(
+        ...     "trial01.tdf",
+        ...     bodymass_kg=75,
+        ...     side="bilateral",
+        ...     straight_leg=False,
+        ...     free_hands=True,
+        ...     left_foot_ground_reaction_force="FP1",
+        ...     right_foot_ground_reaction_force="FP2",
+        ...     s2="S2"
+        ... )
+        >>> print(f"RSI: {jump.reactive_strength_index:.2f} cm/s")
+        """
         record = WholeBody.from_tdf(
             filename,
             left_hand_ground_reaction_force=left_hand_ground_reaction_force,
@@ -559,8 +582,9 @@ class SingleJump(WholeBody):
         )
         return cls(
             bodymass_kg=bodymass_kg,
+            side=side,
+            straight_leg=straight_leg,
             free_hands=free_hands,
-            straight_legs=straight_legs,
             **{i: v for i, v in record.items()},  # type: ignore
         )
 

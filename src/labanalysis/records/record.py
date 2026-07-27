@@ -20,52 +20,57 @@ from ..timeseries import *
 
 class Record:
     """
-    A dictionary-like container for Timeseries,
+    A dictionary-like container for Timeseries objects,
     supporting type filtering and DataFrame conversion.
 
     Parameters
     ----------
-    vertical_axis : str, optional
-        The label for the vertical axis (default "Y").
-    anteroposterior_axis : str, optional
-        The label for the anteroposterior axis (default "Z").
-    strip : bool, optional
-        If True, remove leading/trailing rows or columns that are all NaN from all contained objects (default True).
-    reset_time : bool, optional
-        If True, reset the time index to start at zero for all contained objects (default True).
     **signals : dict
-        Key-value pairs of Timeseries subclasses, Record, or ForcePlatform to include in the record.
+        Key-value pairs of Timeseries or Record objects to include in the record.
 
     Attributes
     ----------
-    _vertical_axis : str
-        The vertical axis label.
-    _antpos_axis : str
-        The anteroposterior axis label.
+    index : ndarray
+        The sorted union of all time indices across contained objects.
+    shape : tuple of int
+        The shape of the Record as a DataFrame (n_rows, n_columns).
+    loc : RecordLocIndexer
+        Label-based indexer.
+    iloc : RecordILocIndexer
+        Position-based indexer.
 
     Methods
     -------
     copy()
         Return a deep copy of the Record.
-    strip(axis=0, inplace=False, independent=False)
+    strip(axis=None, inplace=False, independent=False)
         Remove leading/trailing rows or columns that are all NaN from all contained objects.
-        When independent=False (default), all elements share a common timeframe based on
-        the union of non-NaN time points.
-    reset_time(inplace=False)
+    reset_time(inplace=False, time_zero=None)
         Reset the time index to start at zero for all contained objects.
-    apply(func, axis=0, inplace=False, *args, **kwargs)
-        Apply a function or ProcessingPipeline to all contained objects.
-    fillna(value=None, regressors=None, inplace=False)
+    fillna(value=None, mice=False, max_iter=10, inplace=False)
         Fill NaNs for all contained objects.
     to_dataframe()
         Convert the record to a pandas DataFrame with MultiIndex columns.
+    to_plotly_figure()
+        Convert the record to a Plotly figure with subplots.
+    get(key, default=None)
+        Get an item with a default fallback.
+    drop(key, inplace=False)
+        Remove one or more items from the Record.
     from_tdf(filename)
-        Create a Record from a TDF file.
+        Create a Record from a TDF file (class method).
     """
 
     @property
     def name(self):
-        """name of the class"""
+        """
+        Get the name of the class.
+
+        Returns
+        -------
+        str
+            The class name.
+        """
         return self.__class__.__name__
 
     @property
@@ -82,25 +87,68 @@ class Record:
 
     @property
     def shape(self):
+        """
+        Get the shape of the Record as a DataFrame.
+
+        Returns
+        -------
+        tuple of int
+            A (n_rows, n_columns) tuple representing the shape.
+        """
         return self.to_dataframe().shape
 
     @property
     def loc(self):
-        """Label-based indexer for Record items."""
+        """
+        Label-based indexer for Record items.
+
+        Returns
+        -------
+        RecordLocIndexer
+            An indexer object for label-based slicing.
+        """
         return RecordLocIndexer(self)
 
     @property
     def iloc(self):
-        """Position-based indexer for Record items."""
+        """
+        Position-based indexer for Record items.
+
+        Returns
+        -------
+        RecordILocIndexer
+            An indexer object for integer-position based slicing.
+        """
         return RecordILocIndexer(self)
 
     def __len__(self):
+        """
+        Get the number of items in the Record.
+
+        Returns
+        -------
+        int
+            Number of key-value pairs.
+        """
         return len(self._data)
 
     def _view(
         self,
         rows: slice | list[int | float | bool] | np.ndarray | None = None,
     ):
+        """
+        Create a view of the Record with a subset of rows.
+
+        Parameters
+        ----------
+        rows : slice, list of int/float/bool, ndarray, or None
+            Row selection to apply to all contained objects.
+
+        Returns
+        -------
+        Record or subclass
+            A view object with the same type as self.
+        """
         # get a view
         view_obj = type(self).__new__(type(self))
         keys = self.__dict__
@@ -117,6 +165,25 @@ class Record:
         return view_obj
 
     def __getitem__(self, key):
+        """
+        Get an item from the Record by key or indexing.
+
+        Parameters
+        ----------
+        key : str, slice, ndarray, list, int, or float
+            If str, retrieves from _data or as an attribute.
+            If slice/ndarray/list/int/float, creates a view with row selection.
+
+        Returns
+        -------
+        Timeseries, Record, or None
+            The requested item or view.
+
+        Raises
+        ------
+        ValueError
+            If the key type is not supported.
+        """
         # Se è una stringa, controlla sia in _data che come attributo/property
         if isinstance(key, str):
             # Prima controlla in _data
@@ -138,6 +205,21 @@ class Record:
             raise ValueError(f"{key} type not supported as item.")
 
     def __setitem__(self, key, value):
+        """
+        Set an item in the Record.
+
+        Parameters
+        ----------
+        key : str
+            The key for the item.
+        value : Timeseries or Record
+            The value to set.
+
+        Raises
+        ------
+        ValueError
+            If key is not a string or value is not a Timeseries/Record.
+        """
         if not isinstance(key, str):
             raise ValueError("key must be a str")
 
@@ -164,20 +246,60 @@ class Record:
             self.__setitem__(key, value)
 
     def __repr__(self):
+        """
+        Return a string representation of the Record.
+
+        Returns
+        -------
+        str
+            String representation of the internal _data dictionary.
+        """
         return self._data.__repr__()
 
     def __init__(self, **signals: Timeseries | Record):
+        """
+        Initialize the Record with key-value pairs.
+
+        Parameters
+        ----------
+        **signals : dict
+            Key-value pairs where values are Timeseries or Record objects.
+        """
         self._data: dict[str, Timeseries | Record] = {}
         for key, value in signals.items():
             self[key] = value
 
     def items(self):
+        """
+        Return a list of (key, value) pairs.
+
+        Returns
+        -------
+        list of tuple
+            List of (key, value) tuples from the internal dictionary.
+        """
         return list(zip(self.keys(), self.values()))
 
     def keys(self):
+        """
+        Return a list of keys.
+
+        Returns
+        -------
+        list of str
+            List of all keys in the Record.
+        """
         return list(self._data.keys())
 
     def values(self):
+        """
+        Return a list of values.
+
+        Returns
+        -------
+        list of Timeseries or Record
+            List of all values in the Record.
+        """
         return list(self._data.values())
 
     def to_dataframe(self):
@@ -220,7 +342,7 @@ class Record:
                 continue
 
             value = None
-            if hasattr(self, name):
+            if hasattr(self, name) and name not in self._data:
                 value = getattr(self, name)
             elif hasattr(self, f"_{name}"):
                 value = getattr(self, f"_{name}")
@@ -266,149 +388,102 @@ class Record:
         return self.__class__(**{**constructor_args, **data_copy})
 
     def strip(
-        self, axis: int | None = None, inplace: bool = False, independent: bool = False
+        self,
+        inplace: bool = False,
+        independent: bool = False,
     ):
         """
-                Remove leading/trailing rows or columns that are all NaN from all
-                contained Timeseries-like objects.
+        Remove leading/trailing rows or columns that are all NaN from all
+        contained Timeseries-like objects.
 
-                Parameters
-                ----------
-                axis : int or None, optional
-                    If 0, strip rows (time axis). If 1, strip columns. If None, strip both
-                    (default None).
-                inplace : bool, optional
-                    If True, modifies in place. If False, returns a new Record (default False).
-                independent : bool, optional
-                    Controls whether elements are stripped independently or share a common
-                    timeframe (default False).
+        Parameters
+        ----------
+        inplace : bool, optional
+            If True, modifies in place. If False, returns a new Record (default False).
+        independent : bool, optional
+            Controls whether elements are stripped independently or share a common
+            timeframe (default False).
+            - If True: Each element is stripped based on its own non-NaN values,
+              potentially resulting in different timeframes per element (original behavior).
+            - If False: All elements share a common timeframe from the first time index
+              where at least one element has a non-NaN value to the last time index
+              where at least one element has a non-NaN value. This ensures all elements
+              span the same time period after stripping.
 
-                    - If True: Each element is stripped based on its own non-NaN values,
-                      potentially resulting in different timeframes per element (original behavior).
-                    - If False: All elements share a common timeframe from the first time index
-                      where at least one element has a non-NaN value to the last time index
-                      where at least one element has a non-NaN value. This ensures all elements
-                      span the same time period after stripping.
+        Note: When axis=1 (column stripping), this parameter has no effect as
+            columns are always stripped independently per element.
 
-                    Note: When axis=1 (column stripping), this parameter has no effect as
-                    columns are always stripped independently per element.
+        Returns
+        -------
+        Record or None
+            Stripped Record if inplace is False, otherwise None. When independent=False,
+            all elements will have identical time index ranges after stripping.
 
-                Returns
-                -------
-                Record or None
-                    Stripped Record if inplace is False, otherwise None. When independent=False,
-                    all elements will have identical time index ranges after stripping.
-
-                Examples
-                --------
-                >>> from records.records import Record
-        from records.timeseries import Signal1D
-                >>> import numpy as np
-                >>> # Create two signals with different NaN patterns
-                >>> data_a = np.array([np.nan, 1.0, 2.0, 3.0, np.nan])
-                >>> data_b = np.array([1.0, np.nan, 2.0, np.nan, 3.0])
-                >>> sig_a = Signal1D(data_a, index=[0, 1, 2, 3, 4], unit="m")
-                >>> sig_b = Signal1D(data_b, index=[0, 1, 2, 3, 4], unit="m")
-                >>> rec = Record(signal_a=sig_a, signal_b=sig_b)
-                >>>
-                >>> # Independent stripping (each element has own timeframe)
-                >>> rec_ind = rec.strip(independent=True)
-                >>> rec_ind['signal_a'].index  # [1, 2, 3]
-                >>> rec_ind['signal_b'].index  # [0, 2, 4]
-                >>>
-                >>> # Shared timeframe stripping (all elements share timeframe)
-                >>> rec_shared = rec.strip(independent=False)
-                >>> rec_shared['signal_a'].index  # [0, 1, 2, 3, 4]
-                >>> rec_shared['signal_b'].index  # [0, 1, 2, 3, 4]
+        Examples
+        --------
+        >>> from records.records import Record
+        >>> from records.timeseries import Signal1D
+        >>> import numpy as np
+        >>>
+        >>> # Create two signals with different NaN patterns
+        >>> data_a = np.array([np.nan, 1.0, 2.0, 3.0, np.nan])
+        >>> data_b = np.array([1.0, np.nan, 2.0, np.nan, 3.0])
+        >>> sig_a = Signal1D(data_a, index=[0, 1, 2, 3, 4], unit="m")
+        >>> sig_b = Signal1D(data_b, index=[0, 1, 2, 3, 4], unit="m")
+        >>> rec = Record(signal_a=sig_a, signal_b=sig_b)
+        >>>
+        >>> # Independent stripping (each element has own timeframe)
+        >>> rec_ind = rec.strip(independent=True)
+        >>> rec_ind['signal_a'].index  # [1, 2, 3]
+        >>> rec_ind['signal_b'].index  # [0, 2, 4]
+        >>>
+        >>> # Shared timeframe stripping (all elements share timeframe)
+        >>> rec_shared = rec.strip(independent=False)
+        >>> rec_shared['signal_a'].index  # [0, 1, 2, 3, 4]
+        >>> rec_shared['signal_b'].index  # [0, 1, 2, 3, 4]
         """
         if not isinstance(inplace, bool):
             raise ValueError("inplace must be True or False")
-        if axis is not None:
-            if not isinstance(axis, int) or axis not in [0, 1]:
-                raise ValueError("axis must be None or 0 or 1")
         if not isinstance(independent, bool):
             raise ValueError("independent must be True or False")
 
         out = self if inplace else self.copy()
-
-        # Handle column stripping (axis=1) - always independent
-        if axis == 1:
-            for key in out.keys():
-                out[key].strip(axis=1, inplace=True)
-            if not inplace:
-                return out
-
-        # Handle row/time stripping (axis=0 or axis=None)
         if independent:
-            # Original behavior: each element stripped independently
             for key in out.keys():
-                out[key].strip(axis=axis, inplace=True)
-        else:
-            # New behavior: shared timeframe across all elements
-            if len(out._data) > 0:
-                # OPTIMIZATION: instead of creating full DataFrame, iterate over elements
-                # to find bounds
-                all_valid_indices = []
+                out[key].strip(inplace=True)
+        elif len(out._data) > 0:
 
-                for elem in out.values():
-                    # Find non-all-NaN rows for this element
-                    if isinstance(elem, Timeseries):
-                        row_mask = ~np.isnan(elem._data).all(axis=1)
-                        if row_mask.any():
-                            valid_idx = elem.index[row_mask]
-                            all_valid_indices.append(valid_idx)
-                    elif isinstance(elem, Record):
-                        # For nested Records, get their combined index
-                        elem_index = elem.index
-                        if len(elem_index) > 0:
-                            all_valid_indices.append(elem_index)
+            # find all valid indices
+            def get_stripped_index(x: Timeseries | Record):
+                if isinstance(x, Timeseries):
+                    return x.index[~np.isnan(x._data).all(axis=1)]
+                elif isinstance(x, EMGSignal):
+                    return np.array([])
+                else:
+                    return np.concatenate(
+                        [get_stripped_index(i) for i in x.values()]
+                    ).flatten()
 
-                if all_valid_indices:
-                    # Find global min/max
-                    all_indices = np.concatenate(all_valid_indices)
-                    start = float(np.min(all_indices))
-                    stop = float(np.max(all_indices))
+            all_valid_indices = np.unique(get_stripped_index(out))
 
-                    # Apply bounds to each element using mask
-                    for key in out.keys():
-                        elem = out._data[key]
+            # resize all data in out
+            def resize_data(x: Timeseries | Record, start: float, stop: float):
+                if isinstance(x, Timeseries):
+                    mask = (x.index >= start) & (x.index <= stop)
+                    setattr(x, "_data", x._data[mask, :])
+                    setattr(x, "index", x.index[mask])
+                else:
+                    for v in x.values():
+                        resize_data(v, start, stop)
 
-                        # For Timeseries objects, modify in-place to preserve subclass attributes
-                        if isinstance(elem, Timeseries):
-                            # Find indices in range [start, stop]
-                            mask = (elem.index >= start) & (elem.index <= stop)
-                            if mask.any():
-                                # Modify in-place using object.__setattr__ to bypass
-                                # custom __setattr__ in subclasses and preserve attributes
-                                object.__setattr__(elem, "_data", elem._data[mask, :])
-                                object.__setattr__(elem, "index", elem.index[mask])
-
-                        # For Record objects (like ForcePlatform), recursively strip
-                        elif isinstance(elem, Record):
-                            # Recursively modify children in-place
-                            for child_key in elem.keys():
-                                child = elem._data[child_key]
-                                if isinstance(child, Timeseries):
-                                    mask = (child.index >= start) & (
-                                        child.index <= stop
-                                    )
-                                    if mask.any():
-                                        object.__setattr__(
-                                            child, "_data", child._data[mask, :]
-                                        )
-                                        object.__setattr__(
-                                            child, "index", child.index[mask]
-                                        )
-
-                    # Handle column stripping if axis=None
-                    if axis is None:
-                        for key in out.keys():
-                            out[key].strip(axis=1, inplace=True)
+            start = float(np.min(all_valid_indices))
+            stop = float(np.max(all_valid_indices))
+            resize_data(out, start, stop)
 
         if not inplace:
             return out
 
-    def reset_time(self, inplace=False, time_zero: float | int | None = None):
+    def reset_time(self, time_zero: float = 0.0, inplace: bool = False):
         """
         Reset the time index to start at zero for all contained Timeseries-like
         objects.
@@ -418,6 +493,9 @@ class Record:
         inplace : bool, optional
             If True, modify in place. If False, return a new Record.
 
+        time_zero: float, optional
+            the zero time of the new index
+
         Returns
         -------
         Record or None
@@ -426,22 +504,24 @@ class Record:
         """
         if not isinstance(inplace, bool):
             raise ValueError("inplace must be True or False")
-        if time_zero is not None:
-            if not isinstance(time_zero, (float, int)):
-                raise ValueError("time_zero must be int, float or None")
-            t0 = time_zero
-        else:
-            t0 = float(self.index[0])
-        if inplace:
-            for v in self._data.values():
-                v.index = v.index - t0
-        else:
-            out = self.copy()
-            for v in out._data.values():
-                v.index = v.index - t0
+        if not isinstance(time_zero, float):
+            raise ValueError("time_zero must be a float.")
+
+        out = self if inplace else self.copy()
+
+        def adjust_time(x: Timeseries | Record):
+            if isinstance(x, Timeseries):
+                x.index = x.index - x.index[0] + time_zero
+            else:
+                for v in x.values():
+                    adjust_time(v)
+
+        adjust_time(out)
+
+        if not inplace:
             return out
 
-    def fillna(self, value=None, mice: bool = False, max_iter: int = 10, inplace=False):
+    def fillna(self, value=None, mice: bool = False, max_iter: int = 50, inplace=False):
         """
         Return a copy with NaNs replaced by the specified value or using
         advanced imputation for all contained objects.
@@ -500,9 +580,43 @@ class Record:
             return out
 
     def get(self, key: str, default=None):
+        """
+        Get an item from the Record with a default fallback.
+
+        Parameters
+        ----------
+        key : str
+            The key to retrieve.
+        default : any, optional
+            The value to return if key is not found (default None).
+
+        Returns
+        -------
+        Timeseries, Record, or default
+            The value associated with key, or default if not found.
+        """
         return self._data.get(key, default)
 
     def drop(self, key: str | list[str], inplace: bool = False):
+        """
+        Remove one or more items from the Record.
+
+        Parameters
+        ----------
+        key : str or list of str
+            The key(s) to remove.
+        inplace : bool, optional
+            If True, modify in place. If False, return a new Record (default False).
+
+        Returns
+        -------
+        Record or None
+            Modified Record if inplace is False, otherwise None.
+
+        Warnings
+        --------
+        Warns if a key is not found.
+        """
         if isinstance(key, str):
             key = [key]
         out = self if inplace else self.copy()
@@ -515,6 +629,15 @@ class Record:
             return out
 
     def to_plotly_figure(self):
+        """
+        Convert the Record to a Plotly figure with subplots.
+
+        Returns
+        -------
+        plotly.graph_objects.Figure
+            A Plotly figure with one row per column in the DataFrame,
+            each showing a time series plot.
+        """
         df = self.to_dataframe()
         fig = make_subplots(
             rows=df.shape[1],
@@ -541,6 +664,14 @@ class Record:
 
     @property
     def vertical_axis(self):
+        """
+        Get the vertical axis from the first element that defines one.
+
+        Returns
+        -------
+        str or None
+            The vertical axis label, or None if not found.
+        """
         for val in self.values():
             if hasattr(val, "vertical_axis"):
                 axis = val.vertical_axis
@@ -550,6 +681,14 @@ class Record:
 
     @property
     def anteroposterior_axis(self):
+        """
+        Get the anteroposterior axis from the first element that defines one.
+
+        Returns
+        -------
+        str or None
+            The anteroposterior axis label, or None if not found.
+        """
         for val in self.values():
             if hasattr(val, "anteroposterior_axis"):
                 axis = val.anteroposterior_axis
@@ -559,6 +698,14 @@ class Record:
 
     @property
     def lateral_axis(self):
+        """
+        Get the lateral axis from the first element that defines one.
+
+        Returns
+        -------
+        str or None
+            The lateral axis label, or None if not found.
+        """
         for val in self.values():
             if hasattr(val, "lateral_axis"):
                 axis = val.lateral_axis
@@ -648,19 +795,41 @@ class Record:
         return self._filter_by_type(Plane3D)
 
     @property
+    def timeseries(self):
+        """
+        Get all Timeseries objects.
+
+        Returns
+        -------
+        Record
+        """
+        return self._filter_by_type(Timeseries)
+
+    @property
     def resultant_force(self):
         """
-        return a forceplatform object representing the resultant of all
-        available forceplatforms
+        Return a ForcePlatform object representing the resultant of all
+        available force platforms.
+
+        Returns
+        -------
+        ForcePlatform
+            A combined force platform with summed forces, torques, and
+            weighted-average origins.
+
+        Raises
+        ------
+        ValueError
+            If no force platforms are found in the Record.
         """
         platforms = list(self.forceplatforms.values())
         if len(platforms) == 0:
             raise ValueError("No forceplatforms found within the Record.")
 
         # Indice temporale comune a tutte le piattaforme
-        common_times = list(
-            dict.fromkeys([t for platform in platforms for t in platform.index])
-        )
+        common_times_array = [platform.index for platform in platforms]
+        common_times_array = np.unique(np.concatenate(common_times_array))
+        common_times = common_times_array.tolist()
         common_time_to_idx = {t: i for i, t in enumerate(common_times)}
         n_samples = len(common_times)
 

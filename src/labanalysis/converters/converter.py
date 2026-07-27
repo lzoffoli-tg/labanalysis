@@ -14,19 +14,60 @@ __all__ = ["Converter"]
 
 class Converter:
     """
-    A file conversion class object.
+    A file conversion utility for transforming notebook files into various formats.
+
+    This class provides methods to convert Jupyter notebook files (.ipynb) to
+    HTML format with optional execution of code cells and customizable templates.
+
+    Parameters
+    ----------
+    source_file : Path | str
+        Path to the source file to be converted. Must be an existing file.
+
+    Attributes
+    ----------
+    source_file : Path
+        The path to the source file being converted.
 
     Examples
     --------
     >>> converter = Converter("example.ipynb")
     >>> converter.to_html()
+
+    >>> converter = Converter("notebook.ipynb")
+    >>> converter.to_html(output_path="output.html", execute=True)
     """
 
     def __init__(self, source_file: Path | str):
+        """
+        Initialize the Converter with a source file.
+
+        Parameters
+        ----------
+        source_file : Path | str
+            Path to the source file to be converted.
+
+        Raises
+        ------
+        ValueError
+            If the source file does not exist or is of invalid type.
+        """
         self.set_source_file(source_file)
 
     def set_source_file(self, source_file: Path | str):
-        """set the source file path"""
+        """
+        Set the source file path for conversion.
+
+        Parameters
+        ----------
+        source_file : Path | str
+            Path to the source file. Can be either a Path object or string.
+
+        Raises
+        ------
+        ValueError
+            If source_file is not a Path or str, or if the file does not exist.
+        """
         if isinstance(source_file, str):
             self._source_file = Path(source_file)
         elif isinstance(source_file, Path):
@@ -39,7 +80,14 @@ class Converter:
 
     @property
     def source_file(self):
-        """return the source file path"""
+        """
+        Get the source file path.
+
+        Returns
+        -------
+        Path
+            The path to the source file being converted.
+        """
         return self._source_file
 
     def to_html(
@@ -50,23 +98,45 @@ class Converter:
         verbose: bool = True,
     ):
         """
-        Convert source file to html format and save it on the provided output_path.
+        Convert source notebook file to HTML format.
+
+        This method converts Jupyter notebook files (.ipynb) to HTML with optional
+        code execution and custom template support. The output filename is
+        automatically timestamped.
 
         Parameters
         ----------
-        output_path: Path | str | None
-            Path to the output HTML file. If None, the same path of source_file
-            is used.
-        execute: bool (default: False)
-            Whether to execute the notebook cells before conversion.
-        template: Literal["custom_lab"] (default: "custom_lab")
-            The template to use for conversion.
-        verbose: bool (default: True)
-            Whether to print verbose output during conversion.
+        output_path : Path | str | None, default=None
+            Path to the output HTML file. If None, uses the same directory as
+            source_file with .html extension. The filename will be prepended
+            with a timestamp in the format YYYYMMDD_HHMMSS_.
+        execute : bool, default=False
+            Whether to execute the notebook cells before conversion. If True,
+            cells are executed sequentially with a 10-minute timeout per cell.
+        template : {"custom_lab"}, default="custom_lab"
+            The template to use for HTML conversion. Currently only "custom_lab"
+            is supported.
+        verbose : bool, default=True
+            Whether to print detailed progress information during conversion,
+            including execution status, file paths, and output file size.
 
-        Returns
-        -------
-        None
+        Raises
+        ------
+        ValueError
+            If output_path is of invalid type, if execute is not a boolean,
+            if template is not supported, if verbose is not a boolean,
+            or if the conversion format is not supported.
+        SystemExit
+            If the template directory is not found.
+
+        Examples
+        --------
+        >>> converter = Converter("notebook.ipynb")
+        >>> converter.to_html()
+
+        >>> converter.to_html(output_path="results/output.html", execute=True)
+
+        >>> converter.to_html(execute=False, verbose=False)
         """
 
         # check inputs
@@ -128,7 +198,39 @@ class Converter:
         template: str,
         verbose: bool,
     ):
-        """private method to convert .ipynb to HTML"""
+        """
+        Convert Jupyter notebook to HTML format.
+
+        This is a private method that handles the actual conversion process using
+        nbconvert's HTMLExporter. It configures the exporter with the specified
+        template and optionally executes notebook cells before conversion.
+
+        Parameters
+        ----------
+        output_path : Path
+            Path where the HTML output will be saved.
+        execute : bool
+            Whether to execute notebook cells before conversion.
+        template_basedir : Path
+            Base directory containing the conversion templates.
+        template : str
+            Name of the template to use for conversion.
+        verbose : bool
+            Whether to print detailed progress information.
+
+        Raises
+        ------
+        SystemExit
+            If conversion fails due to any error during the process.
+
+        Notes
+        -----
+        This method uses lazy importing of nbconvert and traitlets to avoid
+        loading heavy dependencies when they are not needed.
+
+        When execute=True, cells are executed with a 600-second (10-minute)
+        timeout per cell using the 'python3' kernel.
+        """
 
         # Print info
         if verbose:

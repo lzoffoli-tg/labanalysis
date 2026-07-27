@@ -1,11 +1,20 @@
-"""Repeated jumps exercise module."""
+"""
+Repeated jumps exercise analysis module.
+
+This module provides the RepeatedJumps class for analyzing continuous jumping
+sequences to assess neuromuscular fatigue, mechanical power decline, and
+coordination degradation across multiple jump repetitions.
+"""
+
+from pathlib import Path
+from typing import Literal
 
 import numpy as np
 
 from ...constants import MINIMUM_CONTACT_FORCE_N, MINIMUM_FLIGHT_TIME_S
 from ...records import ForcePlatform
 from ...records.body import WholeBody
-from ...signalprocessing import butterworth_filt, continuous_batches, fillna
+from ...signalprocessing import butterworth_filt, continuous_batches
 from ...timeseries import EMGSignal, Point3D, Signal1D, Signal3D
 from .single_jump import SingleJump
 
@@ -168,47 +177,207 @@ class RepeatedJumps(WholeBody):
         return self._bodymass_kg
 
     def set_bodymass_kg(self, bodymass_kg: float):
-        """set the subject's body mass in kilograms."""
+        """
+        Set the participant's body mass.
+
+        Parameters
+        ----------
+        bodymass_kg : float or int
+            Body mass in kilograms. Must be positive.
+
+        Raises
+        ------
+        ValueError
+            If bodymass_kg is not numeric or not positive.
+        """
         if not isinstance(bodymass_kg, (float, int)) or bodymass_kg <= 0:
             raise ValueError("bodymass_kg must be a float or int > 0.")
         self._bodymass_kg = bodymass_kg
 
     @property
     def excluded_jumps(self):
-        """Return the list of excluded jumps."""
+        """
+        Get the list of excluded jump indices.
+
+        Returns
+        -------
+        list of int
+            Indices of jumps to exclude from analysis. Supports negative
+            indexing (e.g., -1 for last jump).
+
+        See Also
+        --------
+        set_excluded_jumps : Set excluded jump indices.
+        jumps : Access individual jumps (excluding specified indices).
+        """
         return self._excluded_jumps
 
     def set_excluded_jumps(self, jumps: list[int]):
-        """Set the list of excluded jumps."""
+        """
+        Set indices of jumps to exclude from analysis.
+
+        Parameters
+        ----------
+        jumps : list of int
+            Indices of jumps to exclude. Supports negative indexing.
+            Common exclusions: [0] (warm-up jump), [-1] (incomplete jump),
+            [0, -1] (first and last jumps).
+
+        Raises
+        ------
+        ValueError
+            If jumps is not a list of integers.
+
+        Notes
+        -----
+        Excluded jumps are removed from the `jumps` property but remain
+        in the raw continuous data. This allows selective analysis
+        excluding failed attempts or protocol variations.
+
+        Examples
+        --------
+        >>> rj.set_excluded_jumps([0])  # Exclude first (warm-up) jump
+        >>> rj.set_excluded_jumps([0, -1])  # Exclude first and last
+        >>> rj.set_excluded_jumps([4, 5])  # Exclude specific failed jumps
+        """
         if not isinstance(jumps, list) or not all([isinstance(i, int) for i in jumps]):
             raise ValueError("jumps must be a list of int")
         self._excluded_jumps = jumps
 
     @property
     def straight_legs(self):
-        """Return the straight legs flag."""
+        """
+        Get whether straight-leg jump protocol was used.
+
+        Returns
+        -------
+        bool
+            True if straight-leg jumps, False if normal knee flexion allowed.
+
+        See Also
+        --------
+        set_straight_legs : Set straight-leg protocol flag.
+        """
         return self._straight_legs
 
     def set_straight_legs(self, straight: bool):
-        """Set the straight legs flag."""
+        """
+        Set the straight-leg jump protocol flag.
+
+        Parameters
+        ----------
+        straight : bool
+            True for straight-leg jumps (ankle emphasis), False for
+            normal knee flexion allowed.
+
+        Raises
+        ------
+        ValueError
+            If straight is not a boolean.
+
+        Notes
+        -----
+        Straight-leg repeated jumps emphasize ankle plantarflexor
+        endurance and minimize knee extensor contribution, useful for
+        calf-specific fatigue assessment.
+        """
         if not isinstance(straight, bool):
             raise ValueError("straight must be True or False.")
         self._straight_legs = straight
 
     @property
     def free_hands(self):
-        """Return the free hands flag."""
+        """
+        Get whether free arm swing was allowed.
+
+        Returns
+        -------
+        bool
+            True if arm swing allowed, False if hands restricted.
+
+        See Also
+        --------
+        set_free_hands : Set free hands protocol flag.
+        """
         return self._free_hands
 
     def set_free_hands(self, free: bool):
-        """Set the free hands flag."""
+        """
+        Set the free arm swing protocol flag.
+
+        Parameters
+        ----------
+        free : bool
+            True if arm swing allowed, False if hands restricted
+            (e.g., on hips).
+
+        Raises
+        ------
+        ValueError
+            If free is not a boolean.
+
+        Notes
+        -----
+        Hands-on-hips protocol isolates lower limb contribution and
+        is commonly used to standardize repeated jump testing and
+        minimize upper body fatigue effects.
+        """
         if not isinstance(free, bool):
             raise ValueError("free must be True or False.")
         self._free_hands = free
 
+    def set_side(self, value: Literal["left", "right", "bilateral"] | None):
+        """
+        Set the side of the jump.
+
+        Parameters
+        ----------
+        value : Literal["left", "right", "bilateral"] | None
+            The side of the jump.
+
+        Raises
+        ------
+        ValueError
+            In case a value different from "left", "right", "bilateral" or None is provided.
+        """
+        if value is None:
+            self._side = value
+        if value not in ["left", "right", "bilateral"]:
+            raise ValueError("side must be 'left', 'right', 'bilateral' or None")
+        self._side = value
+
+    @property
+    def side(self):
+        """
+        Determine jump laterality from available force platforms.
+
+        Returns
+        -------
+        str
+            "left", "right", or "bilateral"
+        """
+
+        # use the provided label
+        if self._side is not None:
+            return self._side
+
+        # evaluate based on available force platforms
+        has_left = self.left_foot_ground_reaction_force is not None
+        has_right = self.right_foot_ground_reaction_force is not None
+
+        if has_left and has_right:
+            return "bilateral"
+        elif has_left:
+            return "left"
+        elif has_right:
+            return "right"
+        else:
+            raise RuntimeError("No force platforms available to determine jump side.")
+
     def __init__(
         self,
         bodymass_kg: float,
+        side: Literal["bilateral", "left", "right"] | None = None,
         left_hand_ground_reaction_force: ForcePlatform | None = None,
         right_hand_ground_reaction_force: ForcePlatform | None = None,
         left_foot_ground_reaction_force: ForcePlatform | None = None,
@@ -263,7 +432,43 @@ class RepeatedJumps(WholeBody):
         free_hands: bool = False,
         **signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
     ):
-        """Initialize a RepeatedJumps object."""
+        """
+        Initialize a RepeatedJumps instance.
+
+        Parameters
+        ----------
+        bodymass_kg : float
+            Participant's body mass in kilograms (required).
+        side : {"bilateral", "left", "right"} or None, optional
+            Jump execution side. Default is None (auto-detected).
+        exclude_jumps : list of int, optional
+            Indices of jumps to exclude from analysis. Default is [0, -1]
+            (exclude first and last jumps).
+        straight_legs : bool, optional
+            Whether straight-leg protocol used. Default is False.
+        free_hands : bool, optional
+            Whether arm swing allowed. Default is False.
+        left_foot_ground_reaction_force : ForcePlatform or None, optional
+            Left foot force platform data. Default is None.
+        right_foot_ground_reaction_force : ForcePlatform or None, optional
+            Right foot force platform data. Default is None.
+        **force_platforms : ForcePlatform or None, optional
+            Additional force platform data (hands).
+        **markers : Point3D or None, optional
+            3D marker trajectories for kinematic analysis.
+        **signals : Signal1D, Signal3D, EMGSignal, Point3D, or ForcePlatform
+            Additional biomechanical signals.
+
+        Notes
+        -----
+        Default exclusion [0, -1] removes the first jump (warm-up) and last
+        jump (potentially incomplete) from analysis, which is standard practice
+        for repeated jump testing.
+
+        See Also
+        --------
+        from_tdf : Create instance from TDF file.
+        """
         all_signals = {
             **signals,
             **dict(
@@ -318,29 +523,23 @@ class RepeatedJumps(WholeBody):
                 head_right=head_right,
             ),
         }
-        if (
-            left_foot_ground_reaction_force is None
-            and right_foot_ground_reaction_force is None
-        ):
-            raise ValueError(
-                "at least one of 'left_foot_ground_reaction_force' or "
-                "'right_foot_ground_reaction_force' must be ForcePlatform instances."
-            )
         super().__init__(**{i: v for i, v in all_signals.items() if v is not None})  # type: ignore
         self.set_bodymass_kg(bodymass_kg)
         self.set_excluded_jumps(exclude_jumps)
         self.set_straight_legs(straight_legs)
         self.set_free_hands(free_hands)
+        self.set_side(side)
 
     @classmethod
     def from_tdf(
         cls,
-        file: str,
+        file: str | Path,
         bodymass_kg: float | int,
+        side: Literal["bilateral", "left", "right"] | None = None,
         left_hand_ground_reaction_force: str | None = None,
         right_hand_ground_reaction_force: str | None = None,
-        left_foot_ground_reaction_force: str | None = "left_foot",
-        right_foot_ground_reaction_force: str | None = "right_foot",
+        left_foot_ground_reaction_force: str | None = None,
+        right_foot_ground_reaction_force: str | None = None,
         left_heel: str | None = None,
         right_heel: str | None = None,
         left_toe: str | None = None,
@@ -390,15 +589,79 @@ class RepeatedJumps(WholeBody):
         straight_legs: bool = False,
         free_hands: bool = False,
     ):
-        """Create a RepeatedJumps object from a TDF file."""
-        if (
-            left_foot_ground_reaction_force is None
-            and right_foot_ground_reaction_force is None
-        ):
-            raise ValueError(
-                "at least one of left_foot_ground_reaction_force or "
-                "right_foot_ground_reaction_force must be provided."
-            )
+        """
+        Create RepeatedJumps instance from BTS Bioengineering TDF file.
+
+        Parameters
+        ----------
+        file : str
+            Path to the TDF file containing repeated jump trial data.
+        bodymass_kg : float or int
+            Participant's body mass in kilograms (required).
+        side : {"bilateral", "left", "right"} or None, optional
+            Jump execution side. Default is None (auto-detected).
+        exclude_jumps : list of int, optional
+            Indices of jumps to exclude from analysis. Default is [] (empty,
+            no exclusions). Common: [0] (first only), [0, -1] (first and last).
+        straight_legs : bool, optional
+            Whether straight-leg protocol used. Default is False.
+        free_hands : bool, optional
+            Whether arm swing allowed. Default is False (hands on hips).
+        left_foot_ground_reaction_force : str or None, optional
+            Label for left foot force platform in TDF file. Default is None.
+        right_foot_ground_reaction_force : str or None, optional
+            Label for right foot force platform in TDF file. Default is None.
+        **force_platform_labels : str or None, optional
+            Labels for additional force platforms (hands) in TDF file.
+        **marker_labels : str or None, optional
+            Labels for anatomical markers in TDF file.
+
+        Returns
+        -------
+        RepeatedJumps
+            Initialized RepeatedJumps instance with data loaded from TDF file.
+
+        Notes
+        -----
+        Common repeated jump protocols:
+        - 15-second test: Maximum jumps in 15 seconds
+        - 30-second test: Continuous jumping for 30 seconds
+        - 60-second test: Extended fatigue assessment
+        - Fixed repetitions: e.g., 10, 20, or 30 jumps
+
+        Protocol standardization:
+        - Hands-on-hips (free_hands=False) is most common
+        - Exclude first jump [0] to remove warm-up effect
+        - Exclude last jump [-1] if potentially incomplete
+        - Participant instructed to jump "as high and fast as possible"
+
+        See Also
+        --------
+        WholeBody.from_tdf : Base TDF loading method.
+        jumps : Property that segments individual jumps.
+
+        Examples
+        --------
+        >>> # Standard 15-second test, hands on hips
+        >>> rj = RepeatedJumps.from_tdf(
+        ...     "rj_15s.tdf",
+        ...     bodymass_kg=75,
+        ...     exclude_jumps=[0],  # Exclude warm-up jump
+        ...     free_hands=False,
+        ...     left_foot_ground_reaction_force="FP1",
+        ...     right_foot_ground_reaction_force="FP2"
+        ... )
+        >>> print(f"Valid jumps analyzed: {len(rj.jumps)}")
+
+        >>> # Straight-leg protocol
+        >>> rj_sl = RepeatedJumps.from_tdf(
+        ...     "rj_straight_legs.tdf",
+        ...     bodymass_kg=75,
+        ...     straight_legs=True,
+        ...     exclude_jumps=[0, -1],
+        ...     right_foot_ground_reaction_force="FP2"
+        ... )
+        """
         record = WholeBody.from_tdf(
             file,
             left_hand_ground_reaction_force=left_hand_ground_reaction_force,
@@ -456,6 +719,7 @@ class RepeatedJumps(WholeBody):
             exclude_jumps=exclude_jumps,
             straight_legs=straight_legs,
             free_hands=free_hands,
+            side=side,
             **record._data,  # type: ignore
         )
 
@@ -463,8 +727,17 @@ class RepeatedJumps(WholeBody):
         """
         Return custom constructor arguments for loc/iloc slicing.
 
-        Returns dict with custom attributes needed to reconstruct RepeatedJumps
-        after slicing operations.
+        Returns
+        -------
+        dict
+            Dictionary with custom attributes needed to reconstruct RepeatedJumps
+            after slicing operations.
+
+        Notes
+        -----
+        This method ensures that slicing operations (via loc or iloc) preserve
+        the specialized RepeatedJumps attributes that are not part of the base
+        WholeBody class.
         """
         return {
             "bodymass_kg": self.bodymass_kg,
@@ -473,19 +746,70 @@ class RepeatedJumps(WholeBody):
             "straight_legs": self.straight_legs,
         }
 
-    def copy(self):
-        """create a copy of this RepeatedJumps instance"""
-        return RepeatedJumps(
-            bodymass_kg=self.bodymass_kg,
-            free_hands=self.free_hands,
-            exclude_jumps=self.excluded_jumps,
-            straight_legs=self.straight_legs,
-            **{i: v.copy() for i, v in self.items()},  # type: ignore
-        )
-
     @property
     def jumps(self):
-        """return the list of individual jumps"""
+        """
+        Extract and segment individual jumps from continuous data.
+
+        Returns
+        -------
+        list of CounterMovementJump
+            Individual jump objects, excluding those specified in
+            excluded_jumps. Each jump contains complete biomechanical
+            data from contact initiation to peak force after landing.
+
+        Notes
+        -----
+        Automatic jump segmentation algorithm:
+        1. Low-pass filter vertical GRF at 50 Hz (4th order Butterworth)
+        2. Detect flight phases (force < 30N, duration > 50ms)
+        3. Identify contact starts before each flight
+        4. Find peak force after each flight
+        5. Segment from contact start to peak force for each jump
+        6. Remove first/last if they start/end in flight
+        7. Exclude specified jumps (via excluded_jumps)
+
+        Each CounterMovementJump object contains:
+        - Full force platform data for the jump
+        - Marker trajectories during the jump
+        - EMG signals during the jump
+        - Jump-specific metrics (height, contact time, etc.)
+
+        Processing details:
+        - Force signal filtered to remove high-frequency noise
+        - Minimum flight time prevents false detection from force dips
+        - First jump starting in flight indicates pre-trial activity
+        - Last jump ending in flight indicates incomplete sequence
+
+        Common issues:
+        - Too few jumps: Check force threshold and flight time parameters
+        - Extra jumps detected: Increase minimum flight time or filter cutoff
+        - Failed segmentation: Verify force data quality and sampling rate
+
+        Examples
+        --------
+        >>> rj = RepeatedJumps.from_tdf("trial.tdf", bodymass_kg=75)
+        >>> jumps = rj.jumps
+        >>> print(f"Detected {len(jumps)} jumps")
+
+        >>> # Analyze each jump
+        >>> for i, jump in enumerate(jumps, 1):
+        ...     h = jump.jump_height
+        ...     ct = jump.contact_time * 1000  # Convert to ms
+        ...     ft = jump.flight_time * 1000
+        ...     print(f"Jump {i}: {h:.1f} cm, CT: {ct:.0f} ms, FT: {ft:.0f} ms")
+
+        >>> # Fatigue analysis
+        >>> heights = [j.jump_height for j in jumps]
+        >>> fatigue_idx = (max(heights) - min(heights)) / max(heights) * 100
+        >>> print(f"Fatigue index: {fatigue_idx:.1f}%")
+
+        See Also
+        --------
+        excluded_jumps : Control which jumps are excluded.
+        CounterMovementJump : Individual jump class.
+        continuous_batches : Batch detection algorithm.
+        """
         vgrf = self.resultant_force.copy()
         time = vgrf.index
         vgrf = vgrf.force[self.vertical_axis].fillna(value=0).to_numpy().flatten()
@@ -544,6 +868,7 @@ class RepeatedJumps(WholeBody):
                     bodymass_kg=self.bodymass_kg,
                     straight_legs=self.straight_legs,
                     free_hands=self.free_hands,
+                    side=self.side,
                     **{i: v.copy().loc[start:stop, :] for i, v in self.items()},
                 )
             )

@@ -1,56 +1,89 @@
 """
-signalprocessing
+Signal processing and analysis functions for biomechanical data.
 
-A set of functions dedicated to the processing and analysis of 1D signals.
+This module provides a comprehensive set of functions for processing and
+analyzing 1D and 3D signals commonly encountered in biomechanics and
+physiological data analysis. Functions include peak detection, filtering,
+interpolation, derivative estimation, and geometric transformations.
 
 Functions
 ---------
+Peak Detection and Event Identification
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 find_peaks
-    Find peaks in the signal.
+    Detect local maxima in 1D signals.
 continuous_batches
-    Get the indices defining contiguous samples in the signal.
-nextpow
-    The next power of the selected base.
-winter_derivative1
-    Obtain the first derivative of a 1D signal according to Winter 2009 method.
-winter_derivative2
-    Obtain the second derivative of a 1D signal according to Winter 2009 method.
-freedman_diaconis_bins
-    Digitize a 1D signal in bins defined according to the Freedman-Diaconis rule.
-fir_filt
-    Apply a FIR (Finite Impulse Response) filter to a 1D signal.
-mean_filt
-    Apply a moving average filter to a 1D signal.
-median_filt
-    Apply a median filter to a 1D signal.
-rms_filt
-    Apply a RMS filter to a 1D signal.
-butterworth_filt
-    Apply a Butterworth filter to a 1D signal.
-cubicspline_interp
-    Apply cubic spline interpolation to a 1D signal.
-residual_analysis
-    Get the optimal cut-off frequency for a filter on 1D signals according to Winter 2009 'residual analysis' method.
-crossovers
-    Get the x-axis coordinates of the junction between the lines best fitting a 1D signal in a least-squares sense.
-psd
-    Obtain the power spectral density estimate of a 1D signal using the periodogram method.
+    Identify contiguous sequences of True values in boolean arrays.
 crossings
-    Obtain the location of the samples being across a target value.
-xcorr
-    Get the cross/auto-correlation and lag of multiple/one 1D signal.
-outlyingness
-    Return the adjusted outlyingness factor.
-gram_schmidt
-    Return the orthogonal basis defined by a set of points using the Gram-Schmidt algorithm.
+    Detect zero-crossing or threshold-crossing points in signals.
+
+Signal Differentiation
+~~~~~~~~~~~~~~~~~~~~~~
+winter_derivative1
+    Compute first derivative using Winter's central difference method.
+winter_derivative2
+    Compute second derivative using Winter's method.
+
+Signal Filtering
+~~~~~~~~~~~~~~~~
+butterworth_filt
+    Apply Butterworth digital filter with specified parameters.
+fir_filt
+    Apply FIR (Finite Impulse Response) filter to signals.
+mean_filt
+    Apply moving average (mean) filter.
+median_filt
+    Apply moving median filter.
+rms_filt
+    Apply moving root-mean-square filter.
+thresholding_filt
+    Apply adaptive thresholding filter to remove outliers.
+
+Interpolation and Resampling
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+cubicspline_interp
+    Perform cubic spline interpolation.
 fillna
-    Fill missing data in numpy ndarray or pandas dataframe.
-tkeo
-    Obtain the discrete Teager-Kaiser Energy of the input signal.
-padwin
-    Pad the signal according to the given order and return the mask of indices defining each window on the signal.
+    Fill missing values using direct replacement, MICE, or spline interpolation.
+
+Frequency Domain Analysis
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+psd
+    Compute power spectral density using FFT periodogram method.
+residual_analysis
+    Determine optimal filter cutoff frequency using Winter's residual analysis.
+
+Signal Correlation
+~~~~~~~~~~~~~~~~~~
+xcorr
+    Compute auto-correlation or cross-correlation with lag.
+
+Geometric Transformations
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+gram_schmidt
+    Compute orthonormal basis from vectors using Gram-Schmidt process.
 to_reference_frame
-    Rotate a 3D array or dataframe to the provided reference frame.
+    Rotate 3D data to a specified reference frame.
+
+Utilities
+~~~~~~~~~
+nextpow
+    Calculate next power of a base for a given value.
+freedman_diaconis_bins
+    Digitize signal using Freedman-Diaconis bin rule.
+padwin
+    Pad signal and generate window indices for filtering.
+crossovers
+    Find piecewise linear regression breakpoints.
+outlyingness
+    Compute adjusted outlyingness factor for outlier detection.
+tkeo
+    Compute Teager-Kaiser Energy Operator for signal.
+
+See Also
+--------
+labanalysis.timeseries : Time-series data structures with integrated filtering.
+scipy.signal : Additional signal processing functions.
 """
 
 #! IMPORTS
@@ -61,7 +94,7 @@ from types import FunctionType, MethodType
 from typing import Literal
 
 import numpy as np
-from pandas import DataFrame, Series, concat
+from pandas import DataFrame, Series
 from scipy import signal  # type: ignore
 from scipy.interpolate import CubicSpline  # type: ignore
 from scipy.spatial.transform import Rotation
@@ -247,19 +280,34 @@ def nextpow(
     base: int = 2,
 ) -> int:
     """
-    Get the next power of the provided value according to the given base.
+    Calculate the smallest power of base that is greater than or equal to val.
 
     Parameters
     ----------
     val : int or float
         The target value.
     base : int, optional
-        The base to be elevated.
+        The base to be raised to a power. Default is 2.
 
     Returns
     -------
     int
-        The next power of the provided value according to the given base.
+        The smallest integer power result base^n >= val.
+
+    Examples
+    --------
+    >>> nextpow(100, base=2)
+    128
+    >>> nextpow(100, base=10)
+    100
+    >>> nextpow(1001, base=10)
+    10000
+
+    Notes
+    -----
+    Commonly used to determine optimal FFT sizes (powers of 2) for
+    efficient computation, or to round up buffer sizes to convenient
+    powers of a base.
     """
     return int(round(base ** np.ceil(np.log(val) / np.log(base))))
 
@@ -270,25 +318,56 @@ def winter_derivative1(
     time_diff: float | int = 1,
 ) -> np.ndarray:
     """
-    Return the first derivative of y.
+    Compute first derivative using Winter's central difference method.
+
+    Implements the three-point central difference formula recommended by
+    Winter (2009) for biomechanical signal differentiation. This method
+    provides better noise characteristics than forward or backward differences.
 
     Parameters
     ----------
     y_signal : np.ndarray
-        The signal to be differentiated.
+        The signal to be differentiated (1D array).
     x_signal : np.ndarray or None, optional
-        The optional signal from which y has to be differentiated (default: None).
+        Independent variable (e.g., time) corresponding to y_signal.
+        If None, assumes uniform sampling with interval `time_diff`.
+        Default is None.
     time_diff : float or int, optional
-        The difference between samples in y. Ignored if x_signal is provided.
+        Sampling interval when x_signal is None. Ignored if x_signal
+        is provided. Default is 1.
 
     Returns
     -------
     np.ndarray
-        The first derivative of y.
+        First derivative of y_signal. Output length is len(y_signal) - 2
+        due to central differencing requiring points on both sides.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> t = np.linspace(0, 1, 100)
+    >>> y = np.sin(2 * np.pi * t)
+    >>> dydt = winter_derivative1(y, t)
+    >>> len(dydt)
+    98
+
+    Notes
+    -----
+    The central difference formula used is:
+        dy/dx[i] = (y[i+1] - y[i-1]) / (x[i+1] - x[i-1])
+
+    This method is preferred in biomechanics for its superior noise
+    handling compared to forward/backward differences, though it reduces
+    the output array length by 2 samples.
 
     References
     ----------
-    Winter DA. Biomechanics and Motor Control of Human Movement. Fourth Ed. Hoboken, New Jersey: John Wiley & Sons Inc; 2009.
+    Winter, D. A. (2009). Biomechanics and Motor Control of Human Movement.
+    Fourth Edition. Hoboken, NJ: John Wiley & Sons, Inc.
+
+    See Also
+    --------
+    winter_derivative2 : Second derivative using Winter's method.
     """
 
     # get x
@@ -307,25 +386,56 @@ def winter_derivative2(
     time_diff: float | int = 1,
 ) -> np.ndarray:
     """
-    Return the second derivative of y.
+    Compute second derivative using Winter's three-point method.
+
+    Implements the three-point finite difference formula for second
+    derivatives recommended by Winter (2009) for biomechanical acceleration
+    estimation from position or velocity data.
 
     Parameters
     ----------
     y_signal : np.ndarray
-        The signal to be differentiated.
+        The signal to be differentiated (1D array).
     x_signal : np.ndarray or None, optional
-        The optional signal from which y has to be differentiated (default: None).
+        Independent variable (e.g., time) corresponding to y_signal.
+        If None, assumes uniform sampling with interval `time_diff`.
+        Default is None.
     time_diff : float or int, optional
-        The difference between samples in y. Ignored if x_signal is provided.
+        Sampling interval when x_signal is None. Ignored if x_signal
+        is provided. Default is 1.
 
     Returns
     -------
     np.ndarray
-        The second derivative of y.
+        Second derivative of y_signal. Output length is len(y_signal) - 2.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> t = np.linspace(0, 1, 100)
+    >>> y = 0.5 * 9.81 * t**2  # Free fall position
+    >>> d2y = winter_derivative2(y, t)
+    >>> np.allclose(d2y, 9.81, atol=0.1)
+    True
+
+    Notes
+    -----
+    The finite difference formula used is:
+        d²y/dx²[i] = (y[i+1] - 2*y[i] + y[i-1]) / h²
+
+    where h is the mean sampling interval.
+
+    Commonly used in biomechanics to compute acceleration from
+    position data or jerk from velocity data.
 
     References
     ----------
-    Winter DA. Biomechanics and Motor Control of Human Movement. Fourth Ed. Hoboken, New Jersey: John Wiley & Sons Inc; 2009.
+    Winter, D. A. (2009). Biomechanics and Motor Control of Human Movement.
+    Fourth Edition. Hoboken, NJ: John Wiley & Sons, Inc.
+
+    See Also
+    --------
+    winter_derivative1 : First derivative using Winter's method.
     """
 
     # get x
@@ -344,21 +454,53 @@ def freedman_diaconis_bins(
     y_signal: np.ndarray,
 ) -> np.ndarray:
     """
-    Digitize a 1D signal in bins defined according to the Freedman-Diaconis rule.
+    Digitize signal into bins using the Freedman-Diaconis rule.
+
+    The Freedman-Diaconis rule determines optimal bin width for histograms
+    based on the interquartile range (IQR) and sample size, minimizing
+    integrated mean squared error for density estimation.
 
     Parameters
     ----------
     y_signal : np.ndarray
-        The signal to be digitized.
+        The 1D signal to be digitized.
 
     Returns
     -------
     np.ndarray
-        An array with the same shape as y containing the index of the bin for each sample.
+        Array with the same shape as y_signal, where each element contains
+        the bin index (0-based) for the corresponding sample.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> np.random.seed(42)
+    >>> data = np.random.randn(1000)
+    >>> bins = freedman_diaconis_bins(data)
+    >>> bins.shape
+    (1000,)
+    >>> bins.min(), bins.max()
+    (0.0, ...)
+
+    Notes
+    -----
+    The bin width is calculated as:
+        h = 2 * IQR / n^(1/3)
+
+    where IQR is the interquartile range and n is the sample size.
+
+    This rule is particularly robust to outliers compared to other
+    binning methods like Sturges' rule or Scott's rule.
 
     References
     ----------
-    Freedman D, Diaconis P. (1981) On the histogram as a density estimator: L2 theory. Z. Wahrscheinlichkeitstheorie verw Gebiete 57: 453-476. doi: 10.1007/BF01025868
+    Freedman, D., & Diaconis, P. (1981). On the histogram as a density
+    estimator: L2 theory. Zeitschrift für Wahrscheinlichkeitstheorie und
+    Verwandte Gebiete, 57(4), 453-476. doi: 10.1007/BF01025868
+
+    See Also
+    --------
+    numpy.histogram : Histogram computation with various binning methods.
     """
 
     # y IQR
@@ -387,25 +529,57 @@ def padwin(
     offset: float = 0.5,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-    Pad the signal according to the given order and return the mask of indices defining each window on the signal.
+    Pad signal and generate sliding window indices for filtering operations.
+
+    Creates a padded version of the input signal and corresponding window
+    indices for each sample, enabling efficient implementation of moving
+    window filters (mean, median, RMS, etc.).
 
     Parameters
     ----------
     arr : np.ndarray
-        The signal to be filtered.
+        The 1D signal to be padded.
     order : int, optional
-        The number of samples to be considered as averaging window.
+        Window size (number of samples in each window). Default is 1.
     pad_style : str, optional
-        The type of padding style adopted before filtering.
+        Padding method passed to numpy.pad. Options include 'edge',
+        'constant', 'reflect', 'symmetric', 'wrap'. Default is 'edge'.
     offset : float, optional
-        Value in [0, 1] defining how the averaging window is obtained.
+        Window alignment, value in [0, 1]. Controls where the current
+        sample sits within its window:
+        - 0.0: current sample at window start (causal)
+        - 0.5: current sample at window center (symmetric)
+        - 1.0: current sample at window end (anti-causal)
+        Default is 0.5 (symmetric window).
 
     Returns
     -------
     pad : np.ndarray
-        The padded signal.
+        The padded signal with length len(arr) + padding.
     mask : np.ndarray
-        A 2D mask where each row denotes the indices of one window on the signal.
+        2D array of shape (len(arr), order) where mask[i] contains the
+        indices into the padded signal for the window centered on sample i.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> signal = np.array([1, 2, 3, 4, 5])
+    >>> padded, windows = padwin(signal, order=3, offset=0.5)
+    >>> padded
+    array([1, 1, 2, 3, 4, 5, 5])
+    >>> windows[2]  # Window for sample index 2
+    array([1, 2, 3])
+
+    Notes
+    -----
+    This function is used internally by filtering functions (mean_filt,
+    median_filt, rms_filt) to efficiently apply sliding window operations.
+
+    See Also
+    --------
+    mean_filt : Moving average filter using padwin.
+    median_filt : Moving median filter using padwin.
+    rms_filt : Moving RMS filter using padwin.
     """
     # get the window range
     stop = order - int(np.floor(order * offset)) - 1
@@ -433,27 +607,60 @@ def thresholding_filt(
     offset: float = 0.5,
 ) -> np.ndarray:
     """
-    Apply a thresholding filter where only those values being moving average filter to the signal.
+    Apply adaptive thresholding filter to remove outliers and extreme values.
+
+    Replaces values that deviate excessively from their local neighborhood
+    (defined by a moving window) with the local central tendency. Useful
+    for removing spikes and artifacts while preserving underlying signal shape.
 
     Parameters
     ----------
     arr : np.ndarray
-        The signal to be filtered.
+        The 1D signal to be filtered.
     factor : float or int, optional
-        The factor multiplied by the standard deviation of the window to detect extremes.
+        Threshold multiplier for outlier detection. Values farther than
+        factor × (local spread) from local center are replaced.
+        Default is 3.
     robust : bool, optional
-        If True, use median and MAD; otherwise, use mean and std.
+        If True, use median and MAD (median absolute deviation) for
+        robust statistics less sensitive to outliers.
+        If False, use mean and standard deviation. Default is False.
     order : int, optional
-        The number of samples for the averaging window.
+        Window size for local statistics computation. Default is 3.
     pad_style : str, optional
-        The type of padding style.
+        Padding method for signal edges. Default is 'edge'.
     offset : float, optional
-        Value in [0, 1] defining how the averaging window is obtained.
+        Window alignment in [0, 1]. Default is 0.5 (symmetric).
 
     Returns
     -------
     np.ndarray
-        The filtered signal.
+        Filtered signal with extreme values replaced by local estimates.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> signal = np.array([1.0, 1.1, 10.0, 0.9, 1.0, 1.1])  # Spike at index 2
+    >>> filtered = thresholding_filt(signal, factor=2, order=3)
+    >>> filtered[2] < 5  # Spike should be reduced
+    True
+
+    Notes
+    -----
+    The outlier detection criterion is:
+        |x[i] - center[i]| > factor × spread[i]
+
+    Where center and spread are either:
+    - Non-robust: mean and standard deviation
+    - Robust: median and MAD (median absolute deviation)
+
+    Robust mode is recommended when the signal may contain multiple
+    outliers that could bias mean/std estimates.
+
+    See Also
+    --------
+    padwin : Window padding function used internally.
+    median_filt : Alternative median-based smoothing.
     """
 
     # pad the array
@@ -483,23 +690,53 @@ def mean_filt(
     offset: float = 0.5,
 ) -> np.ndarray:
     """
-    Apply a moving average filter to the signal.
+    Apply moving average (mean) filter to smooth signal.
+
+    Computes the arithmetic mean over a sliding window, effectively
+    implementing a low-pass filter that attenuates high-frequency noise.
+    Uses cumulative sum for O(n) efficiency.
 
     Parameters
     ----------
     arr : np.ndarray
-        The signal to be filtered.
+        The 1D signal to be filtered.
     order : int, optional
-        The number of samples for the averaging window.
+        Window size (number of samples to average). Default is 1.
     pad_style : str, optional
-        The type of padding style.
+        Padding method for signal edges ('edge', 'reflect', etc.).
+        Default is 'edge'.
     offset : float, optional
-        Value in [0, 1] defining how the averaging window is obtained.
+        Window alignment in [0, 1]. 0.5 centers the window on the
+        current sample. Default is 0.5.
 
     Returns
     -------
     np.ndarray
-        The filtered signal.
+        Filtered signal with the same length as input.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> signal = np.array([1, 2, 3, 4, 5])
+    >>> smoothed = mean_filt(signal, order=3)
+    >>> smoothed
+    array([1.33..., 2., 3., 4., 4.66...])
+
+    Notes
+    -----
+    The moving average is a simple FIR filter with impulse response:
+        h[n] = 1/M  for n in [0, M-1], else 0
+
+    where M is the window size (order).
+
+    This implementation uses cumulative sum for efficient O(n) computation
+    rather than naive O(n*M) sliding window iteration.
+
+    See Also
+    --------
+    median_filt : Median-based smoothing filter.
+    rms_filt : Root-mean-square filter.
+    fir_filt : General FIR filter with custom window.
     """
 
     # get the window range
@@ -527,23 +764,55 @@ def median_filt(
     offset: float = 0.5,
 ) -> np.ndarray:
     """
-    Apply a median filter to the signal.
+    Apply moving median filter to signal for robust smoothing.
+
+    Replaces each sample with the median of its local neighborhood,
+    providing robust smoothing that preserves edges and is less
+    sensitive to outliers compared to mean filtering.
 
     Parameters
     ----------
     arr : np.ndarray
-        The signal to be filtered.
+        The 1D signal to be filtered.
     order : int, optional
-        The number of samples for the averaging window.
+        Window size (number of samples). Odd values recommended for
+        symmetric windows. Default is 1.
     pad_style : str, optional
-        The type of padding style.
+        Padding method for signal edges. Default is 'edge'.
     offset : float, optional
-        Value in [0, 1] defining how the averaging window is obtained.
+        Window alignment in [0, 1]. Default is 0.5 (centered).
 
     Returns
     -------
     np.ndarray
-        The filtered signal.
+        Filtered signal with the same length as input.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> signal = np.array([1.0, 1.0, 10.0, 1.0, 1.0])  # Spike
+    >>> filtered = median_filt(signal, order=3)
+    >>> filtered[2]  # Spike removed
+    1.0
+
+    Notes
+    -----
+    Median filtering is particularly effective for:
+    - Removing salt-and-pepper noise
+    - Preserving sharp edges and discontinuities
+    - Robust smoothing in presence of outliers
+
+    Unlike mean filtering, the median is not a linear operation,
+    so it cannot be expressed as convolution with a kernel.
+
+    For large windows or repeated application, consider using
+    scipy.signal.medfilt for potentially better performance.
+
+    See Also
+    --------
+    mean_filt : Moving average filter.
+    thresholding_filt : Adaptive outlier removal.
+    scipy.signal.medfilt : Optimized median filter implementation.
     """
     pad, mask = padwin(arr, order, pad_style, offset)
     return np.array([np.median(pad[i]) for i in mask])
@@ -556,23 +825,53 @@ def rms_filt(
     offset: float = 0.5,
 ) -> np.ndarray:
     """
-    Obtain the root-mean-square of the signal with the given sampling window.
+    Apply moving root-mean-square (RMS) filter to signal.
+
+    Computes the RMS value over a sliding window, commonly used for
+    EMG signal processing, vibration analysis, and power estimation.
+    Uses cumulative sum for efficient O(n) computation.
 
     Parameters
     ----------
     arr : np.ndarray
-        The signal to be filtered.
+        The 1D signal to be filtered.
     order : int, optional
-        The number of samples for the averaging window.
+        Window size (number of samples). Default is 1.
     pad_style : str, optional
-        The type of padding style.
+        Padding method for signal edges. Default is 'edge'.
     offset : float, optional
-        Value in [0, 1] defining how the averaging window is obtained.
+        Window alignment in [0, 1]. Default is 0.5 (centered).
 
     Returns
     -------
     np.ndarray
-        The filtered signal.
+        RMS-filtered signal with the same length as input.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> signal = np.array([1, -1, 1, -1, 1])
+    >>> rms = rms_filt(signal, order=3)
+    >>> np.allclose(rms, 1.0, atol=0.1)
+    True
+
+    Notes
+    -----
+    The RMS is computed as:
+        RMS = sqrt(mean(x²)) = sqrt((1/M) × Σx²)
+
+    where M is the window size (order).
+
+    Common applications:
+    - EMG envelope detection for muscle activation analysis
+    - Vibration signal analysis
+    - AC power/voltage measurements
+    - Signal energy estimation
+
+    See Also
+    --------
+    mean_filt : Moving average filter.
+    tkeo : Teager-Kaiser energy operator for EMG.
     """
 
     # get the window range
@@ -767,23 +1066,64 @@ def cubicspline_interp(
     x_new: np.ndarray | None = None,
 ) -> np.ndarray:
     """
-    Get the cubic spline interpolation of y.
+    Perform cubic spline interpolation on signal data.
+
+    Interpolates signal values using piecewise cubic polynomials that
+    are twice continuously differentiable. Supports both uniform
+    resampling (via nsamp) and arbitrary point interpolation (via x_new).
 
     Parameters
     ----------
     y_old : np.ndarray
-        The data to be interpolated.
+        The 1D signal values to interpolate.
     nsamp : int or None, optional
-        The number of points for the interpolation.
+        Number of uniformly-spaced output samples. If provided,
+        x_old and x_new are ignored and uniform resampling is performed.
+        Default is None.
     x_old : np.ndarray or None, optional
-        The x coordinates corresponding to y. Ignored if nsamp is provided.
+        Independent variable (e.g., time) corresponding to y_old.
+        Required if nsamp is None. Default is None.
     x_new : np.ndarray or None, optional
-        The new x coordinates for interpolation. Ignored if nsamp is provided.
+        Target independent variable values for interpolation.
+        Required if nsamp is None. Default is None.
 
     Returns
     -------
     np.ndarray
-        The interpolated y axis.
+        Interpolated signal values at the requested points.
+
+    Raises
+    ------
+    ValueError
+        If nsamp is None and either x_old or x_new is not provided.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> # Uniform resampling: 10 samples to 100 samples
+    >>> y = np.sin(np.linspace(0, 2*np.pi, 10))
+    >>> y_interp = cubicspline_interp(y, nsamp=100)
+    >>> len(y_interp)
+    100
+
+    >>> # Arbitrary point interpolation
+    >>> x = np.array([0, 1, 2, 3])
+    >>> y = np.array([0, 1, 4, 9])
+    >>> x_new = np.array([0.5, 1.5, 2.5])
+    >>> y_interp = cubicspline_interp(y, x_old=x, x_new=x_new)
+
+    Notes
+    -----
+    Cubic spline interpolation is smooth (C² continuous) and does not
+    exhibit Runge's phenomenon like high-degree polynomial interpolation.
+
+    The spline is constructed to minimize curvature while passing through
+    all data points, making it suitable for smooth biomechanical signals.
+
+    See Also
+    --------
+    fillna : Fill missing values with natural cubic spline interpolation.
+    scipy.interpolate.CubicSpline : Underlying implementation.
     """
 
     # control of the inputs
@@ -873,25 +1213,8 @@ def residual_analysis(
 
     See Also
     --------
-    butterworth_filt : Butterworth filter implementation
-    crossovers : Find intersection points of piecewise linear fits
-    float
-        The suggested cutoff value.
-    np.ndarray
-        The tested frequencies.
-    np.ndarray
-        The residuals corresponding to the given frequency.
-
-    Notes
-    -----
-    The signal is filtered over a range of frequencies and the sum of squared residuals (SSE) against the original signal is computed for each tested cut-off frequency. Next, a series of fitting lines are used to estimate the optimal disruption point defining the cut-off frequency optimally discriminating between noise and good quality signal.
-
-    References
-    ----------
-    Winter DA 2009, Biomechanics and Motor Control of Human Movement. Fourth Ed. John Wiley & Sons Inc, Hoboken, New Jersey (US).
-
-    Lerman PM 1980, Fitting Segmented Regression Models by Grid Search.
-        Appl Stat. 29(1):77.
+    butterworth_filt : Butterworth filter implementation.
+    crossovers : Find intersection points of piecewise linear fits.
     """
 
     # data check
@@ -962,37 +1285,68 @@ def crossovers(
     min_samples: int = 5,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-    Detect the position of the crossing over points between K regression lines used to best fit the data.
+    Find optimal breakpoints for piecewise linear regression.
+
+    Fits K linear segments to data by exhaustively searching breakpoint
+    combinations and selecting the configuration that minimizes total
+    sum of squared errors. Used in residual_analysis for detecting
+    signal-to-noise transition points.
 
     Parameters
     ----------
     arr : np.ndarray
-        The signal to be fitted.
+        The 1D signal to be fitted with piecewise linear segments.
+    x : np.ndarray or None, optional
+        Independent variable values. If None, uses array indices.
+        Default is None.
     segments : int, optional
-        The number of segments for fitting.
+        Number of linear segments to fit. Default is 2.
     min_samples : int, optional
-        The minimum number of elements per segment.
+        Minimum number of samples required per segment. Must be >= 2.
+        Default is 5.
 
     Returns
     -------
-    np.ndarray
-        Indices of the detected crossing over points.
-    np.ndarray
-        Slopes and intercepts of the fitting segments.
+    breakpoints : np.ndarray
+        Array of indices where segments join (crossover points).
+        Length is segments - 1.
+    coefficients : np.ndarray
+        Array of shape (segments, 2) containing [slope, intercept]
+        for each fitted line segment.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> # Create signal with two linear regimes
+    >>> x = np.arange(100)
+    >>> y = np.concatenate([2*x[:50] + 1, 0.5*x[50:] + 76])
+    >>> breakpoints, coefs = crossovers(y, segments=2)
+    >>> breakpoints[0]  # Should be near index 50
+    50
 
     Notes
     -----
-    Steps:
-        1) Get all segment combinations.
-        2) For each, calculate regression lines.
-        3) For each, calculate residuals.
-        4) Sort by residuals.
-        5) Return best combination.
+    Algorithm steps:
+    1. Generate all valid breakpoint combinations
+    2. Fit linear regression to each segment for each combination
+    3. Compute total sum of squared errors for each combination
+    4. Return breakpoints and coefficients with minimum error
+
+    Computational complexity is O(C × n), where C is the number of
+    valid combinations (grows combinatorially with segments).
+
+    For many segments or long signals, consider hierarchical methods
+    or dynamic programming approaches.
 
     References
     ----------
-    Lerman PM 1980, Fitting Segmented Regression Models by Grid Search.
-    Appl Stat. 29(1):77.
+    Lerman, P. M. (1980). Fitting Segmented Regression Models by Grid
+    Search. Applied Statistics, 29(1), 77-84.
+
+    See Also
+    --------
+    residual_analysis : Uses crossovers to find optimal filter cutoff.
+    _sse : Helper function computing segmented regression error.
     """
 
     # control the inputs
@@ -1048,21 +1402,56 @@ def psd(
     fsamp: float | int = 1.0,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-    Compute the power spectrum of signal using FFT.
+    Compute power spectral density using FFT periodogram method.
+
+    Estimates the distribution of signal power across frequencies using
+    the Fast Fourier Transform. The DC component and Nyquist frequency
+    are handled appropriately for accurate power computation.
 
     Parameters
     ----------
     arr : np.ndarray
-        A 1D numpy array.
+        The 1D signal to analyze.
     fsamp : float or int, optional
-        The sampling frequency (Hz) of the signal.
+        Sampling frequency of the signal in Hz. Default is 1.0.
 
     Returns
     -------
-    np.ndarray
-        The frequency corresponding to each element of power.
-    np.ndarray
-        The power of each frequency.
+    frequencies : np.ndarray
+        Frequency bins from 0 to Nyquist frequency (fsamp/2) in Hz.
+    power : np.ndarray
+        Power spectral density at each frequency bin.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> # Generate 10 Hz sine wave sampled at 100 Hz
+    >>> t = np.linspace(0, 1, 100, endpoint=False)
+    >>> signal = np.sin(2 * np.pi * 10 * t)
+    >>> freq, power = psd(signal, fsamp=100)
+    >>> peak_freq = freq[np.argmax(power)]
+    >>> np.isclose(peak_freq, 10, atol=1)
+    True
+
+    Notes
+    -----
+    The power is computed as the squared magnitude of the FFT:
+        P[k] = |FFT[k]|²
+
+    The DC component (k=0) and Nyquist frequency are not doubled,
+    while all other frequency bins are multiplied by 2 to account
+    for the negative frequency components not shown in the one-sided
+    spectrum.
+
+    This is a simple periodogram estimator and may have high variance.
+    For smoother estimates, consider using scipy.signal.welch or
+    scipy.signal.periodogram with appropriate windowing.
+
+    See Also
+    --------
+    residual_analysis : Uses PSD to determine default maximum frequency.
+    scipy.signal.periodogram : Periodogram with windowing options.
+    scipy.signal.welch : Welch's method for reduced-variance PSD estimation.
     """
 
     # get the psd
@@ -1080,21 +1469,52 @@ def crossings(
     value: int | float = 0.0,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-    Detect the crossing points in arr compared to value.
+    Detect threshold crossing points in a signal.
+
+    Identifies sample indices where the signal crosses a specified value,
+    transitioning from below to above (positive crossing) or above to
+    below (negative crossing). Useful for event detection, gait analysis,
+    and zero-crossing detection.
 
     Parameters
     ----------
     arr : np.ndarray
-        The 1D signal from which the crossings have to be found.
+        The 1D signal to analyze.
     value : int or float, optional
-        The crossing value.
+        Threshold value for crossing detection. Default is 0.0 (zero-crossing).
 
     Returns
     -------
-    np.ndarray
-        The samples corresponding to the crossings.
-    np.ndarray
-        The sign of the crossings.
+    indices : np.ndarray
+        Sample indices immediately before each crossing (integer array).
+    directions : np.ndarray
+        Crossing direction at each index:
+        +1 for upward crossing (from below to above threshold)
+        -1 for downward crossing (from above to below threshold)
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> signal = np.array([1, 2, 1, -1, -2, 1, 2])
+    >>> indices, directions = crossings(signal, value=0)
+    >>> indices
+    array([1, 4])
+    >>> directions  # Downward then upward
+    array([-1,  1])
+
+    Notes
+    -----
+    The crossing is detected when the sign of (arr - value) changes
+    between consecutive samples. The returned index is the last sample
+    before the crossing occurred.
+
+    For accurate crossing time estimation, consider interpolating
+    between arr[i] and arr[i+1] to find the exact crossing point.
+
+    See Also
+    --------
+    find_peaks : Detect local maxima in signals.
+    continuous_batches : Identify contiguous regions above/below threshold.
     """
 
     # get the sign of the signal without the offset
@@ -1114,25 +1534,71 @@ def xcorr(
     full: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-    Set the (multiple) auto/cross correlation of the data in y.
+    Compute auto-correlation or cross-correlation of signals.
+
+    Calculates the correlation between sig1 and sig2 (or sig1 with itself)
+    as a function of time lag, using FFT-based convolution for efficiency.
+    Useful for detecting periodic patterns, time delays, and signal similarity.
 
     Parameters
     ----------
     sig1 : np.ndarray
-        The signal for auto/cross-correlation.
+        The first signal (1D array).
     sig2 : np.ndarray or None, optional
-        The second signal for cross-correlation. If None, autocorrelation is computed.
+        The second signal for cross-correlation. If None, computes
+        auto-correlation of sig1 with itself. Default is None.
     biased : bool, optional
-        If True, use the biased estimator.
+        If True, use biased normalization (divide by signal length).
+        If False, use unbiased normalization (divide by number of
+        overlapping samples at each lag). Default is False.
     full : bool, optional
-        If True, report negative lags.
+        If True, return correlation for both positive and negative lags.
+        If False, return only non-negative lags. Default is False.
 
     Returns
     -------
-    np.ndarray
-        The auto/cross-correlation value.
-    np.ndarray
-        The lags in sample units.
+    correlation : np.ndarray
+        Correlation values at each lag.
+    lags : np.ndarray
+        Time lags in sample units corresponding to each correlation value.
+        Range is [-N+1, N-1] if full=True, else [0, N-1].
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> # Auto-correlation of periodic signal
+    >>> t = np.arange(100)
+    >>> signal = np.sin(2 * np.pi * 0.1 * t)
+    >>> corr, lags = xcorr(signal)
+    >>> peak_lag = lags[np.argmax(corr[1:])]  # Ignore lag=0
+    >>> np.isclose(peak_lag, 10, atol=1)  # Period is 10 samples
+    True
+
+    >>> # Cross-correlation for time delay estimation
+    >>> sig1 = np.array([0, 0, 1, 2, 1, 0])
+    >>> sig2 = np.array([1, 2, 1, 0, 0, 0])  # sig1 shifted by 2
+    >>> corr, lags = xcorr(sig1, sig2)
+    >>> delay = lags[np.argmax(corr)]
+    >>> delay
+    2
+
+    Notes
+    -----
+    Auto-correlation (sig2=None):
+        R[k] = Σ x[n] × x[n+k]
+
+    Cross-correlation (sig2 provided):
+        R[k] = Σ x[n] × y[n+k]
+
+    If signals have different lengths, the shorter is zero-padded.
+
+    Unbiased normalization (biased=False) divides by (N - |k|),
+    reducing variance but potentially introducing bias near endpoints.
+
+    See Also
+    --------
+    scipy.signal.correlate : Alternative correlation implementation.
+    numpy.correlate : Basic correlation without normalization.
     """
 
     # take the autocorrelation if only y is provided
@@ -1303,7 +1769,7 @@ def fillna(
     arr: np.ndarray | DataFrame | Series,
     value: float | int | np.ndarray | list | tuple | None = None,
     mice: bool = False,
-    max_iter: int = 10,
+    max_iter: int = 50,
     random_state: int | None = None,
     inplace: bool = False,
 ):
@@ -1341,7 +1807,7 @@ def fillna(
     mice : bool, default=False
         If True and value is None, use IterativeImputer.
 
-    max_iter : int, default=10
+    max_iter : int, default=50
         Number of MICE iterations.
 
     random_state : int | None, default=None
@@ -1378,32 +1844,25 @@ def fillna(
     # ------------------------------------------------------------------
 
     if isinstance(arr, np.ndarray):
-
         arr_float = arr.astype(float)
-
         if arr_float.ndim == 1:
-
             obj = DataFrame(
                 arr_float.reshape(-1, 1),
                 columns=["Y"],
             )
-
         else:
-
             obj = DataFrame(
                 arr_float,
                 columns=[f"Y{i}" for i in range(arr_float.shape[1])],
             )
 
     elif isinstance(arr, Series):
-
         obj = DataFrame(
             arr.astype(float),
             columns=["Y"],
         )
 
     else:
-
         obj = arr.copy().astype(float)
 
     # ------------------------------------------------------------------
@@ -1411,11 +1870,11 @@ def fillna(
     # ------------------------------------------------------------------
 
     if not obj.isna().values.any():
-
         if inplace:
             return None
-
         return arr.copy()
+
+    filled = obj.copy()
 
     # ==================================================================
     # PRIORITY 1
@@ -1423,9 +1882,7 @@ def fillna(
     # ==================================================================
 
     if value is not None:
-
         value_array = np.asarray(value)
-
         if np.isnan(value_array.astype(float)).any():
             raise ValueError("'value' cannot contain NaN values.")
 
@@ -1434,50 +1891,40 @@ def fillna(
         # --------------------------------------------------------------
 
         if value_array.ndim == 0:
-
-            filled = obj.fillna(float(value_array))
+            filled.iloc[:, :] = np.nan_to_num(filled.to_numpy(), nan=float(value_array))
 
         # --------------------------------------------------------------
         # Shape (n_columns,)
         # --------------------------------------------------------------
 
         elif value_array.ndim == 1 and value_array.size == obj.shape[1]:
-
-            filled = obj.copy()
-
             for i, col in enumerate(filled.columns):
-
-                filled[col] = filled[col].fillna(float(value_array[i]))
+                filled.iloc[:, i] = np.nan_to_num(
+                    filled[col].to_numpy(), nan=float(value_array[i])
+                )
 
         # --------------------------------------------------------------
         # Shape (1, n_columns)
         # --------------------------------------------------------------
 
         elif value_array.ndim == 2 and value_array.shape == (1, obj.shape[1]):
-
-            filled = obj.copy()
-
             for i, col in enumerate(filled.columns):
-
-                filled[col] = filled[col].fillna(float(value_array[0, i]))
+                filled.iloc[:, i] = np.nan_to_num(
+                    filled[col].to_numpy(), nan=float(value_array[0, i])
+                )
 
         # --------------------------------------------------------------
         # Shape == arr.shape
         # --------------------------------------------------------------
 
         elif value_array.shape == obj.shape:
-
-            filled = obj.copy()
-
             mask = filled.isna()
-
             filled = filled.where(
                 ~mask,
                 value_array,  # type: ignore
             )
 
         else:
-
             raise ValueError(
                 "Invalid shape for 'value'. Accepted shapes are:\n"
                 "- scalar\n"
@@ -1491,7 +1938,7 @@ def fillna(
     # MICE
     # ==================================================================
 
-    elif mice:
+    if mice and filled.isna().values.any():
 
         filled = DataFrame(
             IterativeImputer(
@@ -1501,6 +1948,8 @@ def fillna(
                 initial_strategy="median",
                 imputation_order="ascending",
                 skip_complete=True,
+                # keep_empty_features=True,
+                # sample_posterior=True,
             ).fit_transform(obj),
             index=obj.index,
             columns=obj.columns,
@@ -1511,36 +1960,26 @@ def fillna(
     # NATURAL CUBIC SPLINE
     # ==================================================================
 
-    else:
-
-        filled = obj.copy()
+    if filled.isna().values.any():
 
         for col in filled.columns:
-
             values = filled[col].to_numpy(dtype=float)
-
             x_new = np.where(np.isnan(values))[0]
-
             if len(x_new) == 0:
                 continue
-
             x_old = np.where(~np.isnan(values))[0]
-
             if len(x_old) == 0:
-
                 warnings.warn(
                     f"Column '{col}' contains only NaN values "
                     f"and cannot be interpolated.",
                     RuntimeWarning,
                 )
-
                 continue
 
             if len(x_old) < 2:
                 continue
 
             try:
-
                 spline = CubicSpline(
                     x_old,
                     values[x_old],
@@ -1561,27 +2000,20 @@ def fillna(
     # ------------------------------------------------------------------
 
     out = filled.to_numpy(dtype=float).reshape(original_shape)
-
     if isinstance(arr, np.ndarray):
-
         if inplace:
             arr[:] = out
             return None
-
         return out
 
     if isinstance(arr, Series):
-
         result = filled.iloc[:, 0]
-
         if inplace:
             arr.loc[:] = result.values
             return None
-
         return result
 
     if inplace:
-
         arr.loc[:, :] = out
         return None
 
@@ -1592,17 +2024,61 @@ def tkeo(
     arr: np.ndarray,
 ) -> np.ndarray:
     """
-    Obtain the discrete Teager-Keiser Energy of the input signal.
+    Compute Teager-Kaiser Energy Operator for signal energy estimation.
+
+    The TKEO is a nonlinear operator sensitive to both amplitude and
+    frequency changes, making it effective for detecting transient events,
+    muscle activation in EMG signals, and instantaneous energy estimation.
 
     Parameters
     ----------
     arr : np.ndarray
-        A 1D input signal.
+        The 1D input signal.
 
     Returns
     -------
     np.ndarray
-        The Teager-Keiser energy.
+        Teager-Kaiser energy with the same length as input.
+        Edge values are repeated from the first/last computed value.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> # Constant amplitude sine wave
+    >>> t = np.linspace(0, 1, 100)
+    >>> signal = np.sin(2 * np.pi * 10 * t)
+    >>> energy = tkeo(signal)
+    >>> np.all(energy >= 0)  # TKEO is non-negative for most signals
+    True
+
+    Notes
+    -----
+    The discrete TKEO is defined as:
+        Ψ[x[n]] = x[n]² - x[n+1] × x[n-1]
+
+    For a sinusoidal signal x[n] = A×cos(ωn + φ), the TKEO approximates:
+        Ψ[x[n]] ≈ A² × ω²
+
+    making it proportional to both amplitude² and frequency².
+
+    Common applications:
+    - EMG onset detection (muscle activation)
+    - Speech signal analysis
+    - Bearing fault detection in vibration signals
+    - Transient event detection
+
+    References
+    ----------
+    Kaiser, J. F. (1990). On a simple algorithm to calculate the
+    'energy' of a signal. Proceedings of ICASSP-90, 381-384.
+
+    Li, X., Zhou, P., & Aruin, A. S. (2007). Teager-Kaiser energy
+    operation of surface EMG improves muscle activity onset detection.
+    Annals of Biomedical Engineering, 35(9), 1532-1538.
+
+    See Also
+    --------
+    rms_filt : Alternative energy estimation using RMS.
     """
     out = arr[1:-1] ** 2 - arr[2:] * arr[:-2]
     return np.concatenate([[out[0]], out, [out[-1]]]).astype(float)
@@ -1616,28 +2092,99 @@ def to_reference_frame(
     axis3: np.ndarray | list[float | int] = [0, 0, 1],
 ) -> DataFrame | np.ndarray:
     """
-    Rotate a 3D array or dataframe to the provided reference frame.
+    Transform 3D data to a specified reference frame coordinate system.
+
+    Applies translation and rotation to express 3D point coordinates in
+    a custom reference frame defined by origin and axis orientations.
+    Common in biomechanics for transforming marker data from laboratory
+    to anatomical coordinate systems.
 
     Parameters
     ----------
     obj : DataFrame or np.ndarray
-        The 3D array or dataframe to be rotated.
-    origin : np.ndarray or list, optional
-        Coordinates of the target origin.
-    axis1 : np.ndarray or list, optional
-        Orientation of the first axis of the new reference frame.
-    axis2 : np.ndarray or list, optional
-        Orientation of the second axis of the new reference frame.
-    axis3 : np.ndarray or list, optional
-        Orientation of the third axis of the new reference frame.
+        3D data to transform. Must be shape (N, 3) where columns/axes
+        represent [X, Y, Z] coordinates.
+    origin : np.ndarray or list of float or int, optional
+        3D coordinates [x, y, z] of the new reference frame's origin
+        in the current coordinate system. Default is [0, 0, 0].
+    axis1 : np.ndarray or list of float or int, optional
+        Direction vector [x, y, z] defining the first axis of the
+        new reference frame. Default is [1, 0, 0] (X-axis).
+    axis2 : np.ndarray or list of float or int, optional
+        Direction vector [x, y, z] defining the second axis of the
+        new reference frame. Default is [0, 1, 0] (Y-axis).
+    axis3 : np.ndarray or list of float or int, optional
+        Direction vector [x, y, z] defining the third axis of the
+        new reference frame. Default is [0, 0, 1] (Z-axis).
 
     Returns
     -------
     DataFrame or np.ndarray
-        The rotated data.
+        Transformed data in the new reference frame. Output type
+        matches input type (DataFrame or ndarray).
+
+    Raises
+    ------
+    ValueError
+        If obj is not a valid 3D dataset (shape[1] != 3), or if
+        origin/axis vectors cannot be converted to length-3 arrays.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> import pandas as pd
+    >>> # Transform points to a new reference frame
+    >>> points = np.array([[1, 2, 3], [4, 5, 6]])
+    >>> transformed = to_reference_frame(
+    ...     points,
+    ...     origin=[1, 1, 1],
+    ...     axis1=[1, 0, 0],
+    ...     axis2=[0, 1, 0],
+    ...     axis3=[0, 0, 1]
+    ... )
+    >>> transformed
+    array([[0., 1., 2.],
+           [3., 4., 5.]])
+
+    Notes
+    -----
+    Transformation steps:
+    1. Translate: subtract origin from all points
+    2. Rotate: apply rotation matrix derived from axis1, axis2, axis3
+       using Gram-Schmidt orthonormalization
+
+    The axes need not be orthonormal initially; gram_schmidt() is
+    applied internally to construct a proper rotation matrix.
+
+    Common use case: Transform motion capture markers from global
+    lab coordinates to a local anatomical reference frame defined
+    by bony landmarks.
+
+    See Also
+    --------
+    gram_schmidt : Construct orthonormal basis from axis vectors.
+    scipy.spatial.transform.Rotation : Rotation matrix operations.
     """
 
     def _validate_array(arr: object):
+        """
+        Validate and convert input to 3-element float array.
+
+        Parameters
+        ----------
+        arr : object
+            Input to validate (should be array-like with 3 elements).
+
+        Returns
+        -------
+        np.ndarray
+            Validated 1D array of length 3.
+
+        Raises
+        ------
+        ValueError
+            If arr cannot be converted to a length-3 float array.
+        """
         msg = "origin, axis1, axis2 and axis3 have to be"
         msg += " castable to 1D arrays of len = 3."
         try:

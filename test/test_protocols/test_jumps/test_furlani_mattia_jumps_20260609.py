@@ -86,6 +86,7 @@ def test_mattia_furlani_jump_tests():
             left_first_metatarsal_head="LMMET",
             right_toe="RTOE",
             left_toe="LTOE",
+            keep_all_data=False,
         )
 
         # save the test

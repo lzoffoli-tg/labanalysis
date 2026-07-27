@@ -65,6 +65,7 @@ class TestProtocol(Protocol):
         emg_activation_references: Record = Record(),
         emg_activation_threshold: float = 3,
         relevant_muscle_map: list[str] | None = None,
+        keep_all_data: bool = True,
     ):
         self.set_participant(participant)
         self.set_normative_data(normative_data)
@@ -73,6 +74,7 @@ class TestProtocol(Protocol):
         self.set_emg_activation_references(emg_activation_references)
         self.set_emg_normalization_function(emg_normalization_function)
         self.set_emg_normalization_references(emg_normalization_references)
+        self.set_keep_all_data(keep_all_data)
 
     def __setstate__(self, state):
         """
@@ -101,6 +103,24 @@ class TestProtocol(Protocol):
             self._relevant_muscle_map = muscle_map
         else:
             raise ValueError("muscle_map must be None or a list of muscle names.")
+
+    def set_keep_all_data(self, value: bool):
+        """
+        set the keep all data attribute
+
+        Parameters
+        ----------
+        value: bool
+            the attribute to be set.
+        """
+        if not isinstance(value, bool):
+            raise ValueError("keep all data must be True or False")
+        self._keep_all_data = value
+
+    @property
+    def keep_all_data(self):
+        """return the keep_all_data attribute"""
+        return self._keep_all_data
 
     @property
     def relevant_muscle_map(self):

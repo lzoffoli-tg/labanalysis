@@ -2,6 +2,11 @@ scikit-learn
 plotly
 pandas
 pint
+kaleido
+openpyxl
 torch
+nbconvert
+jinja2
+tqdm
 git+https://github.com/lzoffoli-tg/onnxmodels.git
 git+https://github.com/lzoffoli-tg/biostrengthdataconverter.git

@@ -1,18 +1,30 @@
-"""Drop jump exercise module."""
+"""
+Drop jump exercise analysis module.
+
+This module provides the DropJump class for analyzing plyometric drop jumps
+from elevated surfaces. Emphasizes reactive strength index (RSI) and fast
+stretch-shortening cycle performance evaluation.
+"""
+
+from pathlib import Path
+from typing import Literal
+
+import numpy as np
+import pandas as pd
 
 from ...constants import MINIMUM_CONTACT_FORCE_N
 from ...signalprocessing import continuous_batches
 from ...records.body import WholeBody
 from ...records import ForcePlatform
 from ...timeseries import Signal1D, Signal3D, EMGSignal, Point3D
-from .single_jump import SingleJump
+from .counter_movement_jump import CounterMovementJump
 
 
-class DropJump(SingleJump):
+class DropJump(CounterMovementJump):
     """
     Drop jump exercise for plyometric assessment and reactive strength analysis.
 
-    DropJump extends SingleJump to model drop jumps from elevated surfaces,
+    DropJump extends CounterMovementJump to model drop jumps from elevated surfaces,
     adding landing phase detection and specific metrics for reactive strength
     index (RSI) and fast stretch-shortening cycle performance. The class
     automatically identifies the box drop landing, subsequent ground contact,
@@ -53,7 +65,7 @@ class DropJump(SingleJump):
     reactive_strength_index : float
         RSI = jump_height / contact_time (unitless performance metric).
 
-    Properties (Inherited from SingleJump)
+    Properties (Inherited from CounterMovementJump)
     --------------------------------------
     bodymass_kg : float
         Participant's body mass.
@@ -125,31 +137,11 @@ class DropJump(SingleJump):
     JumpTest : Complete jump testing protocol.
     """
 
-    @property
-    def landing_phase(self):
-        """
-        Returns the landing phase of the drop jump.
-        """
-        grf = self.resultant_force
-        if grf is None:
-            return None
-        vgrf = grf.force[self.vertical_axis]
-        flight_phase = self.flight_phase
-        if flight_phase is None:
-            return None
-
-        mask = vgrf.to_numpy().flatten() > MINIMUM_CONTACT_FORCE_N
-        mask &= vgrf.index > flight_phase.index[-1]
-        batch = continuous_batches(mask)
-        if len(batch) == 0:
-            return None
-
-        return WholeBody(**{k: v.copy().iloc[batch, :] for k, v in self.items()})
-
     def __init__(
         self,
         box_height_cm: float,
         bodymass_kg: float | None,
+        side: Literal["bilateral", "left", "right"] | None = None,
         free_hands: bool = False,
         left_hand_ground_reaction_force: ForcePlatform | None = None,
         right_hand_ground_reaction_force: ForcePlatform | None = None,
@@ -202,11 +194,15 @@ class DropJump(SingleJump):
         head_right: Point3D | None = None,
         **signals: Signal1D | Signal3D | EMGSignal | Point3D | ForcePlatform,
     ):
-        """Initialize a DropJump object."""
+        """
+        Initialize a DropJump object.
+
+        See class docstring for detailed parameter descriptions.
+        """
         super().__init__(
             bodymass_kg=bodymass_kg,
+            side=side,
             free_hands=free_hands,
-            straight_legs=False,
             left_hand_ground_reaction_force=left_hand_ground_reaction_force,
             right_hand_ground_reaction_force=right_hand_ground_reaction_force,
             left_foot_ground_reaction_force=left_foot_ground_reaction_force,
@@ -263,6 +259,16 @@ class DropJump(SingleJump):
     def set_box_height_cm(self, box_height_cm: float):
         """
         Set the box height in centimeters.
+
+        Parameters
+        ----------
+        box_height_cm : float or int
+            Height of the drop box in centimeters. Must be positive.
+
+        Raises
+        ------
+        ValueError
+            If box_height_cm is not a float or int.
         """
         # check box height
         if not isinstance(box_height_cm, (float, int)):
@@ -272,19 +278,157 @@ class DropJump(SingleJump):
     @property
     def box_height_cm(self):
         """
-        Returns the box height in centimeters.
+        Get the drop box height.
+
+        Returns
+        -------
+        float
+            Height of the drop box in centimeters.
+
+        Notes
+        -----
+        Box height is a critical parameter for drop jump interpretation:
+        - Higher boxes increase impact forces and SSC demands
+        - Optimal height maximizes RSI (reactive strength index)
+        - Heights above individual optimum reduce performance
+
+        See Also
+        --------
+        set_box_height_cm : Set the box height value.
+        reactive_strength_index : Performance metric influenced by box height.
         """
         return self._box_height_cm
+
+    @property
+    def landing_phase(self):
+        """
+        Get the landing phase of the drop jump.
+
+        Returns
+        -------
+        WholeBody or None
+            Data segment from box drop landing to end of initial ground contact,
+            or None if counter-movement phase cannot be determined.
+
+        Notes
+        -----
+        The landing phase occurs before the main contact phase and represents
+        the initial impact absorption after dropping from the box. This phase
+        is critical for understanding:
+        - Impact forces during box drop landing
+        - Eccentric loading prior to main propulsion
+        - Landing technique and shock absorption strategies
+
+        Detection algorithm:
+        1. Identify counter-movement phase start (main contact start)
+        2. Landing phase = from initial data to counter-movement start
+
+        Raises
+        ------
+        RuntimeError
+            If no landing phase is found (counter-movement starts at data start).
+
+        See Also
+        --------
+        counter_movement_phase : Main eccentric phase after landing.
+        contact_phase : Full ground contact from landing to takeoff.
+        """
+        cmp = self.counter_movement_phase
+        if cmp is None:
+            return None
+        t1 = cmp.index[0]
+        t0 = self.index[0]
+        if t0 >= t1:
+            raise RuntimeError("no landing phase was found")
+
+        return WholeBody(
+            **{
+                k: v.copy().loc[(v.index >= t0) & (v.index < t1)]
+                for k, v in self.items()
+            }
+        )
+
+    @property
+    def reactive_strength_index(self):
+        """
+        Calculate reactive strength index (RSI).
+
+        Returns
+        -------
+        float or None
+            RSI in cm/s (jump height in cm / contact time in seconds),
+            or None if jump height or contact time cannot be determined.
+
+        Notes
+        -----
+        RSI is the primary performance metric for drop jumps, representing
+        the ability to rapidly produce force during fast SSC actions:
+
+            RSI = jump_height (cm) / contact_time (s)
+
+        Higher RSI indicates:
+        - Superior reactive strength
+        - Better elastic energy utilization
+        - More effective fast SSC performance
+
+        RSI is sensitive to both jump height (performance) and contact time
+        (speed), making it more comprehensive than jump height alone for
+        plyometric assessment.
+
+        Examples
+        --------
+        >>> dj = DropJump.from_tdf("trial.tdf", bodymass_kg=75, box_height_cm=40)
+        >>> rsi = dj.reactive_strength_index
+        >>> print(f"RSI: {rsi:.2f} cm/s")
+        RSI: 2.35 cm/s
+
+        See Also
+        --------
+        jump_height : Numerator of RSI calculation.
+        contact_time : Denominator of RSI calculation.
+        box_height_cm : Drop height affecting RSI.
+        """
+        return self.elevation / self.contact_time * 100
+
+    @property
+    def output_metrics(self):
+        new = pd.DataFrame(
+            [
+                {
+                    "type": self.name,
+                    "free hands": self.free_hands,
+                    "side": self.side,
+                    "metric": "contact time",
+                    "unit": "ms",
+                    "value": self.contact_time * 1000,
+                },
+                {
+                    "type": self.name,
+                    "free hands": self.free_hands,
+                    "side": self.side,
+                    "metric": "reactive strength index",
+                    "unit": "cm/s",
+                    "value": self.reactive_strength_index,
+                },
+            ]
+        )
+        out = pd.concat([super().output_metrics, new], ignore_index=True)
+        out.insert(1, "box height", self.box_height_cm)
+        out.loc[out.index, "free hands"] = self.free_hands
+        out.loc[out.index, "side"] = self.side
+        out.loc[out.index, "type"] = self.name
+        return out.sort_values(["metric", "side", "free hands", "box height"])
 
     @classmethod
     def from_tdf(
         cls,
-        filename: str,
+        filename: str | Path,
         box_height_cm: float,
         bodymass_kg: float | int | None,
-        left_foot_ground_reaction_force: str | None,
-        right_foot_ground_reaction_force: str | None,
         free_hands: bool = False,
+        side: Literal["bilateral", "left", "right"] | None = None,
+        left_foot_ground_reaction_force: str | None = None,
+        right_foot_ground_reaction_force: str | None = None,
         left_hand_ground_reaction_force: str | None = None,
         right_hand_ground_reaction_force: str | None = None,
         left_heel: str | None = None,
@@ -333,7 +477,72 @@ class DropJump(SingleJump):
         head_left: str | None = None,
         head_right: str | None = None,
     ):
-        """Create a DropJump object from a TDF file."""
+        """
+        Create DropJump instance from BTS Bioengineering TDF file.
+
+        Parameters
+        ----------
+        filename : str or Path
+            Path to the TDF file containing drop jump trial data.
+        box_height_cm : float
+            Height of the drop box in centimeters (required parameter).
+        bodymass_kg : float, int, or None
+            Participant's body mass in kilograms. Required for kinetic analysis.
+        left_foot_ground_reaction_force : str or None
+            Label for left foot force platform in TDF file.
+        right_foot_ground_reaction_force : str or None
+            Label for right foot force platform in TDF file.
+        free_hands : bool, optional
+            Whether hands were free during the jump. Default is False.
+        left_hand_ground_reaction_force : str or None, optional
+            Label for left hand force platform in TDF file. Default is None.
+        right_hand_ground_reaction_force : str or None, optional
+            Label for right hand force platform in TDF file. Default is None.
+        **marker_labels : str or None, optional
+            Labels for anatomical markers in TDF file (same as SquatJump).
+
+        Returns
+        -------
+        DropJump
+            Initialized DropJump instance with data loaded from TDF file.
+
+        Notes
+        -----
+        Drop jump protocol considerations:
+        - Box height should be recorded accurately for RSI interpretation
+        - Multiple trials at different heights help identify optimal drop height
+        - Participant should step off box (not jump up first)
+        - Landing technique affects impact forces and performance
+
+        Standard protocol variations:
+        - Depth jump: Emphasis on maximum height
+        - Drop jump: Emphasis on minimum contact time
+        - Reactive drop jump: Emphasis on RSI (balanced height/time)
+
+        See Also
+        --------
+        CounterMovementJump.from_tdf : Parent class TDF loading.
+        reactive_strength_index : Primary performance metric.
+
+        Examples
+        --------
+        >>> # Single drop height
+        >>> dj = DropJump.from_tdf(
+        ...     "dj_30cm.tdf",
+        ...     box_height_cm=30,
+        ...     bodymass_kg=75,
+        ...     left_foot_ground_reaction_force="FP1",
+        ...     right_foot_ground_reaction_force="FP2",
+        ...     s2="S2"
+        ... )
+        >>> print(f"RSI at 30cm: {dj.reactive_strength_index:.2f}")
+
+        >>> # Multiple heights for optimal height determination
+        >>> heights = [20, 30, 40, 50]
+        >>> for h in heights:
+        ...     dj = DropJump.from_tdf(f"dj_{h}cm.tdf", box_height_cm=h, ...)
+        ...     print(f"{h}cm: RSI = {dj.reactive_strength_index:.2f}")
+        """
         record = WholeBody.from_tdf(
             filename,
             left_hand_ground_reaction_force=left_hand_ground_reaction_force,
@@ -390,40 +599,9 @@ class DropJump(SingleJump):
             box_height_cm=box_height_cm,
             bodymass_kg=bodymass_kg,
             free_hands=free_hands,
+            side=side,
             **{i: v for i, v in record.items()},  # type: ignore
         )
-
-    def copy(self):
-        """
-        Create a deep copy of this DropJump, preserving custom attributes.
-
-        Returns
-        -------
-        DropJump
-            A new DropJump instance with copies of all signals and attributes.
-
-        Notes
-        -----
-        This method follows the same pattern as EMGSignal and Record,
-        explicitly passing custom non-signal attributes
-        (box_height_cm, bodymass_kg, free_hands) to the constructor while
-        copying all signal data.
-        """
-        return DropJump(
-            box_height_cm=self.box_height_cm,
-            bodymass_kg=self.bodymass_kg,
-            free_hands=self.free_hands,
-            **{i: v.copy() for i, v in self.items()},  # type: ignore
-        )
-
-    @property
-    def reactive_strength_index(self):
-        """return rsi in cm/s"""
-        jump_height = self.jump_height
-        contact_time = self.contact_time
-        if jump_height is None or contact_time is None:
-            return None
-        return jump_height * 100 / contact_time
 
 
 __all__ = ["DropJump"]

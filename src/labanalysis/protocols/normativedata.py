@@ -91,37 +91,45 @@ plankbalance_normative_values = pd.DataFrame(
 # jumps normative values
 _male_jumps_normative_values = pd.DataFrame(
     [
-        ["repeated jumps", "Male", "bilateral", "rsi (cm/s)", 110, 47],
-        ["repeated jumps", "Male", "bilateral", "elevation (cm)", 36.5, 10.5],
-        ["repeated jumps", "Male", "bilateral", "contact time (ms)", 235, 34],
-        ["repeated jumps", "Male", "unilateral", "elevation (cm)", 19.0, 6.2],
-        ["repeated jumps", "Male", "unilateral", "rsi (cm/s)", 43, 12],
-        ["repeated jumps", "Male", "unilateral", "contact time (ms)", 350, 60],
-        ["squat jump", "Male", "bilateral", "elevation (cm)", 35.0, 9.4],
-        ["counter movement jump - free hands", "Male", "bilateral", "elevation (cm)", 41.5, 12.1],
-        ["counter movement jump", "Male", "bilateral", "elevation (cm)", 36.5, 10.5],
-        ["counter movement jump", "Male", "unilateral", "elevation (cm)", 19.0, 6.2],
-        ["drop jump (40cm)", "Male", "bilateral", "rsi (cm/s)", 120, 30],
-        ["drop jump (40cm)", "Male", "bilateral", "elevation (cm)", 28.0, 6.0],
-        ["drop jump (40cm)", "Male", "bilateral", "contact time (ms)", 235, 34],
-        ["drop jump (40cm)", "Male", "unilateral", "rsi (cm/s)", 43, 12],
-        ["drop jump (40cm)", "Male", "unilateral", "elevation (cm)", 14.4, 3.1],
-        ["drop jump (40cm)", "Male", "unilateral", "contact time (ms)", 350, 60],
-        ["drop jump (40cm)", "Male", "bilateral", "activation ratio", 100, 25],
-        ["drop jump (40cm)", "Male", "unilateral", "activation ratio", 100, 25],
-        ["drop jump (40cm)", "Male", "bilateral", "activation time (ms)", -80, 60],
-        ["drop jump (40cm)", "Male", "unilateral", "activation time (ms)", -80, 60],
+        ["SingleJump", "male", "bilateral", "reactive strength index", "cm/s", 110, 47],
+        ["SingleJump", "male", "bilateral", "elevation", "cm", 36.5, 10.5],
+        ["SingleJump", "male", "bilateral", "contact time", "ms", 235, 34],
+        ["SingleJump", "male", "unilateral", "elevation", "cm", 19.0, 6.2],
+        ["SingleJump", "male", "unilateral", "rsi", "cm/s", 43, 12],
+        ["SingleJump", "male", "unilateral", "contact time", "ms", 350, 60],
+        ["SquatJump", "male", "bilateral", "elevation", "cm", 35.0, 9.4],
+        [
+            "CounterMovementJump - free hands",
+            "male",
+            "bilateral",
+            "elevation",
+            "cm",
+            41.5,
+            12.1,
+        ],
+        ["CounterMovementJump", "male", "bilateral", "elevation", "cm", 36.5, 10.5],
+        ["CounterMovementJump", "male", "unilateral", "elevation", "cm", 19.0, 6.2],
+        ["DropJump", "male", "bilateral", "reactive strength index", "cm/s", 120, 30],
+        ["DropJump", "male", "bilateral", "elevation", "cm", 28.0, 6.0],
+        ["DropJump", "male", "bilateral", "contact time", "ms", 235, 34],
+        ["DropJump", "male", "unilateral", "reactive strength index", "cm/s", 43, 12],
+        ["DropJump", "male", "unilateral", "elevation", "cm", 14.4, 3.1],
+        ["DropJump", "male", "unilateral", "contact time", "ms", 350, 60],
+        ["DropJump", "male", "bilateral", "muscular reactivity index", 100, 25],
+        ["DropJump", "male", "unilateral", "muscular reactivity index", 100, 25],
+        ["DropJump", "male", "bilateral", "activation time", "ms", -80, 60],
+        ["DropJump", "male", "unilateral", "activation time", "ms", -80, 60],
     ],
-    columns=["type", "gender", "side", "parameter", "mean", "std"],
+    columns=["type", "gender", "side", "metric", "unit", "mean", "std"],
 )
 
 # create female normative values with 33% less performances (remember to add references)
 _female_jumps_normative_values = _male_jumps_normative_values.copy()
 _female_jumps_normative_values.gender = _female_jumps_normative_values.gender.map(
-    lambda x: "Female"
+    lambda x: "female"
 )
-_idx = _female_jumps_normative_values.parameter.map(
-    lambda x: x in ["elevation (cm)", "rsi (cm/s)"]
+_idx = _female_jumps_normative_values.metric.map(
+    lambda x: x in ["elevation", "reactive_strength_index"]
 )
 _female_jumps_normative_values.loc[_idx, ["mean", "std"]] = (
     _female_jumps_normative_values.loc[_idx, ["mean", "std"]] * 0.67

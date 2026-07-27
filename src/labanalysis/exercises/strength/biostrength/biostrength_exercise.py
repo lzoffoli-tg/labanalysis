@@ -4,13 +4,12 @@ from typing import Literal
 
 import numpy as np
 
-from labanalysis.io.read.biostrength import PRODUCTS as BIOSTRENGTH_PRODUCTS_MAP
-
 from ....constants import G
 from ....records.record import Record
-from ....signalprocessing import *
 from ....timeseries import EMGSignal, Signal1D
 from .biostrength_repetition import BiostrengthRepetition
+from ....io.read.biostrength import PRODUCTS as BIOSTRENGTH_PRODUCTS_MAP
+from ....signalprocessing import continuous_batches, butterworth_filt, tkeo, mean_filt, winter_derivative1, cubicspline_interp
 
 __all__ = ["BiostrengthExercise"]
 
@@ -64,11 +63,41 @@ class BiostrengthExercise(Record):
     """
 
     def _get_repetitions_index(self, array: np.ndarray, time: np.ndarray):
+        """
+        Get the indices of repetitions from the given array.
+
+        Parameters
+        ----------
+        array : np.ndarray
+            The array to analyze for repetition detection.
+        time : np.ndarray
+            The time array corresponding to the input array.
+
+        Returns
+        -------
+        list
+            An empty list (to be overridden in subclasses).
+        """
         return []
 
     def _get_repetitions_start_from_biostrength_data(
         self, *args: np.ndarray, **kwargs: np.ndarray
     ):
+        """
+        Get the starting index of repetitions from Biostrength data.
+
+        Parameters
+        ----------
+        *args : np.ndarray
+            Variable length array arguments containing Biostrength data.
+        **kwargs : np.ndarray
+            Variable length keyword array arguments containing Biostrength data.
+
+        Returns
+        -------
+        list
+            An empty list (to be overridden in subclasses).
+        """
         return []
 
     def _get_repetitions_start_from_emg_data(
@@ -76,6 +105,26 @@ class BiostrengthExercise(Record):
         emg: np.ndarray,
         time: np.ndarray,
     ):
+        """
+        Get the starting index of repetitions from EMG data.
+
+        Parameters
+        ----------
+        emg : np.ndarray
+            The EMG signal array.
+        time : np.ndarray
+            The time array corresponding to the EMG signal.
+
+        Returns
+        -------
+        int
+            The starting index of the first repetition.
+
+        Raises
+        ------
+        RuntimeError
+            If no repetitions are found in the EMG data.
+        """
         fsamp = int(1 / np.mean(np.diff(time)))
         batches = continuous_batches(
             arr=emg > np.max(emg) * 0.1,
@@ -89,6 +138,29 @@ class BiostrengthExercise(Record):
         return start
 
     def _sync(self, force: Signal1D, position: Signal1D, **muscles: EMGSignal):
+        """
+        Synchronize force, position, and EMG signals to a common time base.
+
+        Parameters
+        ----------
+        force : Signal1D
+            The force signal to synchronize.
+        position : Signal1D
+            The position signal to synchronize.
+        **muscles : EMGSignal
+            Variable keyword arguments containing EMG signals to synchronize.
+
+        Returns
+        -------
+        tuple
+            A tuple containing (force_sync, position_sync, muscles_sync):
+            - force_sync : Signal1D
+                Synchronized force signal.
+            - position_sync : Signal1D
+                Synchronized position signal.
+            - muscles_sync : dict[str, EMGSignal]
+                Dictionary of synchronized EMG signals.
+        """
         if len(muscles) != 0:
 
             # get emg data
@@ -190,15 +262,43 @@ class BiostrengthExercise(Record):
 
     @property
     def side(self):
-        """get the side of the test"""
+        """
+        Get the side of the test.
+
+        Returns
+        -------
+        Literal["bilateral", "left", "right"]
+            The side on which the test was performed.
+        """
         return self._side
 
     def _get_repetitions_splitting_signal(self):
+        """
+        Get the signal and time array used for splitting repetitions.
+
+        Returns
+        -------
+        tuple
+            A tuple containing (array, time):
+            - array : np.ndarray
+                The signal array used for repetition detection.
+            - time : np.ndarray
+                The corresponding time array.
+        """
         return np.ndarray([]), np.ndarray([])
 
     @property
     def repetitions(self):
-        """return the tracked repetitions data"""
+        """
+        Return the tracked repetitions data.
+
+        Returns
+        -------
+        list[BiostrengthRepetition]
+            A list of BiostrengthRepetition objects, each representing
+            one detected repetition with its corresponding force, position,
+            and EMG signals.
+        """
         arr, time = self._get_repetitions_splitting_signal()
         reps_idx = self._get_repetitions_index(arr, time)
         reps: list[BiostrengthRepetition] = []
@@ -224,6 +324,33 @@ class BiostrengthExercise(Record):
         synchronize_signals: bool = True,
         **signals: EMGSignal,
     ):
+        """
+        Initialize a BiostrengthExercise instance.
+
+        Parameters
+        ----------
+        side : Literal["bilateral", "left", "right"]
+            The side on which the test was performed.
+        force : Signal1D
+            The force signal measured during the exercise (unit: 'N').
+        position : Signal1D
+            The position signal of the handles during the exercise (unit: 'm').
+        synchronize_signals : bool, optional
+            Whether to synchronize force, position, and EMG signals to a
+            common time base (default is True).
+        **signals : EMGSignal
+            Variable keyword arguments containing EMG signals to include
+            in the exercise.
+
+        Raises
+        ------
+        ValueError
+            If side is not one of 'bilateral', 'left', or 'right'.
+            If force is not a Signal1D with unit 'N'.
+            If position is not a Signal1D with unit 'm'.
+            If any signal is not an EMGSignal.
+            If synchronize_signals is not a boolean.
+        """
 
         # check the input
         if not side in ["bilateral", "left", "right"]:
@@ -259,6 +386,19 @@ class BiostrengthExercise(Record):
         self.set_side(side)
 
     def set_side(self, side: Literal["left", "right", "bilateral"]):
+        """
+        Set the side on which the test was performed.
+
+        Parameters
+        ----------
+        side : Literal["left", "right", "bilateral"]
+            The side of the test.
+
+        Raises
+        ------
+        ValueError
+            If side is not one of 'bilateral', 'left', or 'right'.
+        """
         if not isinstance(side, str) or side not in ["bilateral", "right", "left"]:
             raise ValueError("'side' must be any of 'bilateral', 'left', 'right'.")
         self._side = side
@@ -280,6 +420,25 @@ class BiostrengthExercise(Record):
         ],
         side: Literal["bilateral", "left", "right"],
     ):
+        """
+        Create a BiostrengthExercise instance from a text file.
+
+        Parameters
+        ----------
+        filename : str
+            The path to the text file containing the Biostrength data.
+        product : Literal["LEG PRESS", "LEG PRESS REV", "LEG EXTENSION", \
+                         "LEG EXTENSION REV", "LEG CURL", "LOW ROW", \
+                         "ADJUSTABLE PULLEY REV", "CHEST PRESS", "SHOULDER PRESS"]
+            The Biostrength product used during the exercise.
+        side : Literal["bilateral", "left", "right"]
+            The side on which the test was performed.
+
+        Returns
+        -------
+        BiostrengthExercise
+            A new instance of BiostrengthExercise created from the file data.
+        """
         prod = BIOSTRENGTH_PRODUCTS_MAP[product].from_txt_file(filename)
         load_kgf = prod.load_kgf
         time_s = prod.time_s
@@ -301,6 +460,14 @@ class BiostrengthExercise(Record):
         )
 
     def copy(self):
+        """
+        Create a deep copy of the BiostrengthExercise instance.
+
+        Returns
+        -------
+        BiostrengthExercise
+            A new BiostrengthExercise instance with copied data.
+        """
         return BiostrengthExercise(
             side=self.side,  # type: ignore
             synchronize_signals=False,
