@@ -1,8 +1,11 @@
 """Upright posture exercise module."""
 
+from typing import Literal
+
 from ...records import ForcePlatform
 from ...records.body import WholeBody
 from ...timeseries import EMGSignal, Point3D, Signal1D, Signal3D
+from ...constants import G
 
 
 class UprightPosture(WholeBody):
@@ -36,28 +39,64 @@ class UprightPosture(WholeBody):
     PronePosture : Represents a prone (plank) posture stance.
     """
 
+    def set_side(self, value: Literal["left", "right", "bilateral"] | None):
+        """
+        Set the side of the jump.
+
+        Parameters
+        ----------
+        value : Literal["left", "right", "bilateral"] | None
+            The side of the jump.
+
+        Raises
+        ------
+        ValueError
+            In case a value different from "left", "right", "bilateral" or None is provided.
+        """
+        if not (value is None or value in ["left", "right", "bilateral"]):
+            raise ValueError("side must be 'left', 'right', 'bilateral' or None")
+        self._side = value
+
     @property
     def side(self):
         """
-        Returns which side(s) have force data.
+        Determine jump laterality from available force platforms.
 
         Returns
         -------
         str
-            "bilateral", "left", or "right".
+            "left", "right", or "bilateral"
         """
-        left_foot = self.get("left_foot_ground_reaction_force")
-        right_foot = self.get("right_foot_ground_reaction_force")
-        if left_foot is not None and right_foot is not None:
+
+        # use the provided label
+        if self._side is not None:
+            return self._side
+
+        # evaluate based on available force platforms
+        has_left = self.left_foot_ground_reaction_force is not None
+        has_right = self.right_foot_ground_reaction_force is not None
+
+        if has_left and has_right:
             return "bilateral"
-        if left_foot is not None:
+        elif has_left:
             return "left"
-        if right_foot is not None:
+        elif has_right:
             return "right"
-        raise ValueError("both left_foot and right_foot are None")
+        else:
+            raise RuntimeError("No force platforms available to determine jump side.")
+
+    @property
+    def weight(self):
+        """return the bodyweight"""
+        grf = self.resultant_force
+        if grf is None:
+            raise ValueError("resultant force cannot be found.")
+        vgrf = grf.force[grf.vertical_axis].to_numpy().flatten()
+        return float(vgrf.mean() / G)
 
     def __init__(
         self,
+        side: Literal["left", "right", "bilateral"] | None = None,
         left_hand_ground_reaction_force: ForcePlatform | None = None,
         right_hand_ground_reaction_force: ForcePlatform | None = None,
         left_foot_ground_reaction_force: ForcePlatform | None = None,
@@ -164,24 +203,18 @@ class UprightPosture(WholeBody):
             ),
         }
         # Check that at least one foot force platform is provided
-        if (
-            left_foot_ground_reaction_force is None
-            and right_foot_ground_reaction_force is None
-        ):
-            raise ValueError(
-                "at least one of 'left_foot_ground_reaction_force' or "
-                "'right_foot_ground_reaction_force' must be provided."
-            )
         super().__init__(**{i: v for i, v in all_signals.items() if v is not None})  # type: ignore
+        self.set_side(side)
 
     @classmethod
     def from_tdf(
         cls,
         file: str,
+        side: Literal["left", "right", "bilateral"] | None = None,
         left_hand_ground_reaction_force: str | None = None,
         right_hand_ground_reaction_force: str | None = None,
-        left_foot_ground_reaction_force: str | None = "left_foot",
-        right_foot_ground_reaction_force: str | None = "right_foot",
+        left_foot_ground_reaction_force: str | None = None,
+        right_foot_ground_reaction_force: str | None = None,
         left_heel: str | None = None,
         right_heel: str | None = None,
         left_toe: str | None = None,
@@ -248,14 +281,6 @@ class UprightPosture(WholeBody):
         UprightPosture
             Instance with loaded marker trajectories and computed properties.
         """
-        if (
-            left_foot_ground_reaction_force is None
-            and right_foot_ground_reaction_force is None
-        ):
-            raise ValueError(
-                "at least one of left_foot_ground_reaction_force or "
-                "right_foot_ground_reaction_force must be provided."
-            )
         record = WholeBody.from_tdf(
             file,
             left_hand_ground_reaction_force=left_hand_ground_reaction_force,
@@ -308,11 +333,7 @@ class UprightPosture(WholeBody):
             head_left=head_left,
             head_right=head_right,
         )
-        return cls(**record._data)  # type: ignore
-
-    def copy(self):
-        """return a copy of the instance"""
-        return UprightPosture(**self._data)  # type: ignore
+        return cls(side=side, **record._data)  # type: ignore
 
 
 __all__ = ["UprightPosture"]
