@@ -336,9 +336,9 @@ class JumpTestResults(TestResults):
                     title += v
                 elif k == "box height":
                     title += f" ({v}cm)"
-                elif k == "free hands":
+                elif k == "free hands" and v:
                     title += f" - free hands"
-                elif k == "straight legs":
+                elif k == "straight legs" and v:
                     title += f" - straight legs"
                 elif k == "limb":
                     title += f" - {v}"

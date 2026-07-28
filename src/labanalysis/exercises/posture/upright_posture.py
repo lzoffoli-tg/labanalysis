@@ -2,6 +2,8 @@
 
 from typing import Literal
 
+import numpy as np
+
 from ...records import ForcePlatform
 from ...records.body import WholeBody
 from ...timeseries import EMGSignal, Point3D, Signal1D, Signal3D
@@ -92,7 +94,7 @@ class UprightPosture(WholeBody):
         if grf is None:
             raise ValueError("resultant force cannot be found.")
         vgrf = grf.force[grf.vertical_axis].to_numpy().flatten()
-        return float(vgrf.mean() / G)
+        return float(np.nanmean(vgrf) / G)
 
     def __init__(
         self,

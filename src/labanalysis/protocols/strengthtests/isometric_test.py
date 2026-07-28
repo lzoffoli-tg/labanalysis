@@ -1,11 +1,12 @@
 """Isometric test implementation."""
 
-from typing import Callable, Literal
+from typing import Callable
 
 import numpy as np
 import pandas as pd
 
 from ...exercises.strength import IsometricExercise
+from ...exercises.strength.biostrength.products import BiostrengthProduct
 from ...pipelines import get_default_processing_pipeline
 from ...records import Record
 from ...signalprocessing import butterworth_filt
@@ -257,17 +258,7 @@ class IsometricTest(TestProtocol):
     def from_files(
         cls,
         participant: Participant,
-        product: Literal[
-            "LEG PRESS",
-            "LEG PRESS REV",
-            "LEG EXTENSION",
-            "LEG EXTENSION REV",
-            "LEG CURL",
-            "LOW ROW",
-            "ADJUSTABLE PULLEY REV",
-            "CHEST PRESS",
-            "SHOULDER PRESS",
-        ],
+        product: BiostrengthProduct,
         left_biostrength_filename: str | None = None,
         right_biostrength_filename: str | None = None,
         bilateral_biostrength_filename: str | None = None,
@@ -287,7 +278,7 @@ class IsometricTest(TestProtocol):
         # get left data
         left = {}
         if left_biostrength_filename is not None:
-            bio = IsometricExercise.from_txt(
+            bio = IsometricExercise.from_file(
                 left_biostrength_filename,
                 product,
                 side="left",
@@ -310,7 +301,7 @@ class IsometricTest(TestProtocol):
         # get right data
         right = {}
         if right_biostrength_filename is not None:
-            bio = IsometricExercise.from_txt(
+            bio = IsometricExercise.from_file(
                 right_biostrength_filename,
                 product,
                 side="right",
@@ -333,7 +324,7 @@ class IsometricTest(TestProtocol):
         # get bilateral data
         bilateral = {}
         if bilateral_biostrength_filename is not None:
-            bio = IsometricExercise.from_txt(
+            bio = IsometricExercise.from_file(
                 bilateral_biostrength_filename,
                 product,
                 side="bilateral",

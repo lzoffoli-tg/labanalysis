@@ -7,10 +7,10 @@ import pandas as pd
 
 from ...records import Record
 from ...exercises.strength import IsokineticExercise
+from ...exercises.strength.biostrength.products import BiostrengthProduct
 from ...timeseries import EMGSignal, Signal1D
 from ...pipelines import get_default_processing_pipeline
 from ...signalprocessing import butterworth_filt
-from ...io.read.biostrength import PRODUCTS
 from ..participant import Participant
 from ..test_protocol import TestProtocol
 from .isokinetic_1rm_test_results import Isokinetic1RMTestResults
@@ -146,13 +146,9 @@ class Isokinetic1RMTest(TestProtocol):
         bilateral: IsokineticExercise | None,
         participant: Participant,
         normative_data: pd.DataFrame = pd.DataFrame(),
-        emg_normalization_references: (
-            Record | str | Literal["self"]
-        ) = Record(),
+        emg_normalization_references: Record | str | Literal["self"] = Record(),
         emg_normalization_function: Callable = np.mean,
-        emg_activation_references: (
-            Record | str | Literal["self"]
-        ) = Record(),
+        emg_activation_references: Record | str | Literal["self"] = Record(),
         emg_activation_threshold: float = 3,
         relevant_muscle_map: list[str] | None = None,
     ):
@@ -223,17 +219,7 @@ class Isokinetic1RMTest(TestProtocol):
     def from_files(
         cls,
         participant: Participant,
-        product: Literal[
-            "LEG PRESS",
-            "LEG PRESS REV",
-            "LEG EXTENSION",
-            "LEG EXTENSION REV",
-            "LEG CURL",
-            "LOW ROW",
-            "ADJUSTABLE PULLEY REV",
-            "CHEST PRESS",
-            "SHOULDER PRESS",
-        ],
+        product: BiostrengthProduct,
         left_biostrength_filename: str | None = None,
         right_biostrength_filename: str | None = None,
         bilateral_biostrength_filename: str | None = None,
@@ -241,25 +227,20 @@ class Isokinetic1RMTest(TestProtocol):
         right_emg_filename: str | None = None,
         bilateral_emg_filename: str | None = None,
         normative_data: pd.DataFrame = pd.DataFrame(),
-        emg_normalization_references: (
-            Record | str | Literal["self"]
-        ) = Record(),
+        emg_normalization_references: Record | str | Literal["self"] = Record(),
         emg_normalization_function: Callable = np.mean,
-        emg_activation_references: (
-            Record | str | Literal["self"]
-        ) = Record(),
+        emg_activation_references: Record | str | Literal["self"] = Record(),
         emg_activation_threshold: float = 3,
         relevant_muscle_map: list[str] | None = None,
     ):
 
         # get 1RM coefficients
-        prod = PRODUCTS[product]
-        rm1_coefs = {i: v for i, v in zip(["beta1", "beta0"], prod._rm1_coefs)}  # type: ignore
+        rm1_coefs = {i: v for i, v in zip(["beta1", "beta0"], product._rm1_coefs)}  # type: ignore
 
         # get left data
         left = {}
         if left_biostrength_filename is not None:
-            bio = IsokineticExercise.from_txt(
+            bio = IsokineticExercise.from_file(
                 left_biostrength_filename,
                 product,
                 side="left",
@@ -280,7 +261,7 @@ class Isokinetic1RMTest(TestProtocol):
         # get right data
         right = {}
         if right_biostrength_filename is not None:
-            bio = IsokineticExercise.from_txt(
+            bio = IsokineticExercise.from_file(
                 right_biostrength_filename,
                 product,
                 side="right",
@@ -301,7 +282,7 @@ class Isokinetic1RMTest(TestProtocol):
         # get bilateral data
         bilateral = {}
         if bilateral_biostrength_filename is not None:
-            bio = IsokineticExercise.from_txt(
+            bio = IsokineticExercise.from_file(
                 bilateral_biostrength_filename,
                 product,
                 side="bilateral",

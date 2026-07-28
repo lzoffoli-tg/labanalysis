@@ -4,12 +4,18 @@ from typing import Literal
 
 import numpy as np
 
-from ....constants import G
 from ....records.record import Record
 from ....timeseries import EMGSignal, Signal1D
 from .biostrength_repetition import BiostrengthRepetition
-from ....io.read.biostrength import PRODUCTS as BIOSTRENGTH_PRODUCTS_MAP
-from ....signalprocessing import continuous_batches, butterworth_filt, tkeo, mean_filt, winter_derivative1, cubicspline_interp
+from .products import BiostrengthProduct
+from ....signalprocessing import (
+    continuous_batches,
+    butterworth_filt,
+    tkeo,
+    mean_filt,
+    winter_derivative1,
+    cubicspline_interp,
+)
 
 __all__ = ["BiostrengthExercise"]
 
@@ -404,20 +410,10 @@ class BiostrengthExercise(Record):
         self._side = side
 
     @classmethod
-    def from_txt(
+    def from_file(
         cls,
         filename: str,
-        product: Literal[
-            "LEG PRESS",
-            "LEG PRESS REV",
-            "LEG EXTENSION",
-            "LEG EXTENSION REV",
-            "LEG CURL",
-            "LOW ROW",
-            "ADJUSTABLE PULLEY REV",
-            "CHEST PRESS",
-            "SHOULDER PRESS",
-        ],
+        product: BiostrengthProduct,
         side: Literal["bilateral", "left", "right"],
     ):
         """
@@ -439,12 +435,12 @@ class BiostrengthExercise(Record):
         BiostrengthExercise
             A new instance of BiostrengthExercise created from the file data.
         """
-        prod = BIOSTRENGTH_PRODUCTS_MAP[product].from_txt_file(filename)
-        load_kgf = prod.load_kgf
+        prod = product.from_txt(filename)
+        force = prod.force_N
         time_s = prod.time_s
-        pos_m = prod.position_lever_m
+        pos_m = prod.displacement_m
         force = Signal1D(
-            load_kgf * G,
+            force,
             time_s,  # type: ignore
             "N",
         )
