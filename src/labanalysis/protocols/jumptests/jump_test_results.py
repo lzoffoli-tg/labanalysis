@@ -334,7 +334,7 @@ class JumpTestResults(TestResults):
             for k, v in params.items():
                 if k == "type":
                     title += v
-                elif k == "box height":
+                elif k == "box height" and v > 0:
                     title += f" ({v}cm)"
                 elif k == "free hands" and v:
                     title += f" - free hands"
@@ -411,7 +411,7 @@ class JumpTestResults(TestResults):
                 trials[title]["performance"]["norms"] = None
 
             # get balance data
-            valid_idx = pd.DataFrame([params])
+            valid_idx = pd.DataFrame([params]).to_dict("list")
             valid_idx = balance_data[trial_cols].isin(valid_idx).all(axis=1)
             bdf = balance_data.loc[valid_idx]
             if bdf.empty:
@@ -425,7 +425,7 @@ class JumpTestResults(TestResults):
 
             # add the balance data
             trials[title]["balance"]["data"] = {}
-            for side, dfs in dfr.groupby("side"):
+            for side, dfs in bdf.groupby("side"):
                 vals = dfs.value.to_numpy().flatten()
                 trials[title]["balance"]["data"][side] = vals
 
@@ -626,21 +626,23 @@ class JumpTestResults(TestResults):
         if balance is not None:
 
             # plot the balance of each single jump
-            values = list(balance["data"].values())[
+            values = list(balance["data"].values())
+            values = values[
                 0
-            ]  # here we must have just one occasion (bilateral)
+            ].tolist()  # here we must have just one occasion (bilateral)
+            vals = []
             for j, x in enumerate(values):
 
                 # get the value
                 value = max(-50, min(50, x))
-                values.append(value)
+                vals.append(value)
 
                 # get the color
                 color = get_color_from_value(value, balance["norms"])
 
                 # get the label
                 title = f"{abs(value):0.1f}%" if -50 <= value <= 50 else ">50.0%"
-                title = f"Jump {j+1} ({title})"
+                title = f"Jump {j+1}<br>{title}"
 
                 # plot the bar
                 fig.add_trace(
@@ -726,7 +728,7 @@ class JumpTestResults(TestResults):
             fig.update_yaxes(
                 col=2,
                 row=1,
-                range=[-1, len(values)],
+                range=[-1, len(vals)],
             )
 
         # check
@@ -790,7 +792,7 @@ class JumpTestResults(TestResults):
             metric: self._get_performance_figures(
                 test=test,
                 metric=metric,
-                include_force_balance=True,
+                include_force_balance=metric == "elevation",
                 ranks=RANK_5COLORS,
                 symmetric_ranks=False,
                 reversed_ranks=rev,

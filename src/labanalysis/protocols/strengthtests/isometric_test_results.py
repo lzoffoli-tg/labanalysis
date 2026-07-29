@@ -119,19 +119,22 @@ class IsometricTestResults(TestResults):
         idx = np.where(time <= time_ms)[0]
         if len(idx) == 0:
             return None
-        return float(time[idx[-1]])
+        return float(force[idx[-1]])
 
     def _get_rfd_at_interval_ms(
         self, exe: IsometricExercise, rep_index: int, time_ms: float
     ):
         """Get RFD (N/s) from onset to specific time point for a specific repetition."""
-        force_at_time = self._get_force_at_time_ms(exe, rep_index, time_ms)
-        if force_at_time is None:
-            return None
 
         # Get baseline force (at onset)
         rep = exe.repetitions[rep_index]
-        baseline_force = float(rep.force.to_numpy().flatten()[0])
+        frep = rep.force.to_numpy().flatten()
+        baseline_force = float(frep[0])
+
+        # force at required time
+        force_at_time = self._get_force_at_time_ms(exe, rep_index, time_ms)
+        if force_at_time is None:
+            return None
 
         # RFD = (F_time - F_baseline) / (time_ms / 1000)
         # Result in N/s
@@ -141,7 +144,7 @@ class IsometricTestResults(TestResults):
         if delta_time_s == 0:
             return 0.0
 
-        return float(delta_force / delta_time_s)
+        return float(delta_force / delta_time_s) / 1000
 
     def _get_summary(self, test: "IsometricTest"):
         trials = [test.left, test.right, test.bilateral]
