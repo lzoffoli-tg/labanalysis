@@ -1,17 +1,16 @@
 """Isometric test results implementation."""
 
-from typing import TYPE_CHECKING
+from typing import Literal
 
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from plotly.colors import qualitative as cmap
+from scipy.interpolate import PchipInterpolator
 
 from ...exercises.strength import IsometricExercise
-
 from ..test_results import TestResults
-from ._plotting import _get_force_figure
-
-if TYPE_CHECKING:
-    from .isometric_test import IsometricTest
 
 
 class IsometricTestResults(TestResults):
@@ -96,64 +95,16 @@ class IsometricTestResults(TestResults):
             raise ValueError("'test' must be an IsometricTest instance.")
         super().__init__(test, include_emg)
 
-    def _get_peak_force(self, exe: IsometricExercise, rep_index: int):
-        """Get peak force for a specific repetition."""
-        force = exe.repetitions[rep_index].force.to_numpy().flatten()
-        return float(np.max(force))
-
-    def _get_time_to_peak_force_ms(self, exe: IsometricExercise, rep_index: int):
-        """Get time to peak force for a specific repetition."""
-        rep = exe.repetitions[rep_index]
-        force = rep.force.to_numpy().flatten()
-        time = np.array(rep.index)
-        peak = np.argmax(force)
-        return (time[peak] - time[0]) * 1000
-
-    def _get_force_at_time_ms(
-        self, exe: IsometricExercise, rep_index: int, time_ms: float
-    ):
-        """Get force level at specific time point (ms) from contraction onset for a specific repetition."""
-        rep = exe.repetitions[rep_index]
-        force = rep.force.to_numpy().flatten()
-        time = (np.array(rep.index) - rep.index[0]) * 1000  # Convert to ms from onset
-        idx = np.where(time <= time_ms)[0]
-        if len(idx) == 0:
-            return None
-        return float(force[idx[-1]])
-
-    def _get_rfd_at_interval_ms(
-        self, exe: IsometricExercise, rep_index: int, time_ms: float
-    ):
-        """Get RFD (N/s) from onset to specific time point for a specific repetition."""
-
-        # Get baseline force (at onset)
-        rep = exe.repetitions[rep_index]
-        frep = rep.force.to_numpy().flatten()
-        baseline_force = float(frep[0])
-
-        # force at required time
-        force_at_time = self._get_force_at_time_ms(exe, rep_index, time_ms)
-        if force_at_time is None:
-            return None
-
-        # RFD = (F_time - F_baseline) / (time_ms / 1000)
-        # Result in N/s
-        delta_force = force_at_time - baseline_force
-        delta_time_s = time_ms / 1000.0
-
-        if delta_time_s == 0:
-            return 0.0
-
-        return float(delta_force / delta_time_s) / 1000
+    def _calculate_rfd(self, force: np.ndarray, time: np.ndarray):
+        rfd = (force[1:] - force[0]) / (time[1:] - time[0])
+        return np.append([0], rfd)
 
     def _get_summary(self, test: "IsometricTest"):
         trials = [test.left, test.right, test.bilateral]
         sides = ["left", "right", "bilateral"]
 
         # Initialize metrics with all required columns
-        active_sides = [s for s, t in zip(sides, trials) if t is not None]
-        metrics = pd.DataFrame(columns=active_sides)
-
+        metrics = []
         for side, trial in zip(sides, trials):
             if trial is None:
                 continue
@@ -161,63 +112,60 @@ class IsometricTestResults(TestResults):
 
             # Iterate over all repetitions to get metrics for each
             for i, rep in enumerate(trial.repetitions):
-                new = pd.DataFrame(columns=active_sides)
+                new = {}
 
                 # EMG data for this repetition
                 if self.include_emg:
                     for m in rep.emgsignals.values():
                         ename = str(m.muscle_name)
                         eside = str(m.side)
+                        if eside != side:
+                            continue
                         keys = emg_norms.keys()
                         check = [i[0] == ename and i[1] == eside for i in keys]
                         ename += " (%)" if any(check) else " (uV)"
-                        new.loc[ename, eside] = m.to_numpy().mean()
+                        new[ename] = m.to_numpy().mean()
 
                 # Force metrics for this repetition
-                new.loc["time to peak force (ms)", side] = (
-                    self._get_time_to_peak_force_ms(trial, i)
-                )
-                # Peak force in kN
-                new.loc["peak force (kN)", side] = (
-                    self._get_peak_force(trial, i) / 1000.0
-                )
+                force = rep.force.to_numpy().flatten()
+                time = (rep.index - rep.index[0]) * 1000
+                new["peak force (N)"] = round(np.max(force), 1)
+                new["time to peak force (ms)"] = round(time[np.argmax(force)], 0)
 
-                # Get peak time and calculate RFD to peak (same way as other time points)
-                peak_time_ms = self._get_time_to_peak_force_ms(trial, i)
-                new.loc["RFD peak (kN/s)", side] = self._get_rfd_at_interval_ms(
-                    trial, i, peak_time_ms
-                )
+                # get rfd metrics
+                rfd = self._calculate_rfd(force, time / 1000)
+                new["peak RFD (N/s)"] = round(np.max(rfd), 1)
+                new["time to peak RFD (ms)"] = round(time[np.argmax(rfd)], 0)
+
+                # get force and rfd interpolators
+                fint = PchipInterpolator(time, force)
+                rint = PchipInterpolator(time, rfd)
 
                 # Get time points from exercise
-                time_points = trial.time_points
+                for tp in trial.time_points:
+                    new[f"force at {tp}ms (N)"] = round(float(fint(tp)), 1)
+                    new[f"RFD 0-{tp}ms (N/s)"] = round(float(rint(tp)), 1)
 
-                # Calculate force and RFD at each time point
-                for tp in time_points:
-                    # Force in kN (divide by 1000)
-                    new.loc[f"force at {tp} ms (kN)", side] = (
-                        self._get_force_at_time_ms(trial, i, tp)
-                    )
-                    # RFD in kN/s (divide by 1000)
-                    new.loc[f"RFD 0-{tp} ms (kN/s)", side] = (
-                        self._get_rfd_at_interval_ms(trial, i, tp)
-                    )
+                # add rep and side options
+                new = pd.DataFrame(pd.Series(new))
+                new.columns = pd.Index(["value"])
+                new.reset_index(names="parameter", inplace=True)
+                new.insert(0, "repetition", i + 1)
+                new.insert(0, "side", side)
+                metrics.append(new)
 
-                metrics = pd.concat([metrics, new])
-        metrics.insert(0, "parameter", metrics.index)
-        metrics.reset_index(inplace=True, drop=True)
-        summary = metrics.groupby("parameter", as_index=False).mean()
+        # aggregate
+        metrics = (
+            pd.concat(metrics, ignore_index=True)
+            .pivot_table(
+                index=["parameter", "repetition"],
+                columns="side",
+                values="value",
+            )
+            .reset_index()
+        )
 
-        # add left/right symmetries
-        for row in range(summary.shape[0]):
-            line = summary.iloc[row]
-            if "left" in line.index and "right" in line.index:
-                lt, rt = line[["left", "right"]].to_numpy().flatten()
-                lt = float(lt)
-                rt = float(rt)
-                symm = 100 * (rt - lt) / ((rt + lt))
-                summary.loc[summary.index[row], "symmetry (%)"] = symm
-
-        return summary
+        return metrics
 
     def _get_analytics(self, test: "IsometricTest"):
         processed = test.processed_data
@@ -239,7 +187,7 @@ class IsometricTestResults(TestResults):
                 analytics.append(cycle)
         return pd.concat(analytics, ignore_index=True)
 
-    def _get_figures(self, test: "IsometricTest"):
+    def _get_profiles_with_time_intervals(self, test: "IsometricTest"):
 
         # force data
         analytics = self.analytics
@@ -270,12 +218,13 @@ class IsometricTestResults(TestResults):
 
         # Determine time limit and time points from exercises
         max_time_s = None
-        time_points = [100, 200, 500, 1000]  # default
+        time_points = []
         for exe in [test.left, test.right, test.bilateral]:
             if exe is not None:
                 max_time_s = exe.max_time_s
                 time_points = exe.time_points
                 break
+
         # Default to 2000 ms if max_time_s is not set
         max_time_ms = max_time_s * 1000 if max_time_s is not None else 2000
 
@@ -295,34 +244,220 @@ class IsometricTestResults(TestResults):
             time_ms = time_ms[mask]
             force = force[mask]
 
+            # get RFD
+            rfd = self._calculate_rfd(force, time_ms / 1000) / 1000
+
             # Store in tracks_data with repetition number
-            for t, val in zip(time_ms, force):
-                tracks_data.append(
-                    {
-                        "parameter": "force_amplitude",
-                        "side": side,
-                        "limb": side,
-                        "time_ms": t,
-                        "value": val,
-                        "repetition": rep_num,
-                    }
+            dff = pd.DataFrame({"time": time_ms, "value": force})
+            dff.insert(0, "parameter", "Force")
+            dff.insert(0, "unit", "N")
+            dfp = pd.DataFrame({"time": time_ms, "value": rfd})
+            dfp.insert(0, "parameter", "Rate of Force Development")
+            dfp.insert(0, "unit", "kN/s")
+            df = pd.concat([dff, dfp], ignore_index=True)
+            df.insert(0, "side", side)
+            df.insert(0, "repetition", rep_num)
+            tracks_data.append(df)
+
+        # get the dataframe
+        tracks = pd.concat(tracks_data, ignore_index=True)
+
+        # generate the figures
+        out: dict[str, go.Figure] = {}
+        colormap = cmap.Plotly
+
+        def add_point(
+            fig: go.Figure,
+            row: int,
+            col: int,
+            x: float,
+            y: float,
+            text: str,
+            color: str,
+            name: str,
+            legendgroup: str,
+            showlegend: bool,
+            textposition: Literal["middle right", "top right"],
+        ):
+            # vertical line
+            fig.add_trace(
+                row=row,
+                col=col,
+                trace=go.Scatter(
+                    x=[x, x],
+                    y=[0, y],
+                    line_dash="dash",
+                    mode="lines",
+                    line_width=2,
+                    opacity=0.3,
+                    line_color=color,
+                    showlegend=False,
+                    name=name,
+                    legendgroup=legendgroup,
+                    legendgrouptitle_text=legendgroup,
+                ),
+            )
+
+            # horizontal line
+            fig.add_trace(
+                row=row,
+                col=col,
+                trace=go.Scatter(
+                    x=[0, x],
+                    y=[y, y],
+                    line_dash="dash",
+                    mode="lines",
+                    line_width=2,
+                    opacity=0.3,
+                    line_color=color,
+                    showlegend=False,
+                    name=name,
+                    legendgroup=legendgroup,
+                    legendgrouptitle_text=legendgroup,
+                ),
+            )
+
+            # marker
+            fig.add_trace(
+                col=i,
+                row=1,
+                trace=go.Scatter(
+                    x=[x],
+                    y=[y],
+                    text=[text],
+                    textposition="middle right",
+                    textfont_color=color,
+                    textfont_size=12,
+                    mode="markers+text",
+                    marker_size=12,
+                    marker_color=color,
+                    opacity=1,
+                    name=name,
+                    legendgroup="Time",
+                    legendgrouptitle_text="Time",
+                    showlegend=showlegend,
+                ),
+            )
+
+        for (parameter, unit), dfp in tracks.groupby(["parameter", "unit"]):
+
+            # generate the figure
+            sides = dfp.side.unique()
+            y_range = [0, dfp.value.max() * 1.1]
+            fig = make_subplots(
+                rows=1,
+                cols=len(sides),
+                subplot_titles=[i.upper() for i in sides],
+            )
+            fig.update_yaxes(showticklabels=False, range=y_range)
+            fig.update_yaxes(title=unit, col=1, showticklabels=True)
+            fig.update_xaxes(title="Time (ms)")
+            fig.update_layout(
+                title=f"{parameter.capitalize()} Profile",
+                template="simple_white",
+                height=500,
+                width=1250,
+            )
+
+            # add the data to each subplot
+            for i, side in enumerate(sides, 1):
+                dfs = dfp.loc[dfp.side == side].copy()
+
+                # plot the trace of each repetition
+                for r, dfr in dfs.groupby("repetition"):
+                    x = dfr["time"].to_numpy().flatten()
+                    y = dfr["value"].to_numpy().flatten()
+                    rep = f"Repetition {r}"
+                    fig.add_trace(
+                        col=i,
+                        row=1,
+                        trace=go.Scatter(
+                            x=x,
+                            y=y,
+                            mode="lines",
+                            line_color=colormap[r],
+                            line_width=3,
+                            opacity=0.5,
+                            name=rep,
+                            legendgroup="Repetitions",
+                            legendgrouptitle_text="Repetitions",
+                            showlegend=i == 1,
+                        ),
+                    )
+
+                # get interpolated signals to each time point
+                y_vals = {}
+                for rep, dfr in dfs.groupby("repetition"):
+                    x = dfr["time"].to_numpy().flatten()
+                    y = dfr["value"].to_numpy().flatten()
+                    cs = PchipInterpolator(x, y)
+
+                    # get the values at each timepoint
+                    for t in time_points:
+                        if t not in y_vals:
+                            y_vals[t] = []
+                        y_vals[t].append(cs(t))
+
+                # pick the highest value for each timepoint
+                y_vals = {t: np.max(v) for t, v in y_vals.items()}
+
+                # plot the vertical and horizontal lines corresponding to
+                # the time intervals
+                n_reps = int(dfs.repetition.max())
+                for n, (tp, y) in enumerate(y_vals.items()):
+                    name = f"{tp:0.0f}ms"
+                    add_point(
+                        fig=fig,
+                        row=1,
+                        col=i,
+                        x=tp,
+                        y=y,
+                        text=name,
+                        color=colormap[(n + n_reps + 1) % len(colormap)],
+                        name=name,
+                        legendgroup="Time",
+                        showlegend=i == 1,
+                        textposition="middle right",
+                    )
+
+                # get the highest value
+                maxv = dfs.value.max()
+                maxt = dfs["time"].to_numpy()[np.argmax(dfs["value"].to_numpy())]
+                name = f"Peak: {maxv:0.1f}{unit}<br>Time: {maxt:0.0f}ms"
+                add_point(
+                    fig=fig,
+                    row=1,
+                    col=i,
+                    x=maxt,
+                    y=maxv,
+                    text=name,
+                    color="black",
+                    name="Peak",
+                    legendgroup="Peak",
+                    showlegend=i == 1,
+                    textposition="top right",
                 )
 
-        tracks = pd.DataFrame(tracks_data)
+                # ensure the text of all samples is visible
+                max_time = float(dfs["time"].to_numpy().max())
+                max_time = max(
+                    [max_time, *[float(t) + 1000 for t in time_points + [maxt]]]
+                )
+                fig.update_xaxes(range=[0, max_time], col=i)
 
-        return {
-            "force_profiles_with_muscle_balance": _get_force_figure(
-                tracks,
-                summary,
-                include_emg=self.include_emg,
-                time_mode="absolute",  # Use absolute time mode
-                time_points=time_points,  # Pass time points to figure
-                max_time_ms=max_time_ms,  # Pass max time for X-axis limit
-            )
-        }
+            # append the figure
+            out[parameter] = fig
 
+        return out
 
-# TODO CREATE THE POWER-VELOCITY / FORCE-VELOCITY TEST
+    def _get_figures(self, test: "IsometricTest"):
+        out: dict[str, go.Figure] = {}
+
+        force_fig = self._get_profiles_with_time_intervals(test)
+        if force_fig is not None:
+            out["force"] = force_fig
+
+        return out
 
 
 __all__ = ["IsometricTestResults"]

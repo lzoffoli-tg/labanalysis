@@ -244,7 +244,7 @@ class IsometricTest(TestProtocol):
                 butterworth_filt,
                 fcut=3,
                 fsamp=fsamp,
-                order=4,
+                order=2,
                 ftype="lowpass",
                 phase_corrected=True,
                 inplace=True,
