@@ -11,7 +11,7 @@ from ...records import ForcePlatform, Record
 from ...referenceframes import ReferenceFrame
 from ...timeseries.emgsignal import EMGSignal
 from ...timeseries.point3d import Point3D
-from ..normativedata import plankbalance_normative_values
+from ...normative_data.normative_data import plankbalance_normative_values
 from ..participant import Participant
 from ..test_protocol import TestProtocol
 from .plank_balance_test_results import PlankBalanceTestResults
@@ -143,13 +143,9 @@ class PlankBalanceTest(TestProtocol):
         exercise: PronePosture,
         eyes: Literal["open", "closed"],
         normative_data: pd.DataFrame = plankbalance_normative_values,
-        emg_normalization_references: (
-            Record | str | Literal["self"]
-        ) = Record(),
+        emg_normalization_references: Record | str | Literal["self"] = Record(),
         emg_normalization_function: Callable = np.mean,
-        emg_activation_references: (
-            Record | str | Literal["self"]
-        ) = Record(),
+        emg_activation_references: Record | str | Literal["self"] = Record(),
         emg_activation_threshold: float | int = 3,
         relevant_muscle_map: list[str] | None = None,
     ):
@@ -206,13 +202,9 @@ class PlankBalanceTest(TestProtocol):
         left_hand_ground_reaction_force: str = "left_hand",
         right_hand_ground_reaction_force: str = "right_hand",
         normative_data: pd.DataFrame = plankbalance_normative_values,
-        emg_normalization_references: (
-            Record | str | Literal["self"]
-        ) = Record(),
+        emg_normalization_references: Record | str | Literal["self"] = Record(),
         emg_normalization_function: Callable = np.mean,
-        emg_activation_references: (
-            Record | str | Literal["self"]
-        ) = Record(),
+        emg_activation_references: Record | str | Literal["self"] = Record(),
         emg_activation_threshold: float | int = 3,
         relevant_muscle_map: list[str] | None = None,
     ):

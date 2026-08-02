@@ -12,6 +12,3 @@ from .jumptests import *
 from .agilitytests import *
 from .gaittests import *
 from .vo2max import *
-
-# Normative data
-from .normativedata import *

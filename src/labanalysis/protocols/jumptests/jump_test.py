@@ -20,7 +20,7 @@ from ...records import ForcePlatform, Record
 from ...referenceframes import ReferenceFrame
 from ...signalprocessing import butterworth_filt, fillna, rms_filt
 from ...timeseries import EMGSignal, Point3D
-from ..normativedata import jumps_normative_values
+from ...normative_data.normative_data import jumps_normative_values
 from ..participant import Participant
 from ..test_protocol import TestProtocol
 from .jump_test_results import JumpTestResults

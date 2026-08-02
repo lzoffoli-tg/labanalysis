@@ -3,6 +3,7 @@
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+from plotly.colors import qualitative as colormaps
 from plotly.subplots import make_subplots
 
 from ..test_protocol import TestProtocol
@@ -756,6 +757,138 @@ class JumpTestResults(TestResults):
             for i, v in trials.items()
         }
 
+    def _get_raw_signals_figures(self, test: "JumpTest"):
+        """
+        Generate raw signal figures for all jumps.
+
+        Creates a dictionary of interactive Plotly figures showing force-time
+        curves and EMG signals (if available) for each jump type and condition.
+
+        Parameters
+        ----------
+        test : JumpTest
+            The processed jump test data.
+
+        Returns
+        -------
+        go.Figure
+        """
+        # generate the raw signals
+        out = {}
+        for jump in test.jumps:
+            key = jump.name.lower()
+            if hasattr(jump, "box_height_cm"):
+                key += f" ({jump.box_height_cm}cm)"
+            if hasattr(jump, "side"):
+                key += f" - {jump.side}"
+            if hasattr(jump, "free_hands") and jump.free_hands:
+                key += " - free hands"
+            if hasattr(jump, "straight_legs") and jump.straight_legs:
+                key += " - straight legs"
+            if key not in out:
+                out[key] = []
+            df = jump.to_dataframe()
+            df.index = pd.Index(df["time"])
+            cols = [
+                i
+                for i in df.columns
+                if i == "phase"
+                or (i.endswith(jump.vertical_axis) and (" force " in i or "s2 " in i))
+            ]
+            out[key].append(df[cols])
+
+        # generate the figures
+        figures: dict[str, go.Figure] = {}
+        CMAP = colormaps.Plotly
+        for key, dfl in out.items():
+
+            # create a new figure
+            has_s2 = [any(["s2" in i for i in dfr.columns]) for dfr in dfl]
+            fig = make_subplots(
+                rows=len(has_s2),
+                cols=1,
+                specs=[[{"secondary_y": i}] for i in has_s2],
+                subplot_titles=[f"Jump {i+1}" for i in range(len(dfl))],
+                vertical_spacing=0.05,
+            )
+
+            # populate each subplot with the corresponding jump data
+            for i, (dfr, s2_in) in enumerate(zip(dfl, has_s2), 1):
+
+                # plot the signals
+                for n, col in enumerate(dfr.columns):
+                    dfs = dfr[[col]].copy().dropna()
+                    if col == "phase":
+                        continue
+                    fig.add_trace(
+                        row=i,
+                        col=1,
+                        secondary_y="s2" in col if s2_in else False,
+                        trace=go.Scatter(
+                            x=dfs.index.tolist(),
+                            y=dfs[col].tolist(),
+                            legendgroup=col,
+                            legendgrouptitle_text="Signal",
+                            name=col,
+                            showlegend=i == 1,
+                            line_color=CMAP[n % len(CMAP)],
+                        ),
+                    )
+                # plot each phase
+                for n, (phase, dff) in enumerate(dfr.groupby("phase")):
+                    if dff.empty:
+                        continue
+                    color = CMAP[(n + len(dfr.columns) - 1) % len(CMAP)]
+                    fig.add_vrect(
+                        row=i,
+                        col=1,
+                        x0=dff.index[0],
+                        x1=dff.index[-1],
+                        fillcolor=color,
+                        opacity=0.25,
+                        line_width=0,
+                        showlegend=i == 1,
+                        legendgroup=phase,
+                        legendgrouptitle_text="Phase",
+                        name=phase,
+                        annotation_text=phase,
+                        annotation_position="top",
+                        annotation=dict(
+                            font_size=10,
+                            font_color=color,
+                            textangle=0,
+                            xanchor="center",
+                            yanchor="top",
+                        ),
+                    )
+
+                # update the layout
+                fig.update_yaxes(
+                    row=i,
+                    col=1,
+                    secondary_y=False,
+                    title_text="Vertical Force (N)",
+                )
+                if s2_in:
+                    fig.update_yaxes(
+                        row=i,
+                        col=1,
+                        secondary_y=True,
+                        title_text="S2",
+                    )
+
+            # update the overall layout
+            fig.update_xaxes(title_text="Time (s)", row=len(dfl), col=1)
+            fig.update_layout(
+                title_text=f"Raw Signals - {key}",
+                template="plotly_white",
+                height=400 * len(dfl),
+                width=1000,
+            )
+            figures[key] = fig
+
+        return figures
+
     def _get_figures(self, test: "JumpTest"):
         """
         Generate all visualization figures for the jump test results.
@@ -799,6 +932,7 @@ class JumpTestResults(TestResults):
             )
             for metric, rev in zip(metrics, reverse)
         }
+        out["raw_signals"] = self._get_raw_signals_figures(test)
 
         return out
 
