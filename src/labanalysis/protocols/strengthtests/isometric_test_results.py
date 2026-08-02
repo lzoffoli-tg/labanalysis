@@ -455,7 +455,8 @@ class IsometricTestResults(TestResults):
 
         force_fig = self._get_profiles_with_time_intervals(test)
         if force_fig is not None:
-            out["force"] = force_fig
+            for k, v in force_fig.items():
+                out[k] = v
 
         return out
 
