@@ -406,13 +406,14 @@ class IsometricTestResults(TestResults):
                 n_reps = int(dfs.repetition.max())
                 for n, (tp, y) in enumerate(y_vals.items()):
                     name = f"{tp:0.0f}ms"
+                    text = f"{y:0.1f}{unit}"
                     add_point(
                         fig=fig,
                         row=1,
                         col=i,
                         x=tp,
                         y=y,
-                        text=name,
+                        text=text,
                         color=colormap[(n + n_reps + 1) % len(colormap)],
                         name=name,
                         legendgroup="Time",

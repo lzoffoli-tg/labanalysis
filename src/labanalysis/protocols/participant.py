@@ -100,7 +100,7 @@ class Participant:
     _height = None
     _weight = None
     _birthdate = None
-    _recordingdate = date  # type:ignore
+    _recordingdate = date  # type: ignore
     _units = {
         "fullname": "",
         "surname": "",
@@ -136,7 +136,9 @@ class Participant:
         self.set_weight(weight)
         self.set_age(age)
         self.set_birthdate(birthdate)
-        self.set_recordingdate(recordingdate if recordingdate is not None else datetime.now().date())
+        self.set_recordingdate(
+            recordingdate if recordingdate is not None else datetime.now().date()
+        )
 
     def set_recordingdate(
         self,
@@ -490,8 +492,7 @@ class Participant:
             }
         )
 
-    @property
-    def dict(self):
+    def to_dict(self):
         """
         Returns a dict representation of self
 
@@ -505,8 +506,7 @@ class Participant:
             out[i + ((" [" + v + "]") if v != "" else "")] = getattr(self, i)
         return out
 
-    @property
-    def series(self):
+    def to_series(self):
         """
         Returns a pandas.Series representation of self
 
@@ -517,10 +517,9 @@ class Participant:
         """
         vals = [(i, v) for i, v in self.units.items()]
         vals = pd.MultiIndex.from_tuples(vals)
-        return pd.Series(list(self.dict.values()), index=vals)
+        return pd.Series(list(self.to_dict().values()), index=vals)
 
-    @property
-    def dataframe(self):
+    def to_dataframe(self):
         """
         Returns a pandas.DataFrame representation of self
 
@@ -529,7 +528,7 @@ class Participant:
         pandas.DataFrame
             A pandas.DataFrame representation of the Participant object.
         """
-        return pd.DataFrame(self.series).T
+        return pd.DataFrame(self.to_series()).T
 
     def __repr__(self):
         """
@@ -541,7 +540,7 @@ class Participant:
         """
         Returns a string representation of the Participant object.
         """
-        return self.dataframe.__str__()
+        return self.to_dataframe.__str__()
 
     @classmethod
     def from_cosmed_file(cls, filename: str):
