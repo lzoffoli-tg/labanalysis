@@ -153,7 +153,10 @@ class RunningTestResults(TestResults):
 
         # get aggregated data
         agg_data = pd.DataFrame(
-            steps.drop([("step", "#")], axis=1)
+            steps.drop(
+                [("step", "#")] + [i for i in steps.columns if i[1] == "s"],
+                axis=1,
+            )
             .groupby(
                 [
                     ("speed", "km/h"),

@@ -49,4 +49,4 @@ packages = {find = {where = ["src"]}}
 
 [tool.setuptools.package-data]
 # Optionally include specific file patterns if needed
-"*" = ["*.txt", "*.md"]
+"*" = ["*.txt", "*.md", "*.csv"]
