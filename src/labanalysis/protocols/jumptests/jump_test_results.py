@@ -449,7 +449,7 @@ class JumpTestResults(TestResults):
             colors = np.array(colors)[idx]
             if abs(value) < np.min(froms):
                 return colors[0]
-            return colors[np.where(froms < value)[0][-1]]
+            return colors[np.where(froms < abs(value))[0][-1]]
 
         # generate the figure
         subplot_titles = [performance["metric"].upper()]
