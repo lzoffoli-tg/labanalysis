@@ -447,7 +447,7 @@ class JumpTestResults(TestResults):
             froms = np.array(froms)[idx]
             colors = [i["color"] for i in norms.values()]
             colors = np.array(colors)[idx]
-            if value < np.min(froms):
+            if abs(value) < np.min(froms):
                 return colors[0]
             return colors[np.where(froms < value)[0][-1]]
 

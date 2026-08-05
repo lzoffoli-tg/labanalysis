@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "labanalysis"
-version = "237"
+version = "238"
 description = "A small package to simplify data processing in python."
 authors = [{ name = "Luca Zoffoli", email = "lzoffoli@technogym.com" }]
 requires-python = ">=3.12"
@@ -49,4 +49,4 @@ packages = {find = {where = ["src"]}}
 
 [tool.setuptools.package-data]
 # Optionally include specific file patterns if needed
-"*" = ["*.txt", "*.md", "*.csv"]
+"*" = ["*.txt", "*.md", "*.csv", "*.j2", "*.json"]
