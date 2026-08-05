@@ -16,7 +16,7 @@ from .converter import Converter
 __all__ = ["convert"]
 
 
-def convert(argv: list[str] | None) -> int:
+def convert(argv: list[str] | None = None) -> int:
     """
     Command-line interface for converting notebooks to HTML.
 
