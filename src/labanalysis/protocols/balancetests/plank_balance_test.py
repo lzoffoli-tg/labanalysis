@@ -292,11 +292,8 @@ class PlankBalanceTest(TestProtocol):
     def processing_pipeline(self):
         return get_default_processing_pipeline()
 
-    def get_results(self, include_emg: bool = True):
-        return PlankBalanceTestResults(
-            self.processed_data,
-            include_emg,
-        )
+    def update_results(self, include_emg: bool = True):
+        self._results = PlankBalanceTestResults(self.processed_data, include_emg)
 
 
 __all__ = ["PlankBalanceTest"]

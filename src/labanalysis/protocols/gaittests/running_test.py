@@ -90,7 +90,7 @@ class RunningTest(TestProtocol):
     TestProtocol : Base class for test protocols.
     """
 
-    def get_results(self, include_emg: bool = False):
+    def update_results(self, include_emg: bool = False):
         """
         Generate comprehensive running test results.
 
@@ -526,7 +526,7 @@ class RunningTest(TestProtocol):
 
         return pro
 
-    def get_results(self, include_emg: bool = True, limit_steps: int | None= None):
+    def update_results(self, include_emg: bool = True, limit_steps: int | None = None):
         """
         return test results
 
@@ -539,7 +539,7 @@ class RunningTest(TestProtocol):
         """
         from .running_test_results import RunningTestResults
 
-        return RunningTestResults(
+        self._results = RunningTestResults(
             self.processed_data,
             include_emg,
             limit_steps,

@@ -233,7 +233,7 @@ class WalkingTest(WalkingExercise, TestProtocol):
         self.set_normative_data(normative_data)
 
     @property
-    def get_results(self):
+    def update_results(self):
         cop_list = []
         grf_list = []
         metrics = []

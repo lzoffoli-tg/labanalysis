@@ -314,13 +314,13 @@ class Isokinetic1RMTest(TestProtocol):
             relevant_muscle_map=relevant_muscle_map,
         )
 
-    def get_results(
+    def update_results(
         self,
         include_emg: bool = True,
         estimate_1rm: bool = True,
         include_force_balance: bool = True,
     ):
-        return Isokinetic1RMTestResults(
+        self._results = Isokinetic1RMTestResults(
             self.processed_data,
             include_emg,
             estimate_1rm,

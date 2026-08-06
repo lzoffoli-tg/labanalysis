@@ -166,8 +166,8 @@ class SubmaximalVO2MaxTest(TestProtocol):
             ),
         )
 
-    def get_results(self):
-        return SubmaximalVO2MaxTestResults(self.processed_data)
+    def update_results(self):
+        self._results = SubmaximalVO2MaxTestResults(self.processed_data)
 
     @property
     def processed_data(self):

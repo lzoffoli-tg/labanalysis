@@ -66,8 +66,8 @@ class CustomVO2MaxTest(TestProtocol):
     def walking_speed(self):
         return self._walking_speed
 
-    def get_results(self):
-        return CustomVO2MaxTestResults(self.processed_data)
+    def update_results(self, *args, **kwargs):
+        self._results = CustomVO2MaxTestResults(self.processed_data)
 
     @property
     def processed_data(self):

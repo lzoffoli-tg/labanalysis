@@ -206,7 +206,8 @@ class RunningTestResults(TestResults):
                     signals.insert(0, ("pace", "min/km"), cycle.pace)
                     signals.insert(0, ("grade", "%"), cycle.grade)
                     signals.reset_index(drop=True, inplace=True)
-                steps_data.append(signals)
+                    steps_data.append(signals)
+                    count += 1
         out = pd.DataFrame(pd.concat(steps_data, ignore_index=True))
         return out
 

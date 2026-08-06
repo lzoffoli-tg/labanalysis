@@ -1185,7 +1185,7 @@ class JumpTest(TestProtocol):
             keep_all_data=keep_all_data,
         )
 
-    def get_results(self, include_emg: bool = True):
+    def update_results(self, include_emg: bool = True):
         """
         Generate test results with processed data and visualizations.
 
@@ -1200,7 +1200,7 @@ class JumpTest(TestProtocol):
             Results object containing processed data, summary tables,
             and visualization figures.
         """
-        return JumpTestResults(self.processed_data, include_emg)
+        self._results = JumpTestResults(self.processed_data, include_emg)
 
     def _process_record(self, record: Record):
         """

@@ -15,6 +15,7 @@ from ..pipelines.base import ProcessingPipeline
 from ..records import Record
 from ..timeseries import EMGSignal
 from .participant import Participant
+from .test_results import TestResults
 
 
 @runtime_checkable
@@ -55,6 +56,7 @@ class TestProtocol(Protocol):
     _emg_activation_threshold: float
     _emg_normalization_function: Callable
     _relevant_muscle_map: list[str]
+    _results: TestResults | None
 
     def __init__(
         self,
@@ -75,6 +77,7 @@ class TestProtocol(Protocol):
         self.set_emg_normalization_function(emg_normalization_function)
         self.set_emg_normalization_references(emg_normalization_references)
         self.set_keep_all_data(keep_all_data)
+        self._results = None
 
     def __setstate__(self, state):
         """
@@ -315,6 +318,22 @@ class TestProtocol(Protocol):
 
         return args
 
+    def get_results(self, *args, **kwargs):
+        """
+        return the results of the test
+
+        Parameters
+        ----------
+        all parameters required by update_results
+
+        Returns
+        -------
+        TestResults: the results of the test.
+        """
+        if self._results is None:
+            self.update_results(*args, **kwargs)
+        return self._results
+
     def copy(self):
         """
         Create a deep copy preserving the concrete subclass type.
@@ -448,7 +467,7 @@ class TestProtocol(Protocol):
 
     #! MANDATORY METHODS TO BE IMPLEMENTED
 
-    def get_results(self, include_emg: bool = True): ...
+    def update_results(self, include_emg: bool = True): ...
 
     @property
     def processing_pipeline(self) -> ProcessingPipeline:

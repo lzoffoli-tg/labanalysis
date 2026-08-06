@@ -155,11 +155,8 @@ class IsometricTest(TestProtocol):
         self.set_right_test(right)
         self.set_bilateral_test(bilateral)
 
-    def get_results(self, include_emg: bool = True):
-        return IsometricTestResults(
-            self.processed_data,
-            include_emg,
-        )
+    def update_results(self, include_emg: bool = True):
+        self._results = IsometricTestResults(self.processed_data, include_emg)
 
     def set_left_test(self, test: IsometricExercise | None):
         if test is not None and not isinstance(test, IsometricExercise):

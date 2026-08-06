@@ -98,7 +98,7 @@ def test_mattia_furlani_jump_tests():
         raise RuntimeError("'Something went wrong storing the test results.")
 
     # get the results
-    results = test.get_results(include_emg=False)
+    results = test.update_results(include_emg=False)
     results.save_all(RESULTS_PATH, force_overwrite=True)
 
     # remove temporary files

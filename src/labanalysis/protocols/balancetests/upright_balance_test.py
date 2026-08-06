@@ -172,11 +172,8 @@ class UprightBalanceTest(TestProtocol):
     def processing_pipeline(self):
         return get_default_processing_pipeline()
 
-    def get_results(self, include_emg: bool = True):
-        return UprightBalanceTestResults(
-            self.processed_data,
-            include_emg,
-        )
+    def update_results(self, include_emg: bool = True):
+        self._results = UprightBalanceTestResults(self.processed_data, include_emg)
 
 
 __all__ = ["UprightBalanceTest"]

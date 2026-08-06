@@ -198,7 +198,7 @@ class ShuttleTest(TestProtocol):
             ],
         )
 
-    def get_results(self):
+    def update_results(self):
         """
         Generate ShuttleTestResults from processed test data.
 
@@ -208,7 +208,7 @@ class ShuttleTest(TestProtocol):
             Analysis results object containing summary statistics, analytics,
             and visualization figures for the shuttle test.
         """
-        return ShuttleTestResults(self.processed_data)
+        self._results = ShuttleTestResults(self.processed_data)
 
     @property
     def processed_data(self):

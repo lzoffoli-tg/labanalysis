@@ -78,7 +78,7 @@ def test_erika_furlani_jump_tests():
     # jump.box_height = jump.box_height_cm
 
     # get the results
-    results_dj = test_dj.get_results(include_emg=False)
+    results_dj = test_dj.update_results(include_emg=False)
     results_dj.save_all(RESULTS_PATH, force_overwrite=True)
 
     # remove all
