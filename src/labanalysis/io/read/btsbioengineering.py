@@ -928,7 +928,9 @@ def _get_muscle_name(raw_muscle_name: str):
 
     # adjust the muscle name
     side = None if side_idx is None else splits.pop(side_idx)
-    muscle = " ".join([i.capitalize() for i in splits[:2]])
+    muscle = " ".join(
+        [i.capitalize() if i[0] != "(" else (i[0] + i[1:].capitalize()) for i in splits]
+    )
 
     # return the tuple
     return (muscle, side)
