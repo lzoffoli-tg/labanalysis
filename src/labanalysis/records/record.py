@@ -555,8 +555,9 @@ class Record:
                         vals,
                         counter,
                     )
-                cols = record[key].shape[1]
-                record[key][:, :] = vals[:, np.arange(cols) + counter]
+                cols = value.shape[1]
+                obj_pos_index = np.isin(record.index, value.index)
+                record[key].iloc[:, :] = vals[obj_pos_index][:, np.arange(cols) + counter]
                 counter += cols
 
             return counter

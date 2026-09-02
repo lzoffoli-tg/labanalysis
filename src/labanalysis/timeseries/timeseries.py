@@ -438,7 +438,7 @@ class Timeseries:
                         mask |= np.isclose(
                             labels_arr.astype(float),
                             value,
-                            rtol=1e-6,
+                            rtol=0.0,
                             atol=1e-8,
                         )
                     return np.flatnonzero(mask)
@@ -459,7 +459,7 @@ class Timeseries:
                 mask = np.isclose(
                     labels_arr.astype(float),
                     float(selector),
-                    rtol=1e-6,
+                    rtol=0.0,
                     atol=1e-8,
                 )
                 return np.flatnonzero(mask)

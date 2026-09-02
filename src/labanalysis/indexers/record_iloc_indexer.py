@@ -39,6 +39,27 @@ class RecordILocIndexer:
 
         return col_key
 
+    def _normalize_row_selector(self, row_key):
+        if row_key is None:
+            return None
+
+        if isinstance(row_key, (list, tuple, np.ndarray)):
+            values = np.asarray(row_key)
+            if values.dtype == bool:
+                if values.size != len(self.rec.index):
+                    raise IndexError("Boolean selector has wrong length.")
+                positions = np.flatnonzero(values.astype(bool, copy=False))
+            else:
+                positions = values.astype(int, copy=False)
+        elif isinstance(row_key, slice):
+            positions = row_key
+        elif isinstance(row_key, (int, np.integer)):
+            positions = slice(int(row_key), int(row_key) + 1)
+        else:
+            raise TypeError("Invalid positional row selector.")
+
+        return self.rec.index[positions]
+
     @staticmethod
     def _set_attr(obj, name, value):
         object.__setattr__(obj, name, value)
@@ -106,21 +127,21 @@ class RecordILocIndexer:
             except Exception:
                 pass
 
-        if hasattr(value, "iloc"):
-            try:
-                return value.iloc[row_key, col_key]
-            except Exception:
-                try:
-                    return value.iloc[row_key]
-                except Exception:
-                    return value
-
         if hasattr(value, "loc"):
             try:
                 return value.loc[row_key, col_key]
             except Exception:
                 try:
                     return value.loc[row_key]
+                except Exception:
+                    return value
+
+        if hasattr(value, "iloc"):
+            try:
+                return value.iloc[row_key, col_key]
+            except Exception:
+                try:
+                    return value.iloc[row_key]
                 except Exception:
                     return value
 
@@ -149,6 +170,7 @@ class RecordILocIndexer:
 
         row_key = self._normalize_row_key(row_key)
         col_key = self._normalize_col_key(col_key)
+        row_key = self._normalize_row_selector(row_key)
 
         new_obj = self._clone_record()
 

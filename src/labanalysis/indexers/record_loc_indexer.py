@@ -39,6 +39,18 @@ class RecordLocIndexer:
 
         return col_key
 
+    def _normalize_row_selector(self, row_key):
+        if not isinstance(row_key, (list, tuple, np.ndarray)):
+            return row_key
+
+        values = np.asarray(row_key)
+        if values.dtype != bool:
+            return row_key
+        if values.size != len(self.rec.index):
+            raise IndexError("Boolean selector has wrong length.")
+
+        return self.rec.index[values.astype(bool, copy=False)]
+
     @staticmethod
     def _set_attr(obj, name, value):
         object.__setattr__(obj, name, value)
@@ -149,15 +161,10 @@ class RecordLocIndexer:
 
         row_key = self._normalize_row_key(row_key)
         col_key = self._normalize_col_key(col_key)
+        row_key = self._normalize_row_selector(row_key)
 
         new_obj = self._clone_record()
 
-        """
-        for name, value in self.rec.__dict__.items():
-            if name in {"loc", "iloc"}:
-                continue
-            self._set_attr(new_obj, name, value)
-        """
         for name, value in self.rec.__dict__.items():
             if name in {"loc", "iloc"}:
                 continue

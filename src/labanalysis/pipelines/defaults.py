@@ -34,7 +34,7 @@ def get_default_emgsignal_processing_func(channel: EMGSignal):
     2. Bandpass filter (20-450 Hz, 4th order Butterworth)
     3. RMS envelope (200ms window)
     """
-    channel[:, :] -= channel.to_numpy().mean()
+    channel.iloc[:, :] -= channel.to_numpy().mean()
     fsamp = 1 / np.mean(np.diff(channel.index))
     channel.apply(
         butterworth_filt,

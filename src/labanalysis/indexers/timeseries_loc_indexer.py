@@ -61,7 +61,7 @@ class TimeseriesLocIndexer:
                     mask |= np.isclose(
                         labels_arr.astype(float, copy=False),
                         float(value),
-                        rtol=1e-6,
+                        rtol=0.0,
                         atol=1e-8,
                     )
             else:
@@ -75,7 +75,7 @@ class TimeseriesLocIndexer:
                 np.isclose(
                     labels_arr.astype(float, copy=False),
                     float(selector),
-                    rtol=1e-6,
+                    rtol=0.0,
                     atol=1e-8,
                 )
             )
@@ -104,9 +104,13 @@ class TimeseriesLocIndexer:
                 stop = values[-1]
 
             if step > 0:
-                mask = (values >= start) & (values <= stop)
+                mask = (
+                    (values >= start) | np.isclose(values, start, rtol=0.0, atol=1e-8)
+                ) & ((values <= stop) | np.isclose(values, stop, rtol=0.0, atol=1e-8))
             else:
-                mask = (values <= start) & (values >= stop)
+                mask = (
+                    (values <= start) | np.isclose(values, start, rtol=0.0, atol=1e-8)
+                ) & ((values >= stop) | np.isclose(values, stop, rtol=0.0, atol=1e-8))
 
             positions = np.flatnonzero(mask)
 
