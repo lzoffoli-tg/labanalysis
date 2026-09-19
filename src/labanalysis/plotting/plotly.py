@@ -26,7 +26,7 @@ import plotly.express as px
 import plotly.express.colors as pcolors
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from scipy.stats import norm, ttest_ind, ttest_rel
+from scipy.stats import norm, shapiro, ttest_ind, ttest_rel
 
 __all__ = ["plot_comparisons", "bars_with_normative_bands"]
 
@@ -204,6 +204,7 @@ def plot_comparisons(
         ["R<sup>2</sup>"],
         ["T<sub>Paired</sub>"],
         ["T<sub>Independent</sub>"],
+        ["Shapiro-Wilk"],
         ["Bias"],
         ["LOA<sub>Upper</sub>"],
         ["LOA<sub>Lower</sub>"],
@@ -254,9 +255,22 @@ def plot_comparisons(
             r2_lbl = "N/A"
             tt_rel_lbl = "N/A"
             tt_ind_lbl = "N/A"
+
+        # shapiro-wilk normality test on the residuals (true - predicted)
+        # requires at least 3 samples per subgroup
+        if n >= 3:
+            try:
+                sw = shapiro(diffi)
+                sw_lbl = f"W={sw.statistic:0.2f}<br>p={sw.pvalue:0.3f}"
+            except Exception:
+                sw_lbl = "N/A"
+        else:
+            sw_lbl = "N/A"
+
         rows[3] += [r2_lbl]
         rows[4] += [tt_rel_lbl]
         rows[5] += [tt_ind_lbl]
+        rows[6] += [sw_lbl]
 
         means = (xarri + yarri) / 2
         diffs = yarri - xarri
@@ -267,9 +281,9 @@ def plot_comparisons(
             bias = np.mean(diffs)
             scale = np.std(diffs)
             loalow, loasup = norm.interval(confidence, loc=bias, scale=scale)
-        rows[6] += [f"{bias:+0.3f}"]
-        rows[7] += [f"{loalow:+0.3f}"]
-        rows[8] += [f"{loasup:+0.3f}"]
+        rows[7] += [f"{bias:+0.3f}"]
+        rows[8] += [f"{loalow:+0.3f}"]
+        rows[9] += [f"{loasup:+0.3f}"]
 
         # plot the true vs predicted values in the regression plot
         fig.add_trace(
