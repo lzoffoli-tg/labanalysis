@@ -216,13 +216,48 @@ def plot_comparisons(
         yarri = pred_data[idx]
         diffi = diffs_data[idx]
         diffc = diff_colors[idx]
+        n = len(xarri)
+
+        headers += [name]
+        rows[0] += [str(n)]
+
+        # not enough data in this subgroup to compute or plot anything
+        if n == 0:
+            for row in rows[1:]:
+                row.append("N/A")
+            continue
 
         # add the fitting metrics
         rmse = np.mean((yarri - xarri) ** 2) ** 0.5
         mape = np.mean((abs(yarri - xarri) + eps) / (xarri + eps)) * 100
-        r2 = np.corrcoef(xarri, yarri)[0][1] ** 2
-        tt_rel = ttest_rel(xarri, yarri)
-        tt_ind = ttest_ind(xarri, yarri)
+        rows[1] += [f"{rmse:0.4f}"]
+        rows[2] += [f"{mape:0.1f}%"]
+
+        # r2 and t-tests require at least 2 samples per subgroup
+        if n >= 2:
+            try:
+                r2 = np.corrcoef(xarri, yarri)[0][1] ** 2
+                r2_lbl = f"{r2:0.3f}" if np.isfinite(r2) else "N/A"
+            except Exception:
+                r2_lbl = "N/A"
+            try:
+                tt_rel = ttest_rel(xarri, yarri)
+                tt_rel_lbl = f"df={tt_rel.df:0.0f}<br>t={tt_rel.statistic:0.2f}<br>p={tt_rel.pvalue:0.3f}"
+            except Exception:
+                tt_rel_lbl = "N/A"
+            try:
+                tt_ind = ttest_ind(xarri, yarri)
+                tt_ind_lbl = f"df={tt_ind.df:0.0f}<br>t={tt_ind.statistic:0.2f}<br>p={tt_ind.pvalue:0.3f}"  # type: ignore
+            except Exception:
+                tt_ind_lbl = "N/A"
+        else:
+            r2_lbl = "N/A"
+            tt_rel_lbl = "N/A"
+            tt_ind_lbl = "N/A"
+        rows[3] += [r2_lbl]
+        rows[4] += [tt_rel_lbl]
+        rows[5] += [tt_ind_lbl]
+
         means = (xarri + yarri) / 2
         diffs = yarri - xarri
         if not parametric:
@@ -232,15 +267,6 @@ def plot_comparisons(
             bias = np.mean(diffs)
             scale = np.std(diffs)
             loalow, loasup = norm.interval(confidence, loc=bias, scale=scale)
-        headers += [name]
-        rows[0] += [str(len(xarri))]
-        rows[1] += [f"{rmse:0.4f}"]
-        rows[2] += [f"{mape:0.1f}%"]
-        rows[3] += [f"{r2:0.3f}"]
-        rows[4] += [
-            f"df={tt_rel.df:0.0f}<br>t={tt_rel.statistic:0.2f}<br>p={tt_rel.pvalue:0.3f}"
-        ]
-        rows[5] += [f"df={tt_ind.df:0.0f}<br>t={tt_ind.statistic:0.2f}<br>p={tt_ind.pvalue:0.3f}"]  # type: ignore
         rows[6] += [f"{bias:+0.3f}"]
         rows[7] += [f"{loalow:+0.3f}"]
         rows[8] += [f"{loasup:+0.3f}"]
