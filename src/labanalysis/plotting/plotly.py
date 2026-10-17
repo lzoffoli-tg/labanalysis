@@ -221,18 +221,18 @@ def plot_comparisons(
         "#": [],
         "RMSE": [],
         "MAPE": [],
-        "R<sup>2</sup>": [],
-        "T<sub>Paired</sub> df": [],
-        "T<sub>Paired</sub> t": [],
-        "T<sub>Paired</sub> p": [],
-        "T<sub>Independent</sub> df": [],
-        "T<sub>Independent</sub> t": [],
-        "T<sub>Independent</sub> p": [],
+        "R-squared": [],
+        "T-Paired df": [],
+        "T-Paired t": [],
+        "T-Paired p": [],
+        "T-Independent df": [],
+        "T-Independent t": [],
+        "T-Independent p": [],
         "Shapiro-Wilk W": [],
         "Shapiro-Wilk p": [],
         "Bias": [],
-        "LOA<sub>Upper</sub>": [],
-        "LOA<sub>Lower</sub>": [],
+        "LOA-Upper": [],
+        "LOA-Lower": [],
     }
 
     # * ADD DATA TO FIGURE
@@ -270,23 +270,23 @@ def plot_comparisons(
             try:
                 r2 = np.corrcoef(xarri, yarri)[0][1] ** 2
                 r2_lbl = f"{r2:0.3f}" if np.isfinite(r2) else "N/A"
-                group_metrics["R<sup>2</sup>"] = r2 if np.isfinite(r2) else np.nan
+                group_metrics["R-squared"] = r2 if np.isfinite(r2) else np.nan
             except Exception:
                 r2_lbl = "N/A"
             try:
                 tt_rel = ttest_rel(xarri, yarri)
                 tt_rel_lbl = f"df={tt_rel.df:0.0f}<br>t={tt_rel.statistic:0.2f}<br>p={tt_rel.pvalue:0.3f}"
-                group_metrics["T<sub>Paired</sub> df"] = tt_rel.df
-                group_metrics["T<sub>Paired</sub> t"] = tt_rel.statistic
-                group_metrics["T<sub>Paired</sub> p"] = tt_rel.pvalue
+                group_metrics["T-Paired df"] = tt_rel.df
+                group_metrics["T-Paired t"] = tt_rel.statistic
+                group_metrics["T-Paired p"] = tt_rel.pvalue
             except Exception:
                 tt_rel_lbl = "N/A"
             try:
                 tt_ind = ttest_ind(xarri, yarri)
                 tt_ind_lbl = f"df={tt_ind.df:0.0f}<br>t={tt_ind.statistic:0.2f}<br>p={tt_ind.pvalue:0.3f}"  # type: ignore
-                group_metrics["T<sub>Independent</sub> df"] = tt_ind.df
-                group_metrics["T<sub>Independent</sub> t"] = tt_ind.statistic
-                group_metrics["T<sub>Independent</sub> p"] = tt_ind.pvalue
+                group_metrics["T-Independent df"] = tt_ind.df
+                group_metrics["T-Independent t"] = tt_ind.statistic
+                group_metrics["T-Independent p"] = tt_ind.pvalue
             except Exception:
                 tt_ind_lbl = "N/A"
         else:
@@ -325,8 +325,8 @@ def plot_comparisons(
         rows[8] += [f"{loasup:+0.3f}"]
         rows[9] += [f"{loalow:+0.3f}"]
         group_metrics["Bias"] = bias
-        group_metrics["LOA<sub>Upper</sub>"] = loasup
-        group_metrics["LOA<sub>Lower</sub>"] = loalow
+        group_metrics["LOA-Upper"] = loasup
+        group_metrics["LOA-Lower"] = loalow
         for label, values in metric_data.items():
             values.append(group_metrics[label])
 
