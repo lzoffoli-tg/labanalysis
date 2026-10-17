@@ -25,7 +25,7 @@ Every Plotly figure consists of two main components:
 import labanalysis as laban
 import plotly.graph_objects as go
 
-fig = laban.plot_comparisons(...)
+fig, metrics = laban.plot_comparisons(...)
 
 # Component 1: Data traces (plot elements)
 print(len(fig.data))  # Number of traces
@@ -77,7 +77,7 @@ Row 2:                           [Histogram]   [Link Plot]
 Access subplots by (row, col) indices:
 
 ```python
-fig = laban.plot_comparisons(...)
+fig, metrics = laban.plot_comparisons(...)
 
 # Update specific subplot axis
 fig.update_xaxes(title_text="Custom X Label", row=1, col=2)  # Scatter plot
@@ -94,7 +94,7 @@ fig.update_yaxes(range=[0, 100], row=1, col=3)  # Bland-Altman
 import labanalysis as laban
 import numpy as np
 
-fig = laban.plot_comparisons(
+fig, metrics = laban.plot_comparisons(
     data_frame=None,
     true_data=np.array([10, 20, 30, 40, 50]),
     pred_data=np.array([9, 21, 29, 41, 48])
@@ -232,7 +232,7 @@ fig.add_vrect(
 
 ```python
 # Link plot uses colorscale parameter
-fig = laban.plot_comparisons(
+fig, metrics = laban.plot_comparisons(
     ...,
     color_scale='Viridis'  # Change at creation
 )
@@ -347,7 +347,7 @@ fig.add_hrect(
 **Nature/Science Style:**
 
 ```python
-fig = laban.plot_comparisons(...)
+fig, metrics = laban.plot_comparisons(...)
 
 # Nature requirements: Arial font, specific sizing
 fig.update_layout(
@@ -891,7 +891,7 @@ fig = make_subplots(
 )
 
 # Top: Comparison plot (extract key subplot)
-comparison_fig = laban.plot_comparisons(...)
+comparison_fig, metrics = laban.plot_comparisons(...)
 # Extract Bland-Altman subplot (requires advanced trace manipulation)
 # ... (simplified here)
 

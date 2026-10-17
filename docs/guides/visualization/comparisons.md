@@ -38,7 +38,7 @@ df = pd.DataFrame({
 })
 
 # Create comprehensive comparison figure
-fig = laban.plot_comparisons(
+fig, metrics = laban.plot_comparisons(
     data_frame=df,
     true_data='video_analysis',      # Reference method (column name)
     pred_data='force_platform',      # Method being validated
@@ -46,6 +46,7 @@ fig = laban.plot_comparisons(
 )
 
 fig.show()
+print(metrics)
 
 # Output: Interactive 5-subplot figure
 # - Bias: -0.26 cm (force platform slightly underestimates)
@@ -64,14 +65,19 @@ true = np.array([10, 20, 30, 40, 50, 60, 70, 80])
 pred = true + np.random.normal(0, 3, size=8)
 
 # Create comparison figure
-fig = laban.plot_comparisons(
-    data_frame=None,
+fig, metrics = laban.plot_comparisons(
     true_data=true,
     pred_data=pred
 )
 
 fig.show()
+print(metrics)
 ```
+
+The returned `metrics` DataFrame has group names as columns and statistic
+names as its index. Each cell contains one numeric value; paired/independent
+t-test results and Shapiro-Wilk results are split across separate rows.
+Statistics that cannot be computed are represented by `NaN`.
 
 ## Understanding the 5 Subplots
 
@@ -226,7 +232,7 @@ Controls how data is provided:
 ```python
 # Option 1: Use DataFrame (recommended for labeled data)
 df = pd.DataFrame({'ref': [10, 20, 30], 'test': [9, 21, 29]})
-fig = laban.plot_comparisons(
+fig, metrics = laban.plot_comparisons(
     data_frame=df,
     true_data='ref',    # Column name (string)
     pred_data='test'    # Column name (string)
@@ -235,7 +241,7 @@ fig = laban.plot_comparisons(
 # Option 2: Use arrays directly
 true_arr = np.array([10, 20, 30])
 pred_arr = np.array([9, 21, 29])
-fig = laban.plot_comparisons(
+fig, metrics = laban.plot_comparisons(
     data_frame=None,
     true_data=true_arr,  # NumPy array
     pred_data=pred_arr   # NumPy array
@@ -253,14 +259,14 @@ fig = laban.plot_comparisons(
 
 ```python
 # Validation study: gold standard vs new device
-fig = laban.plot_comparisons(
+fig, metrics = laban.plot_comparisons(
     data_frame=df,
     true_data='isokinetic_dynamometer',  # Gold standard
     pred_data='portable_device'          # Being validated
 )
 
 # ML model evaluation: actual vs predicted
-fig = laban.plot_comparisons(
+fig, metrics = laban.plot_comparisons(
     data_frame=test_df,
     true_data='actual_jump_height',
     pred_data='model_predictions'
@@ -295,7 +301,7 @@ df = pd.DataFrame({
     'athlete': ['A', 'A', 'B', 'B', 'C', 'C']
 })
 
-fig = laban.plot_comparisons(
+fig, metrics = laban.plot_comparisons(
     data_frame=df,
     true_data='true',
     pred_data='pred',
@@ -327,15 +333,15 @@ Confidence level for limits of agreement:
 
 ```python
 # 95% confidence (default, most common)
-fig = laban.plot_comparisons(..., confidence=0.95)
+fig, metrics = laban.plot_comparisons(..., confidence=0.95)
 # LOA contains 95% of differences
 
 # 99% confidence (stricter)
-fig = laban.plot_comparisons(..., confidence=0.99)
+fig, metrics = laban.plot_comparisons(..., confidence=0.99)
 # LOA contains 99% of differences (wider bands)
 
 # 90% confidence (looser)
-fig = laban.plot_comparisons(..., confidence=0.90)
+fig, metrics = laban.plot_comparisons(..., confidence=0.90)
 # LOA contains 90% of differences (narrower bands)
 ```
 
@@ -361,12 +367,12 @@ Statistical approach for calculating limits of agreement:
 
 ```python
 # Non-parametric (default, robust)
-fig = laban.plot_comparisons(..., parametric=False)
+fig, metrics = laban.plot_comparisons(..., parametric=False)
 # LOA based on percentiles (2.5th, 97.5th for 95% CI)
 # Bias = median(differences)
 
 # Parametric (assumes normal distribution)
-fig = laban.plot_comparisons(..., parametric=True)
+fig, metrics = laban.plot_comparisons(..., parametric=True)
 # LOA based on mean ± 1.96×SD
 # Bias = mean(differences)
 ```
@@ -407,12 +413,12 @@ Plotly color scale for link plot gradient:
 
 ```python
 # Default: temps (blue to red)
-fig = laban.plot_comparisons(..., color_scale='temps')
+fig, metrics = laban.plot_comparisons(..., color_scale='temps')
 
 # Alternative color scales
-fig = laban.plot_comparisons(..., color_scale='Viridis')  # Colorblind-friendly
-fig = laban.plot_comparisons(..., color_scale='RdYlGn')   # Red-Yellow-Green
-fig = laban.plot_comparisons(..., color_scale='Blues')     # Single hue
+fig, metrics = laban.plot_comparisons(..., color_scale='Viridis')  # Colorblind-friendly
+fig, metrics = laban.plot_comparisons(..., color_scale='RdYlGn')   # Red-Yellow-Green
+fig, metrics = laban.plot_comparisons(..., color_scale='Blues')     # Single hue
 ```
 
 **Popular Options:**
@@ -446,7 +452,7 @@ df = pd.DataFrame({
 })
 
 # Create validation figure
-fig = laban.plot_comparisons(
+fig, metrics = laban.plot_comparisons(
     data_frame=df,
     true_data='lab_system',
     pred_data='portable_device',
@@ -511,7 +517,7 @@ test_df = pd.DataFrame({
     'predicted': y_pred
 })
 
-fig = laban.plot_comparisons(
+fig, metrics = laban.plot_comparisons(
     data_frame=test_df,
     true_data='actual',
     pred_data='predicted',
@@ -539,7 +545,7 @@ df = pd.DataFrame({
     'patient': ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8']
 })
 
-fig = laban.plot_comparisons(
+fig, metrics = laban.plot_comparisons(
     data_frame=df,
     true_data='rater_1',  # Neither is "true", just first reference
     pred_data='rater_2',
@@ -569,7 +575,7 @@ df = pd.DataFrame({
     'athlete': ['A', 'B', 'C', 'D', 'E']
 })
 
-fig = laban.plot_comparisons(
+fig, metrics = laban.plot_comparisons(
     data_frame=df,
     true_data='day_1',
     pred_data='day_2',
@@ -633,7 +639,7 @@ High R² does NOT guarantee good agreement!
 true = np.array([10, 20, 30, 40, 50])
 pred = true * 2  # Systematic doubling
 
-fig = laban.plot_comparisons(data_frame=None, true_data=true, pred_data=pred)
+fig, metrics = laban.plot_comparisons(data_frame=None, true_data=true, pred_data=pred)
 # R² = 1.0 (perfect correlation)
 # BUT bias = 30 (massive systematic error!)
 ```
@@ -775,7 +781,7 @@ print(f"Outliers: {np.sum(outliers)} / {len(errors)}")
 
 ```python
 # Robust analysis with outliers
-fig = laban.plot_comparisons(..., parametric=False)
+fig, metrics = laban.plot_comparisons(..., parametric=False)
 
 # Sensitivity analysis: compare with/without outliers
 fig_all = laban.plot_comparisons(data_frame=df, ...)
@@ -842,7 +848,7 @@ import pandas as pd
 df = pd.read_csv("jump_validation_data.csv")
 # Columns: athlete_id, force_platform_height, smartphone_height
 
-fig = laban.plot_comparisons(
+fig, metrics = laban.plot_comparisons(
     data_frame=df,
     true_data='force_platform_height',
     pred_data='smartphone_height',
@@ -880,7 +886,7 @@ df = pd.DataFrame({
     'activity': ['rest', 'rest', 'rest', 'walk', 'walk', 'walk', 'run', 'run', 'run']
 })
 
-fig = laban.plot_comparisons(
+fig, metrics = laban.plot_comparisons(
     data_frame=df,
     true_data='chest_strap',
     pred_data='wearable',
@@ -919,7 +925,7 @@ print(f"NaN in pred: {np.sum(np.isnan(pred_data))}")
 
 # Remove NaN before plotting
 mask = ~(np.isnan(true_data) | np.isnan(pred_data))
-fig = laban.plot_comparisons(
+fig, metrics = laban.plot_comparisons(
     data_frame=None,
     true_data=true_data[mask],
     pred_data=pred_data[mask]
@@ -930,7 +936,7 @@ fig = laban.plot_comparisons(
 
 ```python
 # Solution: Set axis ranges manually after creation
-fig = laban.plot_comparisons(...)
+fig, metrics = laban.plot_comparisons(...)
 
 # Limit Bland-Altman y-axis to ±3 SD
 errors = pred_data - true_data
@@ -945,7 +951,7 @@ fig.show()
 ```python
 # Solution 1: Downsample for visualization
 stride = len(data) // 5000  # Keep ~5000 points
-fig = laban.plot_comparisons(
+fig, metrics = laban.plot_comparisons(
     data_frame=df[::stride],  # Every nth row
     true_data='true',
     pred_data='pred'

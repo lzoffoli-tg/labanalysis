@@ -39,7 +39,7 @@ import labanalysis as laban
 import plotly.graph_objects as go
 
 # Plots display automatically in notebook cells
-fig = laban.plot_comparisons(...)
+fig, metrics = laban.plot_comparisons(...)
 fig.show()  # Displays inline
 ```
 
@@ -80,14 +80,16 @@ true = np.array([10, 20, 30, 40, 50])
 pred = true + np.random.normal(0, 2, 5)
 
 # Create comparison figure with 5 subplots
-fig = laban.plot_comparisons(
+fig, metrics = laban.plot_comparisons(
     data_frame=None,
     true_data=true,
-    pred_data=pred
+    pred_data=pred,
+    color_data=np.array(["all"] * len(true)),
 )
 
 # Display (browser or notebook)
 fig.show()
+print(metrics)
 
 # Output: Interactive figure with statistics table, regression plot,
 # Bland-Altman plot, error distribution, and link plot
@@ -147,9 +149,10 @@ fig.write_image("comparison_plot.pdf")
 labanalysis functions return different Plotly object types:
 
 ```python
-# plot_comparisons returns Figure
-fig1 = laban.plot_comparisons(...)
+# plot_comparisons returns a Figure and a DataFrame
+fig1, metrics = laban.plot_comparisons(...)
 print(type(fig1))  # plotly.graph_objects.Figure
+print(type(metrics))  # pandas.DataFrame
 
 # bars_with_normative_bands returns FigureWidget
 fig2, dfr = laban.bars_with_normative_bands(...)
@@ -201,7 +204,7 @@ fig.update_yaxes(title_text="Force (N)")
 `plot_comparisons()` creates a figure with 5 subplots arranged in a grid:
 
 ```python
-fig = laban.plot_comparisons(...)
+fig, metrics = laban.plot_comparisons(...)
 
 # Access subplot information
 print(fig.layout.grid)  # Grid structure
@@ -303,7 +306,7 @@ In Jupyter notebooks, figures display automatically:
 
 ```python
 # Cell 1: Create figure
-fig = laban.plot_comparisons(...)
+fig, metrics = laban.plot_comparisons(...)
 
 # Cell 2: Display (automatic if fig is last line, explicit with .show())
 fig.show()
@@ -422,7 +425,7 @@ Large figures can consume significant memory:
 import sys
 
 # Check figure size in memory
-fig = laban.plot_comparisons(...)
+fig, metrics = laban.plot_comparisons(...)
 size_mb = sys.getsizeof(fig) / 1024 / 1024
 print(f"Figure size: {size_mb:.2f} MB")
 ```
@@ -431,7 +434,7 @@ For batch processing, explicitly delete figures:
 
 ```python
 for i in range(100):
-    fig = laban.plot_comparisons(...)
+    fig, metrics = laban.plot_comparisons(...)
     fig.write_html(f"report_{i}.html")
     del fig  # Free memory
 ```
@@ -508,7 +511,7 @@ df = pd.DataFrame({
 })
 
 # Use with labanalysis functions
-fig = laban.plot_comparisons(
+fig, metrics = laban.plot_comparisons(
     data_frame=df,
     true_data='Fx',
     pred_data='Fy'

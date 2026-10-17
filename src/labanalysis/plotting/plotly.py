@@ -7,7 +7,7 @@ Functions
 ---------
 plot_comparisons
     A combination of regression and bland-altmann plots which returns a
-    Plotly FigureWidget object.
+    Plotly figure and a dataframe of summary statistics.
 
 bars_with_normative_bands
     Return a plotly FigureWidget and a dataframe with bars defining values
@@ -35,14 +35,14 @@ __all__ = ["plot_comparisons", "bars_with_normative_bands"]
 
 
 def plot_comparisons(
-    data_frame: pd.DataFrame | None,
-    true_data: np.ndarray | str,
-    pred_data: np.ndarray | str,
+    data_frame: pd.DataFrame | None = None,
+    true_data: np.ndarray | str | None = None,
+    pred_data: np.ndarray | str | None = None,
     color_data: np.ndarray | str | None = None,
     confidence: float = 0.95,
     parametric: bool = False,
     color_scale: str = "temps",
-):
+) -> tuple[go.Figure, pd.DataFrame]:
     """
     Create comprehensive comparison plots for true vs predicted values.
 
@@ -52,14 +52,14 @@ def plot_comparisons(
     Parameters
     ----------
     data_frame : pd.DataFrame or None
-        DataFrame containing the data. If None, true_data and pred_data must be
-        arrays.
+        DataFrame containing the data, by default None. If omitted or None,
+        true_data and pred_data must be arrays.
     true_data : np.ndarray or str
         True/reference values. If data_frame is provided, this is a column name;
-        otherwise, a numpy array or list.
+        otherwise, a numpy array or list. Required.
     pred_data : np.ndarray or str
         Predicted values. If data_frame is provided, this is a column name;
-        otherwise, a numpy array or list.
+        otherwise, a numpy array or list. Required.
     color_data : np.ndarray, str, or None, default=None
         Grouping variable for coloring points. If data_frame is provided, this
         is a column name; otherwise, a numpy array or list.
@@ -73,13 +73,18 @@ def plot_comparisons(
 
     Returns
     -------
-    plotly.graph_objects.Figure
+    fig : plotly.graph_objects.Figure
         Interactive figure with 5 subplots:
         - Summary statistics table
         - True vs Predicted scatter plot with regression line
         - Bland-Altman plot with limits of agreement
         - Error distribution histogram
         - Link plot showing paired observations
+    metrics : pandas.DataFrame
+        Numeric statistics shown in the figure table. Group names are the
+        columns and statistic labels are the index. Multi-value statistics
+        (t-tests and Shapiro-Wilk) are split into separate rows; unavailable
+        values are represented by NaN.
 
     Raises
     ------
@@ -91,8 +96,9 @@ def plot_comparisons(
     >>> import pandas as pd
     >>> import numpy as np
     >>> df = pd.DataFrame({'true': [1, 2, 3], 'pred': [1.1, 2.2, 2.9]})
-    >>> fig = plot_comparisons(df, 'true', 'pred')
+    >>> fig, metrics = plot_comparisons(df, 'true', 'pred')
     >>> fig.show()
+    >>> print(metrics)
     """
     # * PREPARATION
 
@@ -106,6 +112,8 @@ def plot_comparisons(
         if color_data is not None:
             if not isinstance(color_data, (list, np.ndarray)):
                 raise ValueError(msg.format("color_data"))
+        else:
+            color_data = np.tile("ALL", len(true_data))
 
     elif isinstance(data_frame, pd.DataFrame):
         msg = "if data_frame is provided, '{}' must be the name of one column "
@@ -209,6 +217,23 @@ def plot_comparisons(
         ["LOA<sub>Upper</sub>"],
         ["LOA<sub>Lower</sub>"],
     ]
+    metric_data: dict[str, list[float]] = {
+        "#": [],
+        "RMSE": [],
+        "MAPE": [],
+        "R<sup>2</sup>": [],
+        "T<sub>Paired</sub> df": [],
+        "T<sub>Paired</sub> t": [],
+        "T<sub>Paired</sub> p": [],
+        "T<sub>Independent</sub> df": [],
+        "T<sub>Independent</sub> t": [],
+        "T<sub>Independent</sub> p": [],
+        "Shapiro-Wilk W": [],
+        "Shapiro-Wilk p": [],
+        "Bias": [],
+        "LOA<sub>Upper</sub>": [],
+        "LOA<sub>Lower</sub>": [],
+    }
 
     # * ADD DATA TO FIGURE
 
@@ -221,16 +246,22 @@ def plot_comparisons(
 
         headers += [name]
         rows[0] += [str(n)]
+        group_metrics = {label: np.nan for label in metric_data}
+        group_metrics["#"] = float(n)
 
         # not enough data in this subgroup to compute or plot anything
         if n == 0:
             for row in rows[1:]:
                 row.append("N/A")
+            for label, values in metric_data.items():
+                values.append(group_metrics[label])
             continue
 
         # add the fitting metrics
         rmse = np.mean((yarri - xarri) ** 2) ** 0.5
         mape = np.mean((abs(yarri - xarri) + eps) / (xarri + eps)) * 100
+        group_metrics["RMSE"] = rmse
+        group_metrics["MAPE"] = mape
         rows[1] += [f"{rmse:0.4f}"]
         rows[2] += [f"{mape:0.1f}%"]
 
@@ -239,16 +270,23 @@ def plot_comparisons(
             try:
                 r2 = np.corrcoef(xarri, yarri)[0][1] ** 2
                 r2_lbl = f"{r2:0.3f}" if np.isfinite(r2) else "N/A"
+                group_metrics["R<sup>2</sup>"] = r2 if np.isfinite(r2) else np.nan
             except Exception:
                 r2_lbl = "N/A"
             try:
                 tt_rel = ttest_rel(xarri, yarri)
                 tt_rel_lbl = f"df={tt_rel.df:0.0f}<br>t={tt_rel.statistic:0.2f}<br>p={tt_rel.pvalue:0.3f}"
+                group_metrics["T<sub>Paired</sub> df"] = tt_rel.df
+                group_metrics["T<sub>Paired</sub> t"] = tt_rel.statistic
+                group_metrics["T<sub>Paired</sub> p"] = tt_rel.pvalue
             except Exception:
                 tt_rel_lbl = "N/A"
             try:
                 tt_ind = ttest_ind(xarri, yarri)
                 tt_ind_lbl = f"df={tt_ind.df:0.0f}<br>t={tt_ind.statistic:0.2f}<br>p={tt_ind.pvalue:0.3f}"  # type: ignore
+                group_metrics["T<sub>Independent</sub> df"] = tt_ind.df
+                group_metrics["T<sub>Independent</sub> t"] = tt_ind.statistic
+                group_metrics["T<sub>Independent</sub> p"] = tt_ind.pvalue
             except Exception:
                 tt_ind_lbl = "N/A"
         else:
@@ -262,6 +300,8 @@ def plot_comparisons(
             try:
                 sw = shapiro(diffi)
                 sw_lbl = f"W={sw.statistic:0.2f}<br>p={sw.pvalue:0.3f}"
+                group_metrics["Shapiro-Wilk W"] = sw.statistic
+                group_metrics["Shapiro-Wilk p"] = sw.pvalue
             except Exception:
                 sw_lbl = "N/A"
         else:
@@ -282,8 +322,13 @@ def plot_comparisons(
             scale = np.std(diffs)
             loalow, loasup = norm.interval(confidence, loc=bias, scale=scale)
         rows[7] += [f"{bias:+0.3f}"]
-        rows[8] += [f"{loalow:+0.3f}"]
-        rows[9] += [f"{loasup:+0.3f}"]
+        rows[8] += [f"{loasup:+0.3f}"]
+        rows[9] += [f"{loalow:+0.3f}"]
+        group_metrics["Bias"] = bias
+        group_metrics["LOA<sub>Upper</sub>"] = loasup
+        group_metrics["LOA<sub>Lower</sub>"] = loalow
+        for label, values in metric_data.items():
+            values.append(group_metrics[label])
 
         # plot the true vs predicted values in the regression plot
         fig.add_trace(
@@ -516,7 +561,8 @@ def plot_comparisons(
     fig.update_xaxes(title="", col=3, row=2)
     fig.update_yaxes(title="", col=3, row=2)
 
-    return fig
+    metrics = pd.DataFrame(metric_data, index=headers[1:]).T
+    return fig, metrics
 
 
 def bars_with_normative_bands(

@@ -12,23 +12,36 @@ Visualization utilities for creating interactive Plotly charts with normative ba
 
 ### plot_comparisons()
 
-Create regression, Bland-Altman, or error plots.
+Create a figure for comparing reference and predicted values, together with
+the numeric statistics shown in its summary table.
 
 ```python
 def plot_comparisons(
-    x: np.ndarray,
-    y: np.ndarray,
-    plot_type: str = 'regression',
-    **kwargs
-) -> go.Figure
+    data_frame: pd.DataFrame | None = None,
+    true_data: np.ndarray | str | None = None,
+    pred_data: np.ndarray | str | None = None,
+    color_data: np.ndarray | str | None = None,
+    confidence: float = 0.95,
+    parametric: bool = False,
+    color_scale: str = "temps",
+) -> tuple[go.Figure, pd.DataFrame]
 ```
 
 **Parameters:**
-- `x`, `y` (ndarray): Data arrays
-- `plot_type` (str): 'regression', 'bland_altman', or 'error'
+- `data_frame`: Optional DataFrame containing the values and grouping column
+  (defaults to `None`).
+- `true_data`, `pred_data`: Column names when `data_frame` is provided;
+  otherwise arrays of reference and predicted values. Both are required.
+- `color_data`: Optional grouping column name.
+- `confidence`: Confidence level for limits of agreement.
+- `parametric`: Whether to calculate parametric limits of agreement.
+- `color_scale`: Plotly color scale used by the link plot.
 
 **Returns:**
-- `plotly.graph_objects.Figure`: Interactive plot
+- `fig` (`plotly.graph_objects.Figure`): Interactive comparison plot.
+- `metrics` (`pandas.DataFrame`): Numeric metrics with groups as columns and
+  statistic names as the index. T-test and Shapiro-Wilk results are split into
+  separate rows; unavailable values are `NaN`.
 
 **Example:**
 ```python
@@ -38,8 +51,12 @@ import numpy as np
 x = np.array([1, 2, 3, 4, 5])
 y = np.array([1.1, 2.0, 3.2, 3.9, 5.1])
 
-fig = laban.plot_comparisons(x, y, plot_type='regression')
+fig, metrics = laban.plot_comparisons(
+    true_data=x,
+    pred_data=y,
+)
 fig.show()
+print(metrics)
 ```
 
 ---
