@@ -671,7 +671,7 @@ Cardiovascular and metabolic prediction equations.
 - [Records Module](docs/api-reference/records/README.md) - Timeseries, Signal, Record, WholeBody
 - [Protocols Module](docs/api-reference/protocols/README.md) - Participant, TestProtocol, TestResults
 - [Signal Processing](docs/api-reference/signalprocessing.md) - 30+ processing functions
-- [I/O Module](docs/api-reference/io/README.md) - Data readers and writers
+- [I/O Module](docs/api/README.md#io-module) - Data readers
 - [Modeling Module](docs/api-reference/modelling/README.md) - OLS and PyTorch models
 
 **Advanced Topics:**

@@ -11,7 +11,7 @@ Practical guides and examples for using labanalysis - from data loading to advan
 **Start here if**: You want to learn how to use labanalysis for your biomechanical analysis tasks.
 
 **Topics covered**:
-- Data loading (BTS, OpenSim, Biostrength, IRCAM)
+- Data loading (BTS, Biostrength, IRCAM)
 - Signal processing (filtering, peak detection, derivatives, FFT)
 - Biomechanics (WholeBody model, force platforms, joint angles, EMG)
 - Test protocols (jump, gait, balance, strength, agility, VO2max)
@@ -29,7 +29,7 @@ Complete API documentation for all classes, functions, and modules.
 - Records (Signal1D, Signal3D, Record, WholeBody, EMGSignal)
 - Protocols (TestProtocol, Participant, jump/gait/balance/strength tests)
 - Signal Processing (30+ functions for filtering, peaks, derivatives, FFT)
-- I/O (read/write TDF, OpenSim, and other formats)
+- I/O readers (BTS TDF and IRCAM NPZ)
 - Modeling (OLS regression, PyTorch integration, TorchTrainer)
 - Equations (Brzycki 1RM, VO2 prediction, ACSM formulas)
 - Plotting and visualization utilities
@@ -106,7 +106,7 @@ docs/
 ├── api/       Complete API documentation by module
 │   ├── records/         Data structures (Signal, Record, WholeBody)
 │   ├── protocols/       Test protocols and participants
-│   ├── io/              Data readers and writers
+│   ├── io/              Data readers
 │   ├── modelling/       Statistical and ML models
 │   └── equations/       Predictive equations
 │
