@@ -44,7 +44,6 @@ Load data from various biomechanical systems and file formats.
 
 - [**Overview**](data-loading/overview.md) - Introduction to data loading patterns
 - [BTS Bioengineering](data-loading/bts.md) - Load TDF files from BTS systems
-- [OpenSim](data-loading/opensim.md) - Import OpenSim motion and model files
 - [Biostrength](data-loading/biostrength.md) - Load isokinetic dynamometry data
 - [IRCAM](data-loading/ircam.md) - Load IRCAM motion capture data
 
@@ -114,7 +113,6 @@ Statistical modeling and machine learning for biomechanical data.
 
 Export analysis results to various formats.
 
-- [OpenSim Export](export/opensim.md) - Write motion files for OpenSim
 - [DataFrames](export/dataframes.md) - Convert to pandas
 - [Reports](export/reports.md) - Generate automated reports
 

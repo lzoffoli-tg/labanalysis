@@ -114,47 +114,37 @@ class Timeseries:
 
             # Axis 0: remove all-NaN rows
             row_mask = ~df.isna().all(axis=1).to_numpy()
-            if row_mask.any():
-                row_indices = np.where(row_mask)[0]
-                start_idx = row_indices[0]
-                stop_idx = row_indices[-1] + 1
-
-                # Direct slicing instead of using .loc
-                out._data = out._data[start_idx:stop_idx, :]
-                out.index = out.index[start_idx:stop_idx]
+            row_indices = np.flatnonzero(row_mask)
+            start_idx = row_indices[0] if row_indices.size else 0
+            stop_idx = row_indices[-1] + 1 if row_indices.size else 0
+            out._data = out._data[start_idx:stop_idx, :]
+            out.index = out.index[start_idx:stop_idx]
 
             # Axis 1: remove all-NaN columns
             col_mask = ~df.isna().all(axis=0).to_numpy()
-            if col_mask.any():
-                col_indices = np.where(col_mask)[0]
-                start_col = col_indices[0]
-                stop_col = col_indices[-1] + 1
-
-                # Direct slicing
-                out._data = out._data[:, start_col:stop_col]
-                out.columns = out.columns[start_col:stop_col]
+            col_indices = np.flatnonzero(col_mask)
+            start_col = col_indices[0] if col_indices.size else 0
+            stop_col = col_indices[-1] + 1 if col_indices.size else 0
+            out._data = out._data[:, start_col:stop_col]
+            out.columns = out.columns[start_col:stop_col]
 
         elif axis == 0:
             # Only axis 0: use isnan directly on _data (avoid DataFrame creation)
             row_mask = ~np.isnan(out._data).all(axis=1)
-            if row_mask.any():
-                row_indices = np.where(row_mask)[0]
-                start_idx = row_indices[0]
-                stop_idx = row_indices[-1] + 1
-
-                out._data = out._data[start_idx:stop_idx, :]
-                out.index = out.index[start_idx:stop_idx]
+            row_indices = np.flatnonzero(row_mask)
+            start_idx = row_indices[0] if row_indices.size else 0
+            stop_idx = row_indices[-1] + 1 if row_indices.size else 0
+            out._data = out._data[start_idx:stop_idx, :]
+            out.index = out.index[start_idx:stop_idx]
 
         elif axis == 1:
             # Only axis 1: use isnan directly on _data (avoid DataFrame creation)
             col_mask = ~np.isnan(out._data).all(axis=0)
-            if col_mask.any():
-                col_indices = np.where(col_mask)[0]
-                start_col = col_indices[0]
-                stop_col = col_indices[-1] + 1
-
-                out._data = out._data[:, start_col:stop_col]
-                out.columns = out.columns[start_col:stop_col]
+            col_indices = np.flatnonzero(col_mask)
+            start_col = col_indices[0] if col_indices.size else 0
+            stop_col = col_indices[-1] + 1 if col_indices.size else 0
+            out._data = out._data[:, start_col:stop_col]
+            out.columns = out.columns[start_col:stop_col]
 
         if not inplace:
             return out
@@ -344,7 +334,12 @@ class Timeseries:
             key = [key]
         if not isinstance(key, list) or not all(isinstance(k, str) for k in key):
             raise TypeError("key must be a string or a list of strings")
-        to_remove = [np.where(k in self.columns)[0][0] for k in key]
+        missing = [k for k in key if k not in self.columns]
+        if missing:
+            raise KeyError(missing[0])
+        to_remove = np.concatenate(
+            [np.flatnonzero(self.columns == k) for k in key]
+        ).astype(int)
         to_keep = ~np.isin(np.arange(self.shape[1]), to_remove)
         out = self.iloc[:, to_keep]
         return Timeseries(
@@ -745,7 +740,9 @@ class Timeseries:
                     and all([i == v for i, v in zip(result.shape, self._data.shape)])
                     and not name.startswith("to_")
                 ):
-                    return self.__class__(**self._get_object_args())
+                    out = self.copy()
+                    out._data = result
+                    return out
 
                 return result
 

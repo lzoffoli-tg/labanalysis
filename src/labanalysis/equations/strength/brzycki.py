@@ -20,7 +20,7 @@ class Brzycki1RM:
         """private method used to validate the reps input"""
         if not isinstance(reps, int):
             raise ValueError("reps must be an int.")
-        if reps < 0 or reps >= 37:
+        if reps < 1 or reps >= 37:
             raise ValueError("reps must be an int within the [1, 36] range.")
 
     def _validate_load(self, load: object):

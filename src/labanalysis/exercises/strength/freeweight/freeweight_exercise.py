@@ -155,6 +155,10 @@ class FreeWeightExercise(DefaultFreeWeightObject):
             c7=c7,
             sc=sc,
             l2=l2,
+            head_anterior=head_anterior,
+            head_posterior=head_posterior,
+            head_left=head_left,
+            head_right=head_right,
             **extra_signals,  # type: ignore
         )
 

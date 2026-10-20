@@ -1,19 +1,16 @@
 """
 io.read.btsbioengineering
 
-read specific BtsBioengineering file formats such as .tdf and .emt
-extensions.
+read specific BtsBioengineering file formats such as .tdf.
 
 Functions
 ---------
 read_tdf
     read the data contained in a tdf file.
 
-read_emt
-    read the data contained in a emt file.
 """
 
-__all__ = ["read_tdf", "read_emt"]
+__all__ = ["read_tdf"]
 
 
 #! IMPORTS
@@ -36,47 +33,6 @@ _BLOCK_KEYS = ["Type", "Format", "Offset", "Size"]
 
 
 #! FUNCTIONS
-
-
-def read_emt(
-    path: str,
-):
-    """
-    Return the readings from a .emt file as dicts of 3D objects.
-
-    Parameters
-    ----------
-    path: str
-        an existing tdf path.
-
-    Returns
-    -------
-    emt: dict[str, pandas.DataFrame]
-        a dict where each key is a specific 3D object contained in the emt file.
-
-    object_type: str
-        the type of data contained within the emt file.
-    """
-
-    # check the validity of the entered path
-    assert_file_extension(path, "emt")
-
-    # read the path
-    with open(path, "r", encoding="utf-8") as buf:
-        lines = [i.replace("\n", "").split("\t") for i in buf.readlines()]
-
-    # get type and unit
-    obj_unit = lines[3][1]
-
-    # get headers, raw data and index
-    headers = [tuple(i.rsplit(".", 1) + [obj_unit]) for i in lines[10][2:]]
-    raw = np.array(lines[11:]).astype(float)
-    index = pd.Index(raw[:, 1], name="Time [s]")
-    names = ["LABEL", "DIMENSION", "UNIT"]
-    cols = pd.MultiIndex.from_tuples(headers, names=names)
-    data = pd.DataFrame(raw[:, 2:], index, cols)
-
-    return data
 
 
 def _get_label(
@@ -1283,14 +1239,11 @@ def read_tdf(path: str | Path):
     path: str | Path
         an existing tdf path.
 
-    strip: bool (default = True)
-        if True, tracked outcomes are automatically resized by removing
-        complete missing outcomes from the ends
-
     Returns
     -------
-    tdf: dict[str, Any]
-        a dict containing the distinct data properly arranged by type.
+    dict[str, Any]
+        Parsed TDF data grouped by category (camera, force platform, generic,
+        EMG, events, volume, and version).
     """
 
     # check the validity of the entered path

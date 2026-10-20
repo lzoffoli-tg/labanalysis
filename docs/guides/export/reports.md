@@ -497,7 +497,6 @@ print("✓ Excel report with plot created")
 ## See Also
 
 - [](dataframes.md) - DataFrame export guide
-- [](opensim-export.md) - OpenSim file export
 - [](../visualization/protocol-reports.md) - Visualization with normative bands
 - [](../test-protocols/jump-tests.md) - Jump test protocols
 
