@@ -9,9 +9,8 @@ labanalysis supports multiple data formats from common biomechanical equipment:
 | Format | Equipment | File Extension | Reader Function |
 |--------|-----------|----------------|-----------------|
 | **[BTS Bioengineering](bts-bioengineering.md)** | BTS motion capture, force platforms | `.tdf` | `from_tdf()` |
-| **[OpenSim](opensim.md)** | OpenSim motion files | `.mot`, `.sto`, `.c3d` | `read_opensim()` |
 | **[Biostrength](biostrength.md)** | Biodex strength testing | Various | `BiostrengthProduct` classes |
-| **[IRCAM](ircam.md)** | IRCAM pressure mats | Custom | `read_ircam()` |
+| **[IRCAM](ircam.md)** | IRCAM pressure mats | `.npz` | `read_npz()` |
 | **[Cosmed](cosmed.md)** | Cosmed metabolic systems | Custom | Metabolic readers |
 
 ## Quick Start
@@ -36,18 +35,6 @@ print(f"Markers loaded: {len(markers)}")
 ```
 
 [→ Complete BTS guide](bts-bioengineering.md)
-
-### Load OpenSim Files
-
-```python
-from labanalysis.io import read_opensim
-
-# Read MOT file
-data = read_opensim("motion.mot")
-print(f"Loaded {data.shape[1]} columns")
-```
-
-[→ Complete OpenSim guide](opensim.md)
 
 ### Load Biostrength Data
 
@@ -76,10 +63,6 @@ Use the appropriate reader for your file format:
 ```python
 # For TDF files (most common)
 record = laban.Record.from_tdf("file.tdf")
-
-# For OpenSim
-from labanalysis.io import read_opensim
-data = read_opensim("file.mot")
 
 # For Biostrength
 from labanalysis.io.read import LegPress
@@ -289,7 +272,6 @@ print(f"Available channels: {list(record.keys())}")
 Detailed guides for each supported format:
 
 - **[BTS Bioengineering (TDF)](bts-bioengineering.md)** - Most commonly used format
-- **[OpenSim (MOT/STO/C3D)](opensim.md)** - Motion analysis and simulation
 - **[Biostrength](biostrength.md)** - Strength testing equipment
 - **[IRCAM](ircam.md)** - Pressure mat data
 - **[Cosmed](cosmed.md)** - Metabolic measurements
@@ -297,7 +279,7 @@ Detailed guides for each supported format:
 ## See Also
 
 - **[Signal Processing Guide](../signal-processing/README.md)** - Process loaded data
-- **[API Reference: I/O Module](../../api/io/README.md)** - Complete I/O API
+- **[API Reference: I/O Module](../../api/io/read.md)** - Data reader API
 - **[Examples](../../examples/basic/load-and-plot.py)** - Loading examples
 
 ---

@@ -478,24 +478,6 @@ print(f"Mean bilateral asymmetry: {np.abs(symmetry_index).mean():.1f}%")
 print(f"Max bilateral asymmetry: {np.abs(symmetry_index).max():.1f}%")
 ```
 
-### Export to OpenSim Format
-
-```python
-# Export marker trajectories for OpenSim
-markers_dict = {
-    'LPSI': body.left_psis,
-    'RPSI': body.right_psis,
-    'LASI': body.left_asis,
-    'RASI': body.right_asis,
-    'LKNE': body.left_knee,
-    'RKNE': body.right_knee,
-    'LANK': body.left_ankle,
-    'RANK': body.right_ankle
-}
-
-laban.write_opensim(markers_dict, "output.mot")
-```
-
 ## See Also
 
 - **[User Guide: WholeBody Model](../../guides/biomechanics/wholebody.md)** - Complete usage guide

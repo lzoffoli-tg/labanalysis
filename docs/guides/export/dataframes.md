@@ -581,7 +581,6 @@ df_reset.to_csv("data.csv", index=False)
 ## See Also
 
 - [pandas DataFrame Documentation](https://pandas.pydata.org/docs/reference/frame.html)
-- [](opensim-export.md) - OpenSim TRC/MOT export
 - [](reports.md) - Report generation
 - [](../biomechanics/whole-body-model.md) - WholeBody properties
 

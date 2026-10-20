@@ -118,16 +118,11 @@ Signal processing functions (30+ functions):
 
 ### I/O Module
 
-Data readers and writers:
+Data readers:
 
 - **[Read Functions](io/read.md)** - Data import
   - `read_tdf()` - BTS Bioengineering TDF files
-  - `read_opensim()` - OpenSim MOT/STO files
-  - `read_ircam()` - IRCAM pressure mat
-  - `BiostrengthProduct` - Biostrength readers
-
-- **[Write Functions](io/write.md)** - Data export
-  - `write_opensim()` - Export to OpenSim format
+  - `read_npz()` - IRCAM pressure mat files
 
 ### Modeling Module
 
@@ -218,7 +213,7 @@ General utilities and constants:
 
 **Functions:**
 - [Signal Processing](signalprocessing.md) - All processing functions
-- [I/O Functions](io/README.md) - All read/write functions
+- [I/O Functions](io/read.md) - Data readers
 - [Equations](equations/README.md) - All predictive equations
 
 ## Using This Reference

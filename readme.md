@@ -25,7 +25,7 @@
 ## Features
 
 ✨ **Comprehensive Data Analysis**
-- Read data from multiple laboratory equipment formats (BTS Bioengineering, Cosmed, OpenSim, IRCAM, Biostrength)
+- Read data from supported laboratory equipment formats (BTS Bioengineering, Cosmed, IRCAM, Biostrength)
 - Process and analyze biomechanical signals with advanced signal processing tools
 - Standardized test protocols for balance, jumping, locomotion, strength, agility, and VO2max
 
@@ -275,13 +275,7 @@ labanalysis/
 │   ├── prone_posture.py      # Plank/prone stability exercises
 │   └── change_of_direction.py # Agility exercise analysis
 ├── io/                       # Data import/export
-│   ├── read/                 # File readers
-│   │   ├── btsbioengineering.py # BTS .tdf/.emt files
-│   │   ├── opensim.py        # OpenSim .mot/.trc/.sto files
-│   │   ├── biostrength.py    # Isokinetic dynamometer data
-│   │   └── ircam.py          # IRCAM motion capture files
-│   └── write/                # File writers
-│       └── opensim.py        # Export to OpenSim formats
+│   └── read/                 # File readers (BTS TDF and IRCAM NPZ)
 ├── modelling/                # Regression and ML models
 │   ├── ols/                  # Ordinary Least Squares
 │   │   ├── regression.py     # OLS and polynomial regression
@@ -570,21 +564,11 @@ Import data from various laboratory equipment formats.
 
 **Supported Formats:**
 - **BTS Bioengineering**: `.tdf` files (force platforms, motion capture) - [Guide](docs/user-guide/data-loading/bts-bioengineering.md)
-- **OpenSim**: `.mot`, `.sto` files - [Guide](docs/user-guide/data-loading/opensim.md)
 - **Cosmed**: Metabolic data - [Guide](docs/user-guide/data-loading/cosmed.md)
 - **IRCAM**: Audio/motion data - [Guide](docs/user-guide/data-loading/ircam.md)
 - **Biostrength**: Strength testing equipment - [Guide](docs/user-guide/data-loading/biostrength.md)
 
 [→ Complete data loading guide](docs/user-guide/data-loading/README.md)
-
-#### `labanalysis.io.write` [→ API Reference](docs/api-reference/io/write.md)
-Export data to standard formats.
-
-**Export Formats:**
-- OpenSim motion files (`.mot`)
-- Custom formats for analysis pipelines
-
-[→ Data export guide](docs/user-guide/data-export/README.md)
 
 ### Modelling
 
@@ -662,13 +646,13 @@ Cardiovascular and metabolic prediction equations.
 - 🎯 [Your First Analysis](docs/getting-started/first-analysis.md) - Complete walkthrough
 
 **User Guides (by task):**
-- 📂 [Data Loading](docs/user-guide/data-loading/README.md) - Load from BTS, OpenSim, Biostrength, IRCAM, Cosmed
+- 📂 [Data Loading](docs/user-guide/data-loading/README.md) - Load from supported laboratory formats
 - 📊 [Signal Processing](docs/user-guide/signal-processing/README.md) - Filtering, peaks, derivatives, frequency analysis
 - 🧍 [Biomechanics](docs/user-guide/biomechanics/README.md) - WholeBody model (104+ properties, 38 angular measures), force platforms, joint angles
 - 🧪 [Test Protocols](docs/user-guide/test-protocols/README.md) - Jump, gait, balance, strength, agility, VO2max
 - 🤖 [Modeling](docs/user-guide/modeling/README.md) - Regression, PyTorch, ONNX deployment
 - 📈 [Visualization](docs/user-guide/visualization/README.md) - Plotly-based interactive plots
-- 💾 [Data Export](docs/user-guide/data-export/README.md) - Export to Excel, OpenSim, reports
+- 💾 [Data Export](docs/user-guide/data-export/README.md) - Export analysis results
 
 **Tutorials (complete workflows):**
 1. [Jump Analysis](docs/tutorials/01-jump-analysis.md) - Complete CMJ analysis from TDF to report
@@ -687,7 +671,7 @@ Cardiovascular and metabolic prediction equations.
 - [Records Module](docs/api-reference/records/README.md) - Timeseries, Signal, Record, WholeBody
 - [Protocols Module](docs/api-reference/protocols/README.md) - Participant, TestProtocol, TestResults
 - [Signal Processing](docs/api-reference/signalprocessing.md) - 30+ processing functions
-- [I/O Module](docs/api-reference/io/README.md) - Data readers and writers
+- [I/O Module](docs/api/README.md#io-module) - Data readers
 - [Modeling Module](docs/api-reference/modelling/README.md) - OLS and PyTorch models
 
 **Advanced Topics:**

@@ -541,7 +541,6 @@ with open("trial001_metadata.json", 'w') as f:
 
 ## See Also
 
-- **[OpenSim Files](opensim.md)** - Load C3D/MOT/STO files
 - **[Signal Processing](../signal-processing/README.md)** - Process loaded signals
 - **[WholeBody Model](../biomechanics/whole-body-model.md)** - Full body kinematics
 - **[API Reference: I/O](../../api/io/read.md)** - Complete loading functions

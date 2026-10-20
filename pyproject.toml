@@ -26,7 +26,7 @@ dependencies = [
     "onnxmodels @ git+https://github.com/lzoffoli-tg/onnxmodels.git",
     "biostrengthdataconverter @ git+ssh://git@github.com/lzoffoli-tg/biostrengthdataconverter.git"
 ]
-readme = "README.md"
+readme = "readme.md"
 
 [project.urls]
 "Homepage" = "https://github.com/lzoffoli-tg/labanalysis"

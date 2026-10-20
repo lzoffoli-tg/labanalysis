@@ -153,7 +153,7 @@ class Converter:
             raise ValueError("Invalid execute type")
 
         supported_templates = ["custom_lab"]
-        if not isinstance(template, str) and template not in supported_templates:
+        if not isinstance(template, str) or template not in supported_templates:
             raise ValueError(
                 f"Invalid template. Supported templates are: {supported_templates}"
             )

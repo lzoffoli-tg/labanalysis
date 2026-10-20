@@ -540,7 +540,7 @@ class Participant:
         """
         Returns a string representation of the Participant object.
         """
-        return self.to_dataframe.__str__()
+        return str(self.to_dataframe())
 
     @classmethod
     def from_cosmed_file(cls, filename: str):
