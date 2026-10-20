@@ -1,7 +1,7 @@
 """
 io.read.btsbioengineering
 
-read specific BtsBioengineering file formats such as .tdf.
+Read BTS Bioengineering TDF files.
 
 Functions
 ---------

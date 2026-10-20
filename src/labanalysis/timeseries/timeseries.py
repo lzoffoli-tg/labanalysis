@@ -337,9 +337,12 @@ class Timeseries:
         missing = [k for k in key if k not in self.columns]
         if missing:
             raise KeyError(missing[0])
-        to_remove = np.concatenate(
-            [np.flatnonzero(self.columns == k) for k in key]
-        ).astype(int)
+        matches = [np.flatnonzero(self.columns == k) for k in key]
+        to_remove = (
+            np.concatenate(matches).astype(int)
+            if matches
+            else np.array([], dtype=int)
+        )
         to_keep = ~np.isin(np.arange(self.shape[1]), to_remove)
         out = self.iloc[:, to_keep]
         return Timeseries(

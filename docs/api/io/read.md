@@ -19,4 +19,4 @@ Read data from a BTS Bioengineering TDF file.
 Read an IRCAM pressure-mat image stream from an NPZ file.
 
 - `filename`: Path to the `.npz` file.
-- Returns a dictionary mapping timestamps to image arrays.
+- Returns a dictionary containing the image arrays stored in the file.

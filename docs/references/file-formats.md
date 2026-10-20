@@ -115,32 +115,6 @@ Frame#	Time	marker1	marker2	...
 ...
 ```
 
-**Reading**:
-
-```python
-from labanalysis.io import read_opensim
-
-# Read TRC file
-markers = read_opensim("trial.trc", file_type="trc")
-
-# Access specific marker
-ankle = markers["left_ankle"]
-```
-
-**Writing**:
-
-```python
-from labanalysis.io import write_opensim
-
-# Export to TRC
-write_opensim(
-    "output.trc",
-    markers_dict,
-    file_type="trc",
-    data_rate=100
-)
-```
-
 ### .mot (Motion)
 
 **ASCII text format** for generalized coordinates, forces, or generic time-series data.
@@ -159,18 +133,6 @@ time	hip_flexion_r	knee_angle_r	ankle_angle_r	...
 0.000	20.5	5.2	-10.3	...
 0.010	20.6	5.3	-10.2	...
 ...
-```
-
-**Reading**:
-
-```python
-from labanalysis.io import read_opensim
-
-# Read MOT file
-data = read_opensim("inverse_kinematics.mot", file_type="mot")
-
-# Access columns
-hip_angle = data["hip_flexion_r"]
 ```
 
 ### .sto (Storage)
@@ -448,30 +410,6 @@ with open('metrics.json', 'w') as f:
 
 ## Format Conversion
 
-### TDF to TRC
-
-```python
-import labanalysis as laban
-from labanalysis.io import write_opensim
-
-# Read BTS TDF
-body = laban.WholeBody.from_tdf_file("trial.tdf")
-
-# Extract all markers
-markers = {
-    label: body.get_point(label) 
-    for label in body.labels
-}
-
-# Write to OpenSim TRC
-write_opensim(
-    "trial.trc",
-    markers,
-    file_type="trc",
-    data_rate=100
-)
-```
-
 ### Force Platform to CSV
 
 ```python
@@ -584,7 +522,6 @@ marker_m = marker.to_unit('m')
 
 - [Data Loading Guide](../user-guide/data-loading/) - Practical loading examples
 - [I/O API Reference](../api/io/) - Function documentation
-- [OpenSim Export](../user-guide/data-export/opensim-export.md) - Export workflows
 
 ---
 
